@@ -1,0 +1,23 @@
+{
+  "skill_name": "tbd-branch-creator",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "I need to start working on the authentication module. Basically, I want to add a login page using JWT.",
+      "expected_output": "Stash changes if any, sync main branch, delete old branches, create and checkout a branch like 'feat/add-jwt-auth'.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "There's a bug in production where the header alignment is off on mobile devices. Let's fix that.",
+      "expected_output": "Stash changes if any, sync main branch, delete old branches, create and checkout a branch like 'fix/header-alignment-mobile'.",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "Time to update some dependencies. Let's upgrade React and Vite to their latest versions.",
+      "expected_output": "Stash changes if any, sync main branch, delete old branches, create and checkout a branch like 'chore/update-deps'.",
+      "files": []
+    }
+  ]
+}

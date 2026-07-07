@@ -1,0 +1,5 @@
+packages:
+  - 'cognilot-api'
+  - 'cognilot-sdk'
+  - 'cognilot-extension'
+  - 'cognilot-web'

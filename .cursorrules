@@ -1,0 +1,27 @@
+# Cognilot AI Engineering Rules
+
+## 1. Architecture & Tech Stack
+- **Monorepo/Structure**: Monorepo using `pnpm workspaces`. Packages:
+  - `@cognilot/api`: Hono + Drizzle ORM + Supabase PostgreSQL (Vercel Serverless).
+  - `@cognilot/web`: Next.js 15 App Router & Vite Hybrid. Next.js App Router code is in `src/app/` (SSR marketing & CSR dashboard routes). Vite React app views are in `src/views/`.
+  - `@cognilot/sdk`: TypeScript ESM core suggestion and detection engines.
+  - `@cognilot/extension`: Chrome Extension (Vite + CRXJS).
+- **Frontend**: Next.js 15 (App Router) + React 19. State management using standard React hooks and context.
+- **Backend**: Hono serverless backend, Drizzle ORM, PostgreSQL database hosted on Supabase. JWT verification signed by Supabase.
+
+## 2. Coding Standards
+- **TypeScript**: Strict mode enabled. Avoid the `any` type whenever possible. All core business types must have explicit interfaces or types.
+- **ESLint & Prettier**: Configured monorepo-wide with ESLint 9 (due to Next.js 15 peer dependency constraints). Strict rules (like `no-explicit-any`, `only-export-components`, and `set-state-in-effect`) are downgraded to `warn` to allow clean builds and compatibility with Next.js/Vite hybrid routing.
+- **Imports**: Avoid absolute paths and file URLs in source code. Use relative imports or `@/` path mapping configured in `tsconfig.json` for frontend projects.
+
+## 3. UI/UX & Design System
+- **Aesthetic**: All web views and extension popups/sidebars follow the Terminal/IDE design system:
+  - Base background color: `#050505` (dark mode default).
+  - Fonts: Monospaced typography (`font-mono`).
+  - Elements: Code editor simulator elements (macOS-style points on headers, `//` metadata prefixes, border-bottom inputs, `.sh` style buttons).
+- **Styling**: Vanilla CSS and TailwindCSS v4 with modern CSS configuration. Avoid traditional dashboard UI layouts.
+
+## 4. Testing & Workflow
+- **Testing**: Using `Vitest` across all packages. Mocking external services and the Chrome Extension API (where applicable) to keep tests fast and deterministic.
+- **Pre-commit Hooks**: Husky and lint-staged are configured at the root to run Prettier formatting and lint checks on staged files before commit.
+- **Commit Conventions**: Conventional commits format: `type(scope): description` (e.g., `feat(web): add alias editor component`).

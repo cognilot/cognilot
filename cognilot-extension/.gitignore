@@ -1,0 +1,23 @@
+# Dependencies
+node_modules/
+
+# Testing
+coverage/
+
+# Production
+build/
+dist/
+
+# System Files
+.DS_Store
+Thumbs.db
+*.log
+
+# IDE
+.vscode/
+.idea/
+
+# Environment
+.env
+.env.local
+secrets.js

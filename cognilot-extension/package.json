@@ -1,0 +1,32 @@
+{
+  "name": "@cognilot/extension",
+  "version": "1.0.0",
+  "description": "Cognilot browser extension — AI-powered form autofill",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "lint": "eslint src",
+    "lint:fix": "eslint src --fix",
+    "format": "prettier --write src",
+    "test": "vitest run --config vitest.config.ts"
+  },
+  "dependencies": {
+    "@cognilot/sdk": "workspace:*"
+  },
+  "devDependencies": {
+    "@crxjs/vite-plugin": "^2.4.0",
+    "@eslint/js": "^9.20.0",
+    "chrome-types": "^0.1.425",
+    "eslint": "^9.20.0",
+    "eslint-config-prettier": "^10.0.1",
+    "globals": "^17.5.0",
+    "jsdom": "^29.0.1",
+    "prettier": "^3.8.2",
+    "typescript": "^6.0.2",
+    "typescript-eslint": "^8.58.2",
+    "vite": "^6.4.2",
+    "vitest": "^4.1.2"
+  }
+}

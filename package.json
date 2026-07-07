@@ -1,0 +1,33 @@
+{
+  "name": "cognilot",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Cognilot Monorepo — AI-powered form autofill ecosystem",
+  "scripts": {
+    "dev": "concurrently -c \"blue,green,magenta,yellow\" \"pnpm dev:sdk\" \"pnpm dev:api\" \"pnpm dev:web\" \"pnpm dev:extension\"",
+    "build": "pnpm -r build",
+    "test": "pnpm -r test",
+    "lint": "pnpm -r lint",
+    "dev:web": "pnpm --filter @cognilot/web dev",
+    "dev:api": "pnpm --filter @cognilot/api dev",
+    "dev:sdk": "pnpm --filter @cognilot/sdk build --watch",
+    "dev:extension": "pnpm --filter @cognilot/extension dev",
+    "typecheck": "pnpm -r exec tsc --noEmit",
+    "clean": "pnpm -r exec rm -rf dist node_modules",
+    "format": "prettier --write .",
+    "prepare": "husky"
+  },
+  "devDependencies": {
+    "concurrently": "^10.0.3",
+    "eslint-config-prettier": "^10.0.1",
+    "husky": "^9.1.7",
+    "lint-staged": "^15.4.3",
+    "prettier": "^3.5.1",
+    "typescript": "~5.9.3"
+  },
+  "engines": {
+    "node": ">=20.0.0",
+    "pnpm": ">=9.0.0"
+  },
+  "packageManager": "pnpm@9.15.9"
+}

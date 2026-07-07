@@ -1,0 +1,841 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Cognilot Sidebar</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="sidebar.css" />
+  </head>
+  <body>
+    <!-- AUTH GUARD OVERLAY: Full screen blocker for logged out users -->
+    <div id="auth-guard-overlay" class="auth-guard-overlay" style="display: flex">
+      <div class="auth-guard-content">
+        <div class="auth-guard-logo">
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="48"
+            height="48"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="url(#auth-gradient)"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <defs>
+              <linearGradient id="auth-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" style="stop-color: var(--primary)" />
+                <stop offset="100%" style="stop-color: var(--secondary)" />
+              </linearGradient>
+            </defs>
+            <path d="M12 2L2 7l10 5 10-5-10-5z"></path>
+            <path d="M2 17l10 5 10-5"></path>
+            <path d="M2 12l10 5 10-5"></path>
+          </svg>
+        </div>
+        <h1>Welcome to Cognilot</h1>
+        <p>Inicia sesión para automatizar tus formularios con Inteligencia Artificial.</p>
+        <button id="auth-guard-login-btn" class="btn-primary-block auth-cta">
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="18"
+            height="18"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"></path>
+            <polyline points="10 17 15 12 10 7"></polyline>
+            <line x1="15" y1="12" x2="3" y2="12"></line>
+          </svg>
+          <span>Iniciar Sesión</span>
+        </button>
+        <div class="auth-guard-footer">
+          <p>Se abrirá una nueva pestaña para autenticarte de forma segura.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="app-layout" style="display: none">
+      <!-- HEADER: Title + Profile Controls -->
+      <header class="app-header">
+        <div class="header-tools">
+          <!-- Profile Section (Integrated) -->
+          <div id="header-auth-section" class="auth-controls">
+            <!-- Logged Out State -->
+            <button id="header-login-btn" class="icon-btn" title="Sign in with Google">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"></path>
+                <polyline points="10 17 15 12 10 7"></polyline>
+                <line x1="15" y1="12" x2="3" y2="12"></line>
+              </svg>
+            </button>
+
+            <!-- Logged In State (Hidden by default) -->
+            <div id="header-user-info" class="user-info-container" style="display: none">
+              <div
+                id="header-user-badge"
+                class="user-badge"
+                title="Options"
+                style="display: flex; align-items: center; gap: 4px"
+              >
+                <span id="header-user-initial" class="user-avatar">U</span>
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="12"
+                  height="12"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2.5"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  style="color: var(--text-secondary); opacity: 0.8"
+                >
+                  <polyline points="6 9 12 15 18 9"></polyline>
+                </svg>
+              </div>
+              <div class="user-details">
+                <span id="dropdown-user-email" class="user-email-text">user@example.com</span>
+                <a href="#" id="manage-user-link" class="user-plan-badge" title="Manage Plan"
+                  >Plan: <span id="user-plan-type">Free</span></a
+                >
+              </div>
+            </div>
+
+            <!-- User Dropdown Menu (Hidden) -->
+            <div id="user-dropdown" class="dropdown-menu" style="display: none">
+              <button class="dropdown-item nav-item" data-tab="profile" title="My Local Profile">
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path>
+                  <circle cx="12" cy="7" r="4"></circle>
+                </svg>
+                <span>Perfil</span>
+              </button>
+              <button class="dropdown-item nav-item" data-tab="history" title="History">
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path>
+                  <path d="M3 3v5h5"></path>
+                  <path d="M12 7v5l4 2"></path>
+                </svg>
+                <span>Historial</span>
+              </button>
+
+              <!-- Theme Cycle Item -->
+              <button id="theme-toggle-btn" class="dropdown-item" title="Cycle theme">
+                <div
+                  class="theme-icon-container"
+                  style="display: flex; align-items: center; width: 14px"
+                >
+                  <!-- Icons slightly smaller for dropdown -->
+                  <svg
+                    class="theme-icon-moon"
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="14"
+                    height="14"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  >
+                    <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+                  </svg>
+                  <svg
+                    class="theme-icon-sun"
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="14"
+                    height="14"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  >
+                    <circle cx="12" cy="12" r="4"></circle>
+                    <path
+                      d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"
+                    ></path>
+                  </svg>
+                  <svg
+                    class="theme-icon-system"
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="14"
+                    height="14"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  >
+                    <path d="M12 2v20"></path>
+                    <path d="M12 2a10 10 0 0 0 0 20"></path>
+                    <circle cx="12" cy="12" r="10"></circle>
+                  </svg>
+                </div>
+                <span id="theme-toggle-text">Tema: Sistema</span>
+              </button>
+
+              <button id="dropdown-logout-btn" class="dropdown-item">
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                  <polyline points="16 17 21 12 16 7"></polyline>
+                  <line x1="21" y1="12" x2="9" y2="12"></line>
+                </svg>
+                <span>Cerrar Sesión</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Main Header Nav -->
+          <div id="nav-header-main" style="display: flex; gap: 4px; margin-right: 4px">
+            <!-- Expand Button -->
+            <button id="expand-btn" class="icon-btn" title="Open Web App">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+                <polyline points="15 3 21 3 21 9"></polyline>
+                <line x1="10" y1="14" x2="21" y2="3"></line>
+              </svg>
+            </button>
+          </div>
+        </div>
+      </header>
+
+      <div class="app-body">
+        <!-- MAIN CONTENT AREA -->
+        <main class="content-area">
+          <div class="content-panel content-panel--active" id="home-panel">
+            <!-- 1. Filters at the top (As requested) -->
+            <div
+              id="chat-context-filters"
+              style="display: flex; gap: 4px; margin-bottom: 10px; flex-wrap: wrap; flex-shrink: 0"
+            >
+              <!-- Buttons injected by sidebar.ts -->
+            </div>
+
+            <!-- Greeting Message -->
+            <div class="agent-greeting" style="display: none">
+              Hola, soy tu agente <strong>Cognilot</strong>. Puedes inspeccionar y seleccionar tu
+              formulario para automatizar.
+            </div>
+
+            <!-- AI Section -->
+            <div
+              id="home-chat-section"
+              style="display: flex; flex-direction: column; flex: 1; overflow: hidden"
+            >
+              <!-- Chat Messages (scrollable middle area) -->
+              <div
+                id="chat-messages"
+                style="
+                  flex: 1;
+                  overflow-y: auto;
+                  padding-right: 5px;
+                  display: flex;
+                  flex-direction: column;
+                  gap: 8px;
+                  margin-bottom: 10px;
+                  font-size: 13px;
+                "
+              >
+                <!-- User & assistant messages flow here -->
+              </div>
+
+              <!-- Debug Console -->
+              <div
+                id="debug-log"
+                style="
+                  font-size: 9px;
+                  color: #999;
+                  font-family: monospace;
+                  padding: 4px;
+                  display: none;
+                "
+              ></div>
+
+              <!-- Status Bar -->
+              <div id="status-card" style="flex-shrink: 0; padding: 10px 2px; margin-top: auto">
+                <div
+                  class="agent-context-header"
+                  style="display: flex; justify-content: space-between; align-items: center"
+                >
+                  <div style="display: flex; align-items: center; gap: 6px">
+                    <span class="agent-dot" id="agent-status-dot"></span>
+                    <span
+                      class="agent-status-label"
+                      id="status-text"
+                      style="font-size: 11px; font-weight: 600"
+                      >Detecting site...</span
+                    >
+                  </div>
+
+                  <div style="display: flex; gap: 4px; align-items: center">
+                    <button
+                      id="reset-engine-btn"
+                      class="inspect-btn"
+                      title="Reset detection"
+                      style="padding: 4px"
+                    >
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        width="12"
+                        height="12"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                      >
+                        <path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"></path>
+                        <path d="M21 3v5h-5"></path>
+                      </svg>
+                    </button>
+                    <button
+                      id="manual"
+                      class="inspect-btn"
+                      title="Inspect/Change Form"
+                      style="padding: 4px 8px"
+                    >
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        width="12"
+                        height="12"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                      >
+                        <circle cx="11" cy="11" r="8"></circle>
+                        <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                      </svg>
+                      <span style="font-size: 10px">Inspect</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Chat Footer: Input Box -->
+              <div class="chat-footer" style="flex-shrink: 0">
+                <div
+                  class="chat-input-container"
+                  style="
+                    background: var(--bg-sidebar);
+                    border: 1px solid var(--border-color);
+                    border-radius: 12px;
+                    padding: 10px 12px;
+                    display: flex;
+                    flex-direction: column;
+                    gap: 8px;
+                  "
+                >
+                  <!-- Context Preview (the "message" the user will send) -->
+                  <div id="chat-context-preview" style="display: none">
+                    <div
+                      style="
+                        display: flex;
+                        align-items: start;
+                        justify-content: space-between;
+                        margin-bottom: 12px;
+                      "
+                    >
+                      <div
+                        style="
+                          display: flex;
+                          flex-direction: column;
+                          gap: 6px;
+                          flex: 1;
+                          min-width: 0;
+                        "
+                      >
+                        <p
+                          id="info-text"
+                          class="agent-context-detail"
+                          style="
+                            font-size: 10px;
+                            font-weight: 700;
+                            color: var(--accent-color);
+                            text-transform: uppercase;
+                            letter-spacing: 0.5px;
+                            margin: 0;
+                          "
+                        >
+                          Identifying page title...
+                        </p>
+                        <!-- Internal Status Filters (Pills) -->
+                        <div
+                          id="chat-status-filters"
+                          style="display: flex; gap: 4px; margin-top: 2px"
+                        >
+                          <!-- Injected by sidebar.ts -->
+                        </div>
+                      </div>
+                      <button
+                        id="chat-context-collapse-btn"
+                        class="icon-btn"
+                        title="Collapse/Expand"
+                        style="
+                          padding: 2px;
+                          opacity: 0.6;
+                          transition: transform 0.2s ease;
+                          background: none;
+                          border: none;
+                          cursor: pointer;
+                          color: var(--accent-color);
+                          display: flex;
+                          align-items: center;
+                          justify-content: center;
+                        "
+                      >
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          width="14"
+                          height="14"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="2.5"
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                        >
+                          <polyline points="6 15 12 9 18 15"></polyline>
+                        </svg>
+                      </button>
+                    </div>
+
+                    <div
+                      id="chat-context-text"
+                      style="
+                        font-size: 11px;
+                        color: var(--text-primary);
+                        white-space: normal;
+                        overflow-y: auto;
+                        overflow-x: hidden;
+                        transition: all 0.3s ease;
+                        max-height: 400px;
+                      "
+                    >
+                      No context
+                    </div>
+                  </div>
+
+                  <!-- Placeholder when no context loaded -->
+                  <div
+                    id="chat-input-placeholder"
+                    style="
+                      color: var(--text-secondary);
+                      font-size: 12px;
+                      opacity: 0.5;
+                      font-style: italic;
+                      padding: 2px 0;
+                      display: block;
+                    "
+                  >
+                    Detecting form fields...
+                  </div>
+
+                  <!-- Bottom Row: Model + Send -->
+                  <div
+                    style="
+                      display: flex;
+                      align-items: center;
+                      justify-content: space-between;
+                      border-top: 1px solid rgba(0, 0, 0, 0.07);
+                      padding-top: 8px;
+                    "
+                  >
+                    <!-- Left: Model Selector -->
+                    <div
+                      style="
+                        display: flex;
+                        align-items: center;
+                        gap: 8px;
+                        color: var(--text-secondary);
+                      "
+                    >
+                      <button
+                        class="icon-btn nav-item"
+                        data-tab="settings"
+                        title="Settings"
+                        style="padding: 4px; opacity: 0.7"
+                      >
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          width="16"
+                          height="16"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="2"
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                        >
+                          <path
+                            d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"
+                          ></path>
+                          <circle cx="12" cy="12" r="3"></circle>
+                        </svg>
+                      </button>
+                      <div class="model-selector-container">
+                        <div class="model-selector-trigger" id="model-selector-trigger">
+                          <svg
+                            width="10"
+                            height="10"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="2.5"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            style="opacity: 0.8"
+                          >
+                            <polyline points="18 15 12 9 6 15"></polyline>
+                          </svg>
+                          <span id="current-model-display">Llama 3.1 (Fast)</span>
+                        </div>
+
+                        <div class="model-dropdown" id="model-dropdown-list">
+                          <div
+                            class="model-option model-option--active"
+                            data-value="llama-3.1-8b-instant"
+                            data-label="Llama 3.1 (Fast)"
+                          >
+                            Llama 3.1 8B (Fast)
+                          </div>
+                          <div
+                            class="model-option"
+                            data-value="llama-3.3-70b-versatile"
+                            data-label="Llama 3.3 (Smart)"
+                          >
+                            Llama 3.3 70B (Smart)
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    <!-- Right: Send Button -->
+                    <div id="chat-input-wrapper">
+                      <button
+                        id="chat-toggle-btn"
+                        title="Resolver formulario"
+                        style="
+                          background: var(--accent-color, #0e7490);
+                          border: none;
+                          border-radius: 50%;
+                          width: 28px;
+                          height: 28px;
+                          display: none;
+                          align-items: center;
+                          justify-content: center;
+                          cursor: pointer;
+                          color: white;
+                          transition: all 0.2s ease;
+                          padding: 0;
+                          flex-shrink: 0;
+                        "
+                      >
+                        <svg
+                          width="14"
+                          height="14"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="2.5"
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                          style="margin-left: 2px"
+                        >
+                          <line x1="5" y1="12" x2="19" y2="12"></line>
+                          <polyline points="12 5 19 12 12 19"></polyline>
+                        </svg>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- LOCAL PROFILE TAB -->
+          <div class="content-panel" id="profile-panel">
+            <div
+              class="panel-header"
+              style="
+                flex-shrink: 0;
+                padding-bottom: 5px;
+                margin-bottom: 5px;
+                display: flex;
+                align-items: center;
+                gap: 8px;
+              "
+            >
+              <button class="icon-btn back-btn" title="Back to Home" style="margin-left: -6px">
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="20"
+                  height="20"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2.5"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path d="m15 18-6-6 6-6"></path>
+                </svg>
+              </button>
+              <h2 style="font-size: 16px; margin: 0">Local Profile</h2>
+            </div>
+
+            <div
+              style="
+                padding: 10px 0;
+                font-size: 12px;
+                color: var(--text-secondary);
+                line-height: 1.4;
+              "
+            >
+              <p>
+                Sensitive data is stored <strong>locally</strong>. Cognilot learns your data as you
+                fill forms to help you next time.
+              </p>
+            </div>
+
+            <div id="profile-data-list" style="flex: 1; overflow-y: auto; padding-right: 5px">
+              <!-- Profile items injected here -->
+              <div
+                class="empty-state"
+                style="text-align: center; padding: 40px 20px; color: var(--text-secondary)"
+              >
+                <p>
+                  No data learned yet. Start filling forms and Cognilot will remember your info!
+                </p>
+              </div>
+            </div>
+
+            <div
+              class="panel-footer"
+              style="
+                padding-top: 15px;
+                border-top: 1px solid var(--border-color);
+                margin-top: 10px;
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+              "
+            >
+              <span id="profile-stats" style="font-size: 11px; color: var(--text-secondary)"
+                >0 items saved</span
+              >
+              <button
+                id="clear-profile-btn"
+                class="btn-text-only"
+                style="color: var(--danger-color); font-size: 11px"
+              >
+                Clear All Data
+              </button>
+            </div>
+          </div>
+
+          <!-- HISTORY TAB -->
+          <div class="content-panel" id="history-panel">
+            <div
+              class="panel-header"
+              style="
+                flex-shrink: 0;
+                padding-bottom: 5px;
+                margin-bottom: 5px;
+                display: flex;
+                align-items: center;
+                gap: 8px;
+              "
+            >
+              <button class="icon-btn back-btn" title="Back to Home" style="margin-left: -6px">
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="20"
+                  height="20"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2.5"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path d="m15 18-6-6 6-6"></path>
+                </svg>
+              </button>
+              <h2 style="font-size: 16px; margin: 0">Solve History</h2>
+            </div>
+
+            <div
+              id="full-history-list"
+              class="history-accordion"
+              style="flex: 1; overflow-y: auto; padding-right: 5px"
+            >
+              <!-- All previous form solve sessions injected here -->
+              <div
+                class="empty-history"
+                style="
+                  text-align: center;
+                  color: var(--text-secondary);
+                  font-size: 13px;
+                  margin-top: 40px;
+                "
+              >
+                <p>No activity yet.</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- CONSOLIDATED SETTINGS TAB -->
+          <div class="content-panel" id="settings-panel">
+            <div class="panel-header" style="display: flex; align-items: center; gap: 8px">
+              <button class="icon-btn back-btn" title="Back to Home" style="margin-left: -6px">
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="20"
+                  height="20"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2.5"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path d="m15 18-6-6 6-6"></path>
+                </svg>
+              </button>
+              <h2 style="margin: 0">Settings</h2>
+            </div>
+
+            <div class="panel-content accordion">
+              <!-- Accordion Item: Copilot AI -->
+              <div class="accordion-item" id="acc-copilot">
+                <div class="accordion-header">
+                  <span class="acc-title">Copilot AI</span>
+                  <span class="acc-arrow"></span>
+                </div>
+                <div class="accordion-content">
+                  <div
+                    id="copilot-sub-settings"
+                    style="display: flex; flex-direction: column; gap: 12px; padding: 12px 0"
+                  >
+                    <div class="settings-card">
+                      <div class="settings-row">
+                        <div class="settings-info">
+                          <span class="settings-label">Auto-Suggestions</span>
+                          <span class="settings-desc">Enable Ghost Text hints while typing</span>
+                        </div>
+                        <label class="toggle">
+                          <input type="checkbox" id="copilot-enabled" checked />
+                          <span class="toggle__slider"></span>
+                        </label>
+                      </div>
+                    </div>
+
+                    <!-- Block: Learning -->
+                    <div class="settings-card">
+                      <div class="settings-row">
+                        <div class="settings-info">
+                          <span class="settings-label">Learn Custom Fields</span>
+                          <span class="settings-desc">Save unknown fields to profile</span>
+                        </div>
+                        <label class="toggle">
+                          <input type="checkbox" id="copilot-learn-fields" checked />
+                          <span class="toggle__slider"></span>
+                        </label>
+                      </div>
+                    </div>
+
+                    <!-- Block: Performance -->
+                    <div class="settings-card">
+                      <div class="settings-row">
+                        <div class="settings-info">
+                          <span class="settings-label">Performance</span>
+                          <span class="settings-desc">Responses are cached for speed</span>
+                        </div>
+                        <button
+                          id="copilot-clear-cache"
+                          class="btn-text-only"
+                          style="color: var(--danger-color)"
+                        >
+                          Clear Cache
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </main>
+      </div>
+    </div>
+
+    <script type="module" src="sidebar.ts"></script>
+  </body>
+</html>

@@ -1,0 +1,58 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build outputs
+dist/
+.next/
+out/
+build/
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Editor directories
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# Python legacy artifacts (archived)
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+*.egg
+venv/
+.venv/
+
+# Test coverage
+coverage/
+.nyc_output/
+
+# Typescript
+*.tsbuildinfo
+
+# Misc
+bash.exe.stackdump
+*.stackdump
+tmp_script.*
+
+# Additional ignores
+cognilot-api.bak/
+*.tsbuildinfo
+.next/
+dist/

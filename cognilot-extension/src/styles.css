@@ -1,0 +1,134 @@
+/* ===================================
+   STYLES.CSS - Cognilot Extension
+   Organized with BEM methodology
+   =================================== */
+
+/* CSS Variables - Enhanced */
+:root {
+  /* Colors */
+  --Cognilot-main-primary: #06b6d4;
+  --Cognilot-main-secondary: #8b5cf6;
+  --Cognilot-main-gradient: linear-gradient(
+    to right,
+    var(--Cognilot-main-primary),
+    var(--Cognilot-main-secondary)
+  );
+  --Cognilot-primary: #4caf50;
+  --Cognilot-primary-hover: #45a049;
+  --Cognilot-processing: #ff9800;
+  --Cognilot-completed: #2196f3;
+  --Cognilot-error: #f44336;
+  --Cognilot-highlight: limegreen;
+
+  /* Layout */
+  --Cognilot-z-index: 999999;
+  --Cognilot-z-floating: 999998;
+  --Cognilot-z-overlay: 999997;
+
+  /* Spacing */
+  --Cognilot-spacing-xs: 4px;
+  --Cognilot-spacing-sm: 8px;
+  --Cognilot-spacing-md: 16px;
+
+  /* Effects */
+  --Cognilot-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+  --Cognilot-shadow-hover: 0 4px 12px rgba(0, 0, 0, 0.4);
+  --Cognilot-transition: all 0.3s ease;
+}
+
+/* Inspector highlight uses main palette */
+*[data-aiden-highlight] {
+  outline: 2px solid var(--Cognilot-main-secondary) !important;
+  box-shadow: 0 0 0 1px var(--Cognilot-main-primary) !important;
+}
+
+/* Inspector Highlight */
+.aiden-highlight {
+  transition: all 0.2s ease !important;
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+  .aiden-highlight {
+    transition: none !important;
+    animation: none !important;
+  }
+}
+
+/* Active cursor styling for Cognilot field states */
+.Cognilot-suggested:focus,
+.Cognilot-detected-field:focus {
+  caret-color: var(--Cognilot-main-primary) !important;
+}
+
+/* Identified fields visualization inside Inspector scope */
+.Cognilot-detected-field {
+  box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.45) !important;
+  outline: 1px solid #10b981 !important;
+  background-color: rgba(16, 185, 129, 0.712) !important; /* Restored to user's preferred opacity */
+  transition: all 0.2s ease;
+}
+
+.Cognilot-detected-field:hover {
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.6) !important;
+}
+
+.Cognilot-detected-label {
+  color: #10b981 !important;
+  transition: all 0.2s ease;
+}
+
+/* Hide native placeholder only while autocomplete ghost text is active */
+.Cognilot-ghost-active::placeholder {
+  color: transparent !important;
+  opacity: 0 !important;
+}
+
+/* Real ghost text overlay rendered inside field bounds */
+.Cognilot-ghost-overlay {
+  position: absolute;
+  z-index: 2147483646;
+  pointer-events: none;
+  overflow: hidden;
+  background: var(--Cognilot-main-gradient);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+  text-rendering: optimizeLegibility;
+  opacity: 0.86;
+}
+
+/* Terminal-style Block Cursor */
+.Cognilot-terminal-cursor {
+  position: fixed;
+  pointer-events: none;
+  z-index: 2147483647;
+  background-color: var(--Cognilot-main-primary);
+  width: 8px;
+  height: 1em;
+  opacity: 0.9;
+  display: none;
+  animation: Cognilot-blink 1.2s step-end infinite;
+  box-shadow:
+    0 0 10px var(--Cognilot-main-primary),
+    0 0 2px var(--Cognilot-main-primary);
+  border-radius: 1px;
+}
+
+.Cognilot-terminal-cursor--secondary {
+  background-color: var(--Cognilot-main-secondary);
+  box-shadow:
+    0 0 10px var(--Cognilot-main-secondary),
+    0 0 2px var(--Cognilot-main-secondary);
+}
+
+@keyframes Cognilot-blink {
+  from,
+  to {
+    opacity: 0.7;
+  }
+  50% {
+    opacity: 0;
+  }
+}

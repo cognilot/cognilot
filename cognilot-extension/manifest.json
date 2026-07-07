@@ -1,0 +1,87 @@
+{
+  "manifest_version": 3,
+  "name": "Cognilot AI",
+  "version": "1.0.0",
+  "description": "Automatically solve form questions using AI - supports Coursera, Google Forms, Microsoft Forms",
+
+  "permissions": [
+    "activeTab",
+    "tabs",
+    "scripting",
+    "contextMenus",
+    "storage",
+    "unlimitedStorage",
+    "identity",
+    "sidePanel",
+    "clipboardWrite"
+  ],
+
+  "host_permissions": [
+    "https://*.coursera.org/*",
+    "https://forms.office.com/*",
+    "https://docs.google.com/forms/*",
+    "http://localhost:8000/*",
+    "https://vague-felita-Cognilot-7f5d4232.koyeb.app/*",
+    "https://chatgpt.com/*"
+  ],
+
+  "externally_connectable": {
+    "matches": [
+      "http://localhost:5173/*",
+      "http://localhost:3000/*",
+      "https://Cognilot-web.vercel.app/*",
+      "https://*.web.app/*",
+      "https://*.firebaseapp.com/*"
+    ]
+  },
+
+  "background": {
+    "service_worker": "src/background.ts",
+    "type": "module"
+  },
+
+  "action": {
+    "default_title": "Cognilot AI"
+  },
+
+  "side_panel": {
+    "default_path": "src/sidebar.html"
+  },
+
+  "commands": {
+    "Cognilot-all": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+S",
+        "mac": "Command+Shift+S"
+      },
+      "description": "Cognilot All Questions on Page"
+    },
+
+    "Cognilot-manual": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+M",
+        "mac": "Command+Shift+M"
+      },
+      "description": "Cognilot Manual Selection"
+    }
+  },
+
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "all_frames": true,
+      "match_about_blank": true,
+      "js": ["src/content.ts"],
+      "css": ["src/styles.css"],
+      "run_at": "document_end"
+    }
+  ],
+
+  "oauth2": {
+    "client_id": "988521964826-el8e7csjev7b43kg85mbrpnr9coqrlul.apps.googleusercontent.com",
+    "scopes": [
+      "https://www.googleapis.com/auth/userinfo.email",
+      "https://www.googleapis.com/auth/userinfo.profile"
+    ]
+  }
+}
