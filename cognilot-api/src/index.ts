@@ -4,12 +4,12 @@ import { logger } from 'hono/logger';
 import { prettyJSON } from 'hono/pretty-json';
 import { serve } from '@hono/node-server';
 
-
 import { aliasesRouter } from './routers/aliases.js';
 import { profileRouter } from './routers/profile.js';
 import { suggestionsRouter } from './routers/suggestions.js';
 import { onboardingRouter } from './routers/onboarding.js';
 import { decisionRouter } from './routers/decision.js';
+import { promptsRouter } from './routers/prompts.js';
 
 /**
  * Cognilot API — Hono Serverless Application
@@ -38,6 +38,7 @@ app.route('/profile', profileRouter);
 app.route('/suggestions', suggestionsRouter);
 app.route('/onboarding', onboardingRouter);
 app.route('/decision', decisionRouter);
+app.route('/prompts', promptsRouter);
 
 // ── Health Check ──────────────────────────────────────────────────────────────
 

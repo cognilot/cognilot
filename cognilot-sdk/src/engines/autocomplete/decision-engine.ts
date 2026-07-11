@@ -98,7 +98,12 @@ export class DecisionEngine {
     // 5. Remote Fetch (On-demand)
     console.log(`[DecisionEngine] Fetching decision for "${fieldMetadata.text}"...`);
 
+    const settings = this.sdk.adapters?.settings;
+    const actionsProvider = settings
+      ? await settings.getSetting('aiModels.actionsProvider', 'llama-3.1-8b-instant')
+      : 'llama-3.1-8b-instant';
     const payload = {
+      provider: actionsProvider,
       questions: [
         {
           id: fieldMetadata.id,
@@ -196,8 +201,14 @@ export class DecisionEngine {
 
     console.log(`[DecisionEngine] Prefetching ${pendingFields.length} choices...`);
 
+    const settings = this.sdk.adapters?.settings;
+    const actionsProvider = settings
+      ? await settings.getSetting('aiModels.actionsProvider', 'llama-3.1-8b-instant')
+      : 'llama-3.1-8b-instant';
+
     // 2. Multi-field payload
     const payload = {
+      provider: actionsProvider,
       questions: pendingFields.map((f) => ({
         id: f.id,
         label: f.text,

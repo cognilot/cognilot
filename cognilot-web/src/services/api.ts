@@ -1,4 +1,5 @@
 // API base configuration and fetch wrapper
+import { supabase } from '../lib/supabase';
 
 const rawApiUrl = process.env.NEXT_PUBLIC_API_URL || '';
 const API_BASE_URL = rawApiUrl.endsWith('/api') ? rawApiUrl : `${rawApiUrl}/api`;
@@ -10,39 +11,28 @@ export interface ApiError {
 }
 
 class ApiClient {
-  private getAuthToken(explicitToken?: string): string | null {
+  /**
+   * Retrieves the current Supabase JWT access token via the official SDK.
+   * Falls back to an explicitly provided token (e.g. for SSR callers).
+   */
+  private async getAuthToken(explicitToken?: string): Promise<string | null> {
     if (explicitToken) return explicitToken;
 
-    // Inject Supabase project ID in headers for the backend API
-    const projectUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-    const projectRef = projectUrl.match(/https:\/\/(.*?)\.supabase\.co/)?.[1];
+    // First try the cached session
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
 
-    if (projectRef) {
-      const storageKey = `sb-${projectRef}-auth-token`;
-      const sessionStr = localStorage.getItem(storageKey);
-      if (sessionStr) {
-        try {
-          const sessionData = JSON.parse(sessionStr);
-          return sessionData.access_token || null;
-        } catch (e) {
-          console.error('ApiClient: Error parsing session data', e);
-        }
-      }
-    }
+    if (session?.access_token) return session.access_token;
 
-    // Fallback to legacy discovery if projectRef is not found
-    const storageKey = Object.keys(localStorage).find(
-      (key) => key.startsWith('sb-') && key.endsWith('-auth-token')
-    );
-    if (storageKey) {
-      try {
-        const sessionData = JSON.parse(localStorage.getItem(storageKey) || '{}');
-        return sessionData.access_token || null;
-      } catch (e) {
-        return null;
-      }
-    }
-    return null;
+    // If the cached session is missing or stale, try to refresh it.
+    // This handles the case where the page has been open long enough
+    // for the in-memory session to expire between page load and user action.
+    const {
+      data: { session: refreshed },
+    } = await supabase.auth.refreshSession();
+
+    return refreshed?.access_token ?? null;
   }
 
   private async handleResponse<T>(response: Response): Promise<T> {
@@ -72,7 +62,7 @@ class ApiClient {
   }
 
   async get<T>(endpoint: string, token?: string): Promise<T> {
-    const authToken = this.getAuthToken(token);
+    const authToken = await this.getAuthToken(token);
     const headers: HeadersInit = {
       'Content-Type': 'application/json',
     };
@@ -90,7 +80,7 @@ class ApiClient {
   }
 
   async post<T>(endpoint: string, data?: unknown): Promise<T> {
-    const token = this.getAuthToken();
+    const token = await this.getAuthToken();
     const headers: HeadersInit = {
       'Content-Type': 'application/json',
     };
@@ -109,7 +99,7 @@ class ApiClient {
   }
 
   async put<T>(endpoint: string, data: unknown): Promise<T> {
-    const token = this.getAuthToken();
+    const token = await this.getAuthToken();
     const headers: HeadersInit = {
       'Content-Type': 'application/json',
     };
@@ -128,7 +118,7 @@ class ApiClient {
   }
 
   async patch<T>(endpoint: string, data: unknown): Promise<T> {
-    const token = this.getAuthToken();
+    const token = await this.getAuthToken();
     const headers: HeadersInit = {
       'Content-Type': 'application/json',
     };
@@ -147,7 +137,7 @@ class ApiClient {
   }
 
   async delete<T>(endpoint: string): Promise<T> {
-    const token = this.getAuthToken();
+    const token = await this.getAuthToken();
     const headers: HeadersInit = {
       'Content-Type': 'application/json',
     };
@@ -165,7 +155,7 @@ class ApiClient {
   }
 
   async uploadFile<T>(endpoint: string, file: File): Promise<T> {
-    const token = this.getAuthToken();
+    const token = await this.getAuthToken();
     const formData = new FormData();
     formData.append('file', file);
 

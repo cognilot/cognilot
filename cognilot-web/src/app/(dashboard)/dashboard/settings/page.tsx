@@ -3,12 +3,14 @@
 import { useEffect, useState } from 'react';
 import { createBrowserClient } from '@supabase/ssr';
 import { toast } from 'sonner';
-import { Shield, Eye, EyeOff, Save, Trash2, Check } from 'lucide-react';
+import { Shield, Eye, EyeOff, Trash2, Check } from 'lucide-react';
+import { extensionBridge } from '@/utils/extensionBridge';
 
 interface ExtSettings {
   ghostTextEnabled: boolean;
   autocompleteDelay: number;
   theme: string;
+  useProfileContext: boolean;
 }
 
 export default function SettingsPage() {
@@ -29,6 +31,7 @@ export default function SettingsPage() {
     ghostTextEnabled: true,
     autocompleteDelay: 300,
     theme: 'dark',
+    useProfileContext: true,
   });
 
   const supabase = createBrowserClient(
@@ -91,10 +94,12 @@ export default function SettingsPage() {
       if (apiKey.trim()) {
         localStorage.setItem('cognilot_byok_config', JSON.stringify(config));
         setActiveProviderBadge('byok-override');
+        extensionBridge.syncByok(config);
         toast.success(`BYOK config updated. Current provider: ${provider}`);
       } else {
         localStorage.removeItem('cognilot_byok_config');
         await checkSessionStatus();
+        extensionBridge.syncByok({ provider: 'groq', apiKey: '', model: '' });
         toast.success('BYOK config cleared. Reverted to standard routing.');
       }
     } catch (err) {
@@ -111,6 +116,15 @@ export default function SettingsPage() {
 
     try {
       localStorage.setItem('cognilot_extension_settings', JSON.stringify(prefs));
+
+      const mappedPrefs = {
+        copilotSuggestions: {
+          enabled: prefs.ghostTextEnabled,
+          ghostText: prefs.ghostTextEnabled,
+          useProfileContext: prefs.useProfileContext !== false,
+        },
+      };
+      extensionBridge.syncSettings(mappedPrefs);
 
       // Dispatch storage event so content script or sidebar is notified if open
       window.dispatchEvent(new Event('storage'));
@@ -191,11 +205,11 @@ export default function SettingsPage() {
         <div className="lg:col-span-2 space-y-8">
           {/* BYOK Config Window */}
           <div className="bg-bg-primary/90 backdrop-blur-2xl border border-white/10 rounded-xl shadow-2xl overflow-hidden">
-            <div className="px-5 py-4 border-b border-white/5 bg-white/3 flex items-center gap-2 select-none">
+            <div className="px-5 py-4 border-b border-white/5 bg-white/5 flex items-center gap-2 select-none">
               <div className="flex gap-1.5 mr-4">
-                <div className="w-3 h-3 rounded-full bg-red-500/70" />
-                <div className="w-3 h-3 rounded-full bg-yellow-500/70" />
-                <div className="w-3 h-3 rounded-full bg-green-500/70" />
+                <div className="w-3 h-3 rounded-full bg-red-500/80 shadow-[0_0_8px_rgba(239,68,68,0.4)]" />
+                <div className="w-3 h-3 rounded-full bg-yellow-500/80 shadow-[0_0_8px_rgba(234,179,8,0.4)]" />
+                <div className="w-3 h-3 rounded-full bg-green-500/80 shadow-[0_0_8px_rgba(34,197,94,0.4)]" />
               </div>
               <div className="text-white/30 text-[10px] uppercase tracking-widest font-sans font-bold flex-1 text-right">
                 config/byok.sh
@@ -304,11 +318,11 @@ export default function SettingsPage() {
 
           {/* Preferences Config Window */}
           <div className="bg-bg-primary/90 backdrop-blur-2xl border border-white/10 rounded-xl shadow-2xl overflow-hidden">
-            <div className="px-5 py-4 border-b border-white/5 bg-white/3 flex items-center gap-2 select-none">
+            <div className="px-5 py-4 border-b border-white/5 bg-white/5 flex items-center gap-2 select-none">
               <div className="flex gap-1.5 mr-4">
-                <div className="w-3 h-3 rounded-full bg-red-500/70" />
-                <div className="w-3 h-3 rounded-full bg-yellow-500/70" />
-                <div className="w-3 h-3 rounded-full bg-green-500/70" />
+                <div className="w-3 h-3 rounded-full bg-red-500/80 shadow-[0_0_8px_rgba(239,68,68,0.4)]" />
+                <div className="w-3 h-3 rounded-full bg-yellow-500/80 shadow-[0_0_8px_rgba(234,179,8,0.4)]" />
+                <div className="w-3 h-3 rounded-full bg-green-500/80 shadow-[0_0_8px_rgba(34,197,94,0.4)]" />
               </div>
               <div className="text-white/30 text-[10px] uppercase tracking-widest font-sans font-bold flex-1 text-right">
                 config/preferences.sh
@@ -339,6 +353,30 @@ export default function SettingsPage() {
                 </button>
                 <span className="text-white/20 select-none ml-4 text-[11px]">
                   // renders gray shadow values inside inputs
+                </span>
+              </div>
+
+              {/* Personal Context */}
+              <div className="flex relative items-center hover:bg-white/5 -mx-4 px-4 rounded transition-colors py-1.5">
+                <div className="text-accent-violet select-none w-[140px] shrink-0 flex items-center font-semibold">
+                  personal_context
+                  <span className="text-accent-violet/50 ml-1">:</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setPrefs({ ...prefs, useProfileContext: !prefs.useProfileContext })
+                  }
+                  className={`px-3 py-1 font-bold text-xs rounded transition-colors cursor-pointer select-none ${
+                    prefs.useProfileContext
+                      ? 'bg-green-500/10 border border-green-500/20 text-green-400 hover:bg-green-500/20'
+                      : 'bg-white/5 border border-white/10 text-white/30 hover:bg-white/10'
+                  }`}
+                >
+                  {prefs.useProfileContext ? '[ENABLED]' : '[DISABLED]'}
+                </button>
+                <span className="text-white/20 select-none ml-4 text-[11px]">
+                  // uses profile facts & aliases for autofills
                 </span>
               </div>
 

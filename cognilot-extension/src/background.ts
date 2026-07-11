@@ -109,6 +109,53 @@ chrome.runtime.onMessageExternal.addListener(
         },
         () => {
           if (user) seedInitialProfile(user);
+
+          // Migrate guest aliases to backend
+          chrome.storage.local.get(['Cognilot_alias_cache'], async (result) => {
+            const aliasCache = result.Cognilot_alias_cache || {};
+            const aliasKeys = Object.keys(aliasCache);
+            if (aliasKeys.length > 0) {
+              console.log(`Background: migrating ${aliasKeys.length} guest aliases to backend...`);
+              const payload = {
+                aliases: aliasKeys
+                  .map((key) => {
+                    const entry = aliasCache[key];
+                    return {
+                      label: key,
+                      value: Array.isArray(entry.options) ? entry.options[0] : entry.value || '',
+                      category: 'general',
+                    };
+                  })
+                  .filter((a) => a.value),
+              };
+
+              if (payload.aliases.length > 0) {
+                try {
+                  const isUnp = !chrome.runtime.getManifest().update_url;
+                  const backUrl = isUnp
+                    ? 'http://localhost:8000'
+                    : 'https://vague-felita-Cognilot-7f5d4232.koyeb.app';
+
+                  const res = await fetch(`${backUrl}/api/aliases/batch`, {
+                    method: 'POST',
+                    headers: {
+                      'Content-Type': 'application/json',
+                      Authorization: `Bearer ${accessToken}`,
+                    },
+                    body: JSON.stringify(payload),
+                  });
+                  if (res.ok) {
+                    console.log('Background: guest aliases migrated successfully.');
+                  } else {
+                    console.warn('Background: guest aliases migration failed:', res.statusText);
+                  }
+                } catch (err) {
+                  console.error('Background: guest aliases migration error:', err);
+                }
+              }
+            }
+          });
+
           if (typeof sendResponse === 'function') sendResponse({ success: true });
         }
       );
@@ -164,6 +211,41 @@ chrome.runtime.onMessageExternal.addListener(
     if (request.action === 'savePreferences') {
       chrome.storage.local.set({ Cognilot_preference_cache: request.preferences }, () => {
         sendResponse({ success: true });
+      });
+      return true;
+    }
+
+    if (request.action === 'syncSettings') {
+      const settings = (request.settings as Record<string, any>) || {};
+      chrome.storage.local.get(['Cognilot_preference_cache'], (result) => {
+        const current = result.Cognilot_preference_cache || {};
+        const merged = {
+          ...current,
+          copilotSuggestions: {
+            ...(current.copilotSuggestions || {}),
+            ...(settings.copilotSuggestions || {}),
+          },
+        };
+        chrome.storage.local.set({ Cognilot_preference_cache: merged }, () => {
+          sendResponse({ success: true });
+        });
+      });
+      return true;
+    }
+
+    if (request.action === 'syncByok') {
+      const byok = (request.byok as Record<string, any>) || {};
+      chrome.storage.local.get(['Cognilot_preference_cache'], (result) => {
+        const current = result.Cognilot_preference_cache || {};
+        current.byok = {
+          enabled: !!byok.apiKey,
+          provider: byok.provider || 'openai',
+          apiKey: byok.apiKey || '',
+          model: byok.model || '',
+        };
+        chrome.storage.local.set({ Cognilot_preference_cache: current }, () => {
+          sendResponse({ success: true });
+        });
       });
       return true;
     }

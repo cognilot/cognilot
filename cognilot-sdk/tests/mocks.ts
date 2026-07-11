@@ -262,6 +262,7 @@ export class MockSDK {
   public adapters: any;
   public registry: any;
   public decision: any;
+  public inference: any;
 
   constructor(platform: PlatformAdapter) {
     this.platform = platform;
@@ -277,6 +278,10 @@ export class MockSDK {
       handleDecision: vi.fn(),
       _resolveBestOption: vi.fn(),
     };
+    this.inference = {
+      getSelectedProviderName: vi.fn().mockResolvedValue('groq-llama3'),
+      route: vi.fn().mockResolvedValue({ value: 'Mocked Value', provider: 'groq' }),
+    };
     this.apiClient = {
       request: vi.fn().mockResolvedValue({ ok: true }),
     };
@@ -291,7 +296,11 @@ export class MockSDK {
     };
     this.adapters = {
       storage: { get: vi.fn().mockResolvedValue({}), set: vi.fn() },
-      settings: { getSettings: vi.fn().mockResolvedValue({}) },
+      settings: {
+        getSettings: vi.fn().mockResolvedValue({}),
+        getSetting: vi.fn().mockImplementation((path, fallback) => Promise.resolve(fallback)),
+        updateSetting: vi.fn().mockResolvedValue(undefined),
+      },
       auth: { getActiveProfile: vi.fn().mockResolvedValue({}) },
     };
     this.registry = {

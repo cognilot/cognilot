@@ -109,8 +109,23 @@ export class AliasResolver {
    * Persists a newly learned value into the alias cache and adds it to the sync queue.
    */
   async persistAlias(label: string, value: string, skipSync = false) {
+    const settings = this.sdk.adapters?.settings
+      ? await (this.sdk.adapters.settings as any).getSettings()
+      : {};
+    const useProfileContext = settings.copilotSuggestions?.useProfileContext !== false;
+    if (!useProfileContext) {
+      console.log(`[AliasResolver] Skip persisting alias: useProfileContext is disabled`);
+      return false;
+    }
+
     const storage = this.sdk.adapters?.storage;
     if (!storage) return false;
+
+    const auth = this.sdk.adapters?.auth;
+    const authenticated = auth ? await auth.isAuthenticated() : false;
+    if (!authenticated) {
+      skipSync = true;
+    }
 
     const aliasKey = this.normalizeAliasKey(label);
     if (!aliasKey) return false;
@@ -217,6 +232,12 @@ export class AliasResolver {
    * @param keepalive If true, uses fetch keepalive (useful for page unload)
    */
   async flushQueue(keepalive = false) {
+    const settings = this.sdk.adapters?.settings
+      ? await (this.sdk.adapters.settings as any).getSettings()
+      : {};
+    const useProfileContext = settings.copilotSuggestions?.useProfileContext !== false;
+    if (!useProfileContext) return;
+
     const queue = await this.getSyncQueue();
     if (queue.length === 0) return;
 
@@ -224,27 +245,28 @@ export class AliasResolver {
       `[AliasResolver] 🚀 Flushing sync queue (${queue.length} items, keepalive=${keepalive})...`
     );
 
-    // We call the dedicated learner endpoint
     try {
       const globalContext = this.sdk.platform.getGlobalContext();
+      const formattedQueue = queue.map((item: any) => ({
+        key: item.label,
+        value: item.value,
+        domain: globalContext.location.hostname || 'unknown',
+        confirmedAt: new Date(item.timestamp || Date.now()).toISOString(),
+      }));
+
       const response = await this.sdk.apiClient.request(
-        '/api/learner/standardize',
+        '/api/profile/sync',
         {
-          sync_queue: queue,
-          page_context: {
-            domain: globalContext.location.hostname || 'unknown',
-            path: globalContext.location.pathname || '/',
-            title: globalContext.document?.title || '',
-          },
+          sync_queue: formattedQueue,
         },
         'AliasResolver',
         { keepalive }
       );
 
       // Update local profile cache with the refined data
-      if (response && response.standardized_profile && this.sdk.profile) {
+      if (response && response.profile?.dataLearned && this.sdk.profile) {
         console.log(`[AliasResolver] Processing standardized profile from standalone flush...`);
-        await this.sdk.profile.updateFromStandardizedData(response.standardized_profile);
+        await this.sdk.profile.updateFromStandardizedData(response.profile.dataLearned);
       }
 
       await this.clearSyncQueue();

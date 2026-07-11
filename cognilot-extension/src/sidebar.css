@@ -1549,3 +1549,47 @@ input:checked + .toggle__slider:before {
 .auth-guard-footer p {
   font-size: 11px;
 }
+
+/* BYOK / terminal styling elements */
+.sh-input {
+  width: 100%;
+  background: transparent;
+  color: var(--text-primary);
+  border: none;
+  border-bottom: 1px solid var(--border-color);
+  padding: 6px 0;
+  font-family: monospace;
+  font-size: 12px;
+  outline: none;
+  transition: border-bottom-color 0.2s;
+}
+
+.sh-input:focus {
+  border-bottom-color: var(--accent-color);
+}
+
+.btn-sh {
+  padding: 6px 12px;
+  background: rgba(0, 0, 0, 0.05);
+  border: 1px solid var(--border-color);
+  color: var(--text-secondary);
+  font-family: monospace;
+  font-size: 11px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-sh:hover {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: var(--accent-color);
+  color: var(--text-primary);
+}
+
+.dark-mode .btn-sh {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.dark-mode .btn-sh:hover {
+  background: rgba(255, 255, 255, 0.08);
+}

@@ -230,11 +230,11 @@ export default function AliasesPage() {
       {/* Main Container */}
       <div className="bg-bg-primary/90 backdrop-blur-2xl border border-white/10 rounded-xl shadow-2xl overflow-hidden relative">
         {/* Title bar */}
-        <div className="px-5 py-4 border-b border-white/5 bg-white/3 flex items-center gap-2 select-none">
+        <div className="px-5 py-4 border-b border-white/5 bg-white/5 flex items-center gap-2 select-none">
           <div className="flex gap-1.5 mr-4">
-            <div className="w-3 h-3 rounded-full bg-red-500/70" />
-            <div className="w-3 h-3 rounded-full bg-yellow-500/70" />
-            <div className="w-3 h-3 rounded-full bg-green-500/70" />
+            <div className="w-3 h-3 rounded-full bg-red-500/80 shadow-[0_0_8px_rgba(239,68,68,0.4)]" />
+            <div className="w-3 h-3 rounded-full bg-yellow-500/80 shadow-[0_0_8px_rgba(234,179,8,0.4)]" />
+            <div className="w-3 h-3 rounded-full bg-green-500/80 shadow-[0_0_8px_rgba(34,197,94,0.4)]" />
           </div>
           <div className="text-white/30 text-[10px] uppercase tracking-widest font-sans font-bold flex-1 text-right">
             config/aliases.env
@@ -249,52 +249,51 @@ export default function AliasesPage() {
               ## add_alias_shortcut
             </div>
 
-            <form
-              onSubmit={handleAddAlias}
-              className="grid grid-cols-1 sm:grid-cols-3 gap-4 items-end bg-white/[0.01] p-4 border border-white/5 rounded-lg"
-            >
-              <div>
-                <label className="text-white/40 block text-[11px] mb-1 font-bold uppercase tracking-wider">
-                  shortcut_key:
-                </label>
-                <div className="flex items-center">
-                  <span className="text-accent-violet/60 mr-1.5 select-none">$</span>
-                  <input
-                    type="text"
-                    value={newLabel}
-                    onChange={(e) => setNewLabel(e.target.value)}
-                    placeholder="e.g. my_email"
-                    className="w-full bg-transparent border-b border-white/10 text-white pb-1 focus:border-white/30 outline-none"
-                  />
-                </div>
+            <form onSubmit={handleAddAlias}>
+              {/* shortcut_key row */}
+              <div className="flex relative items-start hover:bg-white/5 -mx-4 px-4 rounded transition-colors py-1">
+                <span className="text-accent-violet font-semibold w-[160px] md:w-[200px] shrink-0 py-1.5">
+                  shortcut_key<span className="text-accent-violet/50">:</span>
+                </span>
+                <input
+                  type="text"
+                  value={newLabel}
+                  onChange={(e) => setNewLabel(e.target.value)}
+                  placeholder="e.g. my_email"
+                  className="bg-transparent text-white flex-1 py-1.5 outline-none placeholder:text-white/10 focus:bg-white/5 rounded px-2 -mx-2 transition-colors"
+                />
               </div>
 
-              <div>
-                <label className="text-white/40 block text-[11px] mb-1 font-bold uppercase tracking-wider">
-                  expanded_value:
-                </label>
+              {/* expanded_value row */}
+              <div className="flex relative items-start hover:bg-white/5 -mx-4 px-4 rounded transition-colors py-1">
+                <span className="text-accent-violet font-semibold w-[160px] md:w-[200px] shrink-0 py-1.5">
+                  expanded_value<span className="text-accent-violet/50">:</span>
+                </span>
                 <input
                   type="text"
                   value={newValue}
                   onChange={(e) => setNewValue(e.target.value)}
                   placeholder="john.doe@example.com"
-                  className="w-full bg-transparent border-b border-white/10 text-white pb-1 focus:border-white/30 outline-none"
+                  className="bg-transparent text-white flex-1 py-1.5 outline-none placeholder:text-white/10 focus:bg-white/5 rounded px-2 -mx-2 transition-colors"
                 />
               </div>
 
-              <div className="flex items-end gap-3">
-                <div className="flex-1">
-                  <label className="text-white/40 block text-[11px] mb-1 font-bold uppercase tracking-wider">
-                    category:
-                  </label>
-                  <input
-                    type="text"
-                    value={newCategory}
-                    onChange={(e) => setNewCategory(e.target.value)}
-                    placeholder="general"
-                    className="w-full bg-transparent border-b border-white/10 text-white pb-1 focus:border-white/30 outline-none"
-                  />
-                </div>
+              {/* category row */}
+              <div className="flex relative items-start hover:bg-white/5 -mx-4 px-4 rounded transition-colors py-1">
+                <span className="text-accent-violet font-semibold w-[160px] md:w-[200px] shrink-0 py-1.5">
+                  category<span className="text-accent-violet/50">:</span>
+                </span>
+                <input
+                  type="text"
+                  value={newCategory}
+                  onChange={(e) => setNewCategory(e.target.value)}
+                  placeholder="general"
+                  className="bg-transparent text-white flex-1 py-1.5 outline-none placeholder:text-white/10 focus:bg-white/5 rounded px-2 -mx-2 transition-colors"
+                />
+              </div>
+
+              {/* [ADD] button */}
+              <div className="pt-2">
                 <button
                   type="submit"
                   disabled={adding}
@@ -324,61 +323,63 @@ export default function AliasesPage() {
 
                   if (isEditing) {
                     return (
-                      <div
-                        key={alias.id}
-                        className="p-4 grid grid-cols-1 sm:grid-cols-3 gap-4 items-end bg-white/3"
-                      >
-                        <div>
-                          <label className="text-white/30 text-[10px] block mb-0.5">
-                            Edit label:
-                          </label>
+                      <div key={alias.id} className="px-4 py-3 bg-white/3 space-y-0.5">
+                        {/* Edit label row */}
+                        <div className="flex relative items-start hover:bg-white/5 -mx-4 px-4 rounded transition-colors py-1">
+                          <span className="text-accent-violet font-semibold w-[160px] md:w-[200px] shrink-0 py-1.5">
+                            shortcut_key<span className="text-accent-violet/50">:</span>
+                          </span>
                           <input
                             type="text"
                             value={editLabel}
                             onChange={(e) => setEditLabel(e.target.value)}
-                            className="w-full bg-transparent border-b border-accent-cyan text-white py-1 outline-none"
+                            className="bg-transparent text-white flex-1 py-1.5 outline-none placeholder:text-white/10 focus:bg-white/5 rounded px-2 -mx-2 transition-colors border-b border-accent-cyan/40"
                           />
                         </div>
-                        <div>
-                          <label className="text-white/30 text-[10px] block mb-0.5">
-                            Edit value:
-                          </label>
+
+                        {/* Edit value row */}
+                        <div className="flex relative items-start hover:bg-white/5 -mx-4 px-4 rounded transition-colors py-1">
+                          <span className="text-accent-violet font-semibold w-[160px] md:w-[200px] shrink-0 py-1.5">
+                            expanded_value<span className="text-accent-violet/50">:</span>
+                          </span>
                           <input
                             type="text"
                             value={editValue}
                             onChange={(e) => setEditValue(e.target.value)}
-                            className="w-full bg-transparent border-b border-accent-cyan text-white py-1 outline-none"
+                            className="bg-transparent text-white flex-1 py-1.5 outline-none placeholder:text-white/10 focus:bg-white/5 rounded px-2 -mx-2 transition-colors border-b border-accent-cyan/40"
                           />
                         </div>
-                        <div className="flex items-end gap-3 justify-between">
-                          <div className="flex-1">
-                            <label className="text-white/30 text-[10px] block mb-0.5">
-                              Category:
-                            </label>
-                            <input
-                              type="text"
-                              value={editCategory}
-                              onChange={(e) => setEditCategory(e.target.value)}
-                              className="w-full bg-transparent border-b border-accent-cyan text-white py-1 outline-none"
-                            />
-                          </div>
-                          <div className="flex items-center gap-1.5 shrink-0">
-                            <button
-                              onClick={() => handleUpdateAlias(alias.id)}
-                              disabled={updating}
-                              className="p-1.5 bg-green-500/10 hover:bg-green-500/20 border border-green-500/20 text-green-400 rounded transition-colors"
-                              title="Save updates"
-                            >
-                              <Check className="w-3.5 h-3.5" />
-                            </button>
-                            <button
-                              onClick={cancelEdit}
-                              className="p-1.5 bg-white/5 hover:bg-white/10 border border-white/10 text-white/60 rounded transition-colors"
-                              title="Cancel editing"
-                            >
-                              <X className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
+
+                        {/* Edit category row */}
+                        <div className="flex relative items-start hover:bg-white/5 -mx-4 px-4 rounded transition-colors py-1">
+                          <span className="text-accent-violet font-semibold w-[160px] md:w-[200px] shrink-0 py-1.5">
+                            category<span className="text-accent-violet/50">:</span>
+                          </span>
+                          <input
+                            type="text"
+                            value={editCategory}
+                            onChange={(e) => setEditCategory(e.target.value)}
+                            className="bg-transparent text-white flex-1 py-1.5 outline-none placeholder:text-white/10 focus:bg-white/5 rounded px-2 -mx-2 transition-colors border-b border-accent-cyan/40"
+                          />
+                        </div>
+
+                        {/* Save / Cancel */}
+                        <div className="flex items-center gap-1.5 pt-2">
+                          <button
+                            onClick={() => handleUpdateAlias(alias.id)}
+                            disabled={updating}
+                            className="p-1.5 bg-green-500/10 hover:bg-green-500/20 border border-green-500/20 text-green-400 rounded transition-colors"
+                            title="Save updates"
+                          >
+                            <Check className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            onClick={cancelEdit}
+                            className="p-1.5 bg-white/5 hover:bg-white/10 border border-white/10 text-white/60 rounded transition-colors"
+                            title="Cancel editing"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                          </button>
                         </div>
                       </div>
                     );

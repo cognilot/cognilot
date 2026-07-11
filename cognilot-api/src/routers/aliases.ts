@@ -103,3 +103,36 @@ aliasesRouter.delete('/:id', async (c) => {
 
   return c.json({ message: 'Alias deleted successfully.' });
 });
+
+const batchCreateSchema = z.object({
+  aliases: z
+    .array(
+      z.object({
+        label: z.string().min(1).max(50),
+        value: z.string().min(1).max(1000),
+        category: z.string().optional().default('general'),
+      })
+    )
+    .min(1)
+    .max(100),
+});
+
+/**
+ * POST /api/aliases/batch
+ * Creates multiple aliases in a single batch insert for the authenticated user.
+ */
+aliasesRouter.post('/batch', zValidator('json', batchCreateSchema), async (c) => {
+  const userId = c.get('userId');
+  const { aliases: aliasList } = c.req.valid('json');
+
+  const insertData = aliasList.map((a) => ({
+    userId,
+    label: a.label,
+    value: a.value,
+    category: a.category || 'general',
+  }));
+
+  const inserted = await db.insert(aliases).values(insertData).returning();
+
+  return c.json({ aliases: inserted }, 201);
+});

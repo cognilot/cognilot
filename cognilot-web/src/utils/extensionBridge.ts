@@ -6,6 +6,8 @@ export interface ExtensionBridge {
   syncTokens(accessToken: string, refreshToken: string, user?: User | null): void;
   clearTokens(): void;
   refreshProfileCache(): void;
+  syncSettings(settings: any): void;
+  syncByok(byokConfig: any): void;
 }
 
 declare global {
@@ -51,12 +53,16 @@ class ChromeExtensionBridge implements ExtensionBridge {
       !this.extensionId ||
       this.extensionId === 'YOUR_EXTENSION_ID_HERE'
     ) {
-      console.log('Extension bridge: skipping sync (extensionId missing or window.chrome not present)');
+      console.log(
+        'Extension bridge: skipping sync (extensionId missing or window.chrome not present)'
+      );
       return;
     }
 
     try {
-      console.log(`Extension bridge: sending AUTH_SUCCESS message to extension ID ${this.extensionId}...`);
+      console.log(
+        `Extension bridge: sending AUTH_SUCCESS message to extension ID ${this.extensionId}...`
+      );
       // Direct messaging to extension background script
       window.chrome.runtime.sendMessage(
         this.extensionId,
@@ -118,6 +124,58 @@ class ChromeExtensionBridge implements ExtensionBridge {
       });
     } catch (error) {
       console.error('Failed to request profile cache refresh:', error);
+    }
+  }
+
+  syncSettings(settings: any): void {
+    if (
+      !this.isExtensionPresent() ||
+      !this.extensionId ||
+      this.extensionId === 'YOUR_EXTENSION_ID_HERE'
+    ) {
+      return;
+    }
+
+    try {
+      window.chrome.runtime.sendMessage(
+        this.extensionId,
+        { action: 'syncSettings', settings },
+        (response: any) => {
+          if (window.chrome.runtime.lastError) {
+            console.warn('Settings sync error:', window.chrome.runtime.lastError.message);
+          } else {
+            console.log('Settings synced with extension:', response);
+          }
+        }
+      );
+    } catch (error) {
+      console.error('Failed to sync settings with extension:', error);
+    }
+  }
+
+  syncByok(byokConfig: any): void {
+    if (
+      !this.isExtensionPresent() ||
+      !this.extensionId ||
+      this.extensionId === 'YOUR_EXTENSION_ID_HERE'
+    ) {
+      return;
+    }
+
+    try {
+      window.chrome.runtime.sendMessage(
+        this.extensionId,
+        { action: 'syncByok', byok: byokConfig },
+        (response: any) => {
+          if (window.chrome.runtime.lastError) {
+            console.warn('BYOK sync error:', window.chrome.runtime.lastError.message);
+          } else {
+            console.log('BYOK synced with extension:', response);
+          }
+        }
+      );
+    } catch (error) {
+      console.error('Failed to sync BYOK with extension:', error);
     }
   }
 }

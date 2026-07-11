@@ -125,10 +125,13 @@ describe('Route Registration', () => {
   });
 
   it('onboarding/parse-cv route is registered', async () => {
+    const formData = new FormData();
+    const mockFile = new Blob(['Mock PDF content'], { type: 'application/pdf' });
+    formData.append('file', mockFile, 'test.pdf');
+
     const res = await app.request('/api/onboarding/parse-cv', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ cvText: 'This is a test CV with some professional data...' }),
+      body: formData,
     });
     expect(res.status).not.toBe(404);
   });

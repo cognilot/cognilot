@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { createBrowserClient } from '@supabase/ssr';
 import { toast } from 'sonner';
-import { RefreshCw, Check, ArrowUpRight, HelpCircle } from 'lucide-react';
+import { RefreshCw, ArrowUpRight, HelpCircle } from 'lucide-react';
 
 interface ProfileResponse {
   user: {
@@ -68,7 +68,7 @@ export default function PlanPage() {
   // Compute progress bar characters
   const filledBlocks = Math.round((creditsUsed / maxCredits) * 20);
   const emptyBlocks = 20 - filledBlocks;
-  const progressBar = '█'.repeat(filledBlocks) + '░'.repeat(emptyBlocks);
+  const progressBar = '\u2588'.repeat(filledBlocks) + '\u2591'.repeat(emptyBlocks);
 
   if (loading) {
     return (
@@ -98,16 +98,16 @@ export default function PlanPage() {
         </div>
       </div>
 
-      {/* Main Panel */}
-      <div className="bg-bg-primary/90 backdrop-blur-2xl border border-white/10 rounded-xl shadow-2xl overflow-hidden relative mb-8">
+      {/* Main Panel — subscription status & usage meter */}
+      <div className="bg-bg-primary/90 backdrop-blur-2xl border border-white/10 rounded-xl shadow-2xl overflow-hidden relative mb-6">
         {/* Title bar */}
-        <div className="px-5 py-4 border-b border-white/5 bg-white/3 flex items-center gap-2 select-none">
+        <div className="px-5 py-4 border-b border-white/5 bg-white/5 flex items-center gap-2 select-none">
           <div className="flex gap-1.5 mr-4">
-            <div className="w-3 h-3 rounded-full bg-red-500/70" />
-            <div className="w-3 h-3 rounded-full bg-yellow-500/70" />
-            <div className="w-3 h-3 rounded-full bg-green-500/70" />
+            <div className="w-3 h-3 rounded-full bg-red-500/80 shadow-[0_0_8px_rgba(239,68,68,0.4)]" />
+            <div className="w-3 h-3 rounded-full bg-yellow-500/80 shadow-[0_0_8px_rgba(234,179,8,0.4)]" />
+            <div className="w-3 h-3 rounded-full bg-green-500/80 shadow-[0_0_8px_rgba(34,197,94,0.4)]" />
           </div>
-          <div className="text-white/30 text-[10px] uppercase tracking-widest font-sans font-bold flex-1 text-right">
+          <div className="text-white/30 text-[10px] uppercase tracking-[0.2em] font-sans font-bold flex-1 text-right">
             billing/subscription_status.env
           </div>
         </div>
@@ -189,79 +189,90 @@ export default function PlanPage() {
         </div>
       </div>
 
-      {/* Plans Comparison Grid */}
-      <div className="text-white/30 mb-4 select-none font-bold uppercase tracking-wider text-[11px]">
-        ## available_subscription_tiers
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-8 select-none">
-        {/* Free Plan Card */}
-        <div
-          className={`rounded-xl p-6 border transition-all ${
-            plan === 'free' ? 'border-white/20 bg-white/[0.02]' : 'border-white/5 bg-white/[0.005]'
-          }`}
-        >
-          <div className="text-lg font-bold text-white mb-1">Free Sandbox</div>
-          <div className="text-accent-cyan text-sm mb-4 font-bold">$0.00 / month</div>
-
-          <div className="border-t border-white/5 pt-4 space-y-3">
-            <div className="flex items-center gap-2 text-white/60">
-              <Check className="w-3.5 h-3.5 text-accent-cyan" />
-              <span>50 AI API requests per day</span>
-            </div>
-            <div className="flex items-center gap-2 text-white/60">
-              <Check className="w-3.5 h-3.5 text-accent-cyan" />
-              <span>Local Gemini Nano support (Chrome)</span>
-            </div>
-            <div className="flex items-center gap-2 text-white/60">
-              <Check className="w-3.5 h-3.5 text-accent-cyan" />
-              <span>Local alias shortcut configs</span>
-            </div>
-            <div className="flex items-center gap-2 text-white/20 line-through">
-              <span>Cloud profile memory sync</span>
-            </div>
-            <div className="flex items-center gap-2 text-white/20 line-through">
-              <span>Groq Llama-3.3-70B model access</span>
-            </div>
+      {/* Second Window — Plans Comparison */}
+      <div className="bg-bg-primary/90 backdrop-blur-2xl border border-white/10 rounded-xl shadow-2xl overflow-hidden relative mb-8">
+        {/* Title bar */}
+        <div className="px-5 py-4 border-b border-white/5 bg-white/5 flex items-center gap-2 select-none">
+          <div className="flex gap-1.5 mr-4">
+            <div className="w-3 h-3 rounded-full bg-red-500/80 shadow-[0_0_8px_rgba(239,68,68,0.4)]" />
+            <div className="w-3 h-3 rounded-full bg-yellow-500/80 shadow-[0_0_8px_rgba(234,179,8,0.4)]" />
+            <div className="w-3 h-3 rounded-full bg-green-500/80 shadow-[0_0_8px_rgba(34,197,94,0.4)]" />
+          </div>
+          <div className="text-white/30 text-[10px] uppercase tracking-[0.2em] font-sans font-bold flex-1 text-right">
+            SUBSCRIPTION_TIERS.MD
           </div>
         </div>
 
-        {/* Pro Plan Card */}
-        <div
-          className={`rounded-xl p-6 border transition-all ${
-            plan === 'pro'
-              ? 'border-violet-500/40 bg-violet-950/10'
-              : 'border-violet-500/20 bg-violet-500/5 shadow-[0_0_15px_rgba(139,92,246,0.15)]'
-          }`}
-        >
-          <div className="flex items-center justify-between">
-            <div className="text-lg font-bold text-white mb-1">Pro Operator</div>
-            <span className="text-[10px] px-2 py-0.5 rounded bg-violet-500/20 text-accent-violet font-bold uppercase tracking-wider">
-              RECOMMENDED
-            </span>
-          </div>
-          <div className="text-accent-violet text-sm mb-4 font-bold">$9.00 / month</div>
+        {/* Plans Grid */}
+        <div className="p-6 md:p-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 select-none">
+            {/* Free Plan */}
+            <div className="space-y-4">
+              <div>
+                <div className="text-white/30 text-[11px] uppercase tracking-wider font-sans font-bold mb-3">
+                  ## free_sandbox_tier
+                </div>
+                <div className="text-lg font-bold text-white">FREE_SANDBOX</div>
+                <div className="text-accent-cyan text-sm font-bold mb-4">$0.00 / month</div>
+                <div className="space-y-2 text-[13px]">
+                  <div className="flex items-center gap-2 text-white/60">
+                    <span className="text-accent-cyan select-none">{'>'}</span>
+                    <span>50 AI API requests per day</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-white/60">
+                    <span className="text-accent-cyan select-none">{'>'}</span>
+                    <span>Local Gemini Nano support (Chrome)</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-white/60">
+                    <span className="text-accent-cyan select-none">{'>'}</span>
+                    <span>Local alias shortcut configs</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-white/20">
+                    <span>Cloud profile memory sync</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-white/20">
+                    <span>Groq Llama-3.3-70B model access</span>
+                  </div>
+                </div>
+              </div>
+            </div>
 
-          <div className="border-t border-white/5 pt-4 space-y-3">
-            <div className="flex items-center gap-2 text-white">
-              <Check className="w-3.5 h-3.5 text-accent-violet" />
-              <span className="font-bold">UNLIMITED API requests</span>
-            </div>
-            <div className="flex items-center gap-2 text-white/90">
-              <Check className="w-3.5 h-3.5 text-accent-violet" />
-              <span>Groq Llama-3.3-70B cloud model</span>
-            </div>
-            <div className="flex items-center gap-2 text-white/90">
-              <Check className="w-3.5 h-3.5 text-accent-violet" />
-              <span>Continuous cloud profile memory sync</span>
-            </div>
-            <div className="flex items-center gap-2 text-white/90">
-              <Check className="w-3.5 h-3.5 text-accent-violet" />
-              <span>Priority custom skill sandbox execution</span>
-            </div>
-            <div className="flex items-center gap-2 text-white/90">
-              <Check className="w-3.5 h-3.5 text-accent-violet" />
-              <span>Full developer community support</span>
+            {/* Pro Plan */}
+            <div className="space-y-4">
+              <div>
+                <div className="text-white/30 text-[11px] uppercase tracking-wider font-sans font-bold mb-3">
+                  ## pro_operator_tier
+                </div>
+                <div className="flex items-center gap-2 mb-0.5">
+                  <div className="text-lg font-bold text-white">PRO_OPERATOR</div>
+                  <span className="text-[10px] px-2 py-0.5 rounded bg-violet-500/20 border border-violet-500/30 text-accent-violet font-bold font-sans uppercase tracking-wider">
+                    RECOMMENDED
+                  </span>
+                </div>
+                <div className="text-accent-violet text-sm font-bold mb-4">$9.00 / month</div>
+                <div className="space-y-2 text-[13px]">
+                  <div className="flex items-center gap-2 text-white/60">
+                    <span className="text-accent-cyan select-none">{'>'}</span>
+                    <span>UNLIMITED API requests</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-white/60">
+                    <span className="text-accent-cyan select-none">{'>'}</span>
+                    <span>Groq Llama-3.3-70B cloud model</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-white/60">
+                    <span className="text-accent-cyan select-none">{'>'}</span>
+                    <span>Continuous cloud profile memory sync</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-white/60">
+                    <span className="text-accent-cyan select-none">{'>'}</span>
+                    <span>Priority custom skill sandbox execution</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-white/60">
+                    <span className="text-accent-cyan select-none">{'>'}</span>
+                    <span>Full developer community support</span>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </div>

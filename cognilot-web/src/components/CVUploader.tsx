@@ -66,19 +66,27 @@ export const CVUploader: React.FC<CVUploaderProps> = ({ onUploadSuccess }) => {
 
       onUploadSuccess(result);
     } catch (error) {
-      console.error('Error uploading CV:', error);
-      const apiError = error as ApiError;
+      const apiError = error && typeof error === 'object' ? (error as ApiError) : null;
+
+      console.error('Error uploading CV:', {
+        name: error instanceof Error ? error.name : typeof error,
+        message: apiError?.message ?? (error instanceof Error ? error.message : error),
+        status: apiError?.status,
+      });
 
       let errorMessage = 'Hubo un error al procesar tu CV.';
       let description = 'Por favor intenta de nuevo más tarde.';
 
-      if (apiError.status === 413) {
+      if (apiError?.status === 401) {
+        errorMessage = 'Sesión expirada';
+        description = 'Por favor recarga la página e inicia sesión de nuevo.';
+      } else if (apiError?.status === 413) {
         errorMessage = 'Archivo demasiado grande';
         description = 'El límite máximo es de 5MB.';
-      } else if (apiError.status === 400) {
+      } else if (apiError?.status === 400) {
         errorMessage = 'Formato no soportado';
         description = 'Asegúrate de subir un PDF o Word válido.';
-      } else if (apiError.status === 500) {
+      } else if (apiError?.status === 500) {
         errorMessage = 'Error del servidor';
         description = 'Nuestro motor de IA está teniendo dificultades. Reintenta en unos momentos.';
       }

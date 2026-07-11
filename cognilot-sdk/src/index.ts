@@ -11,6 +11,8 @@ import { AliasResolver } from './core/alias-resolver';
 import { ProfileResolver } from './core/profile-resolver';
 import { FieldRegistry } from './core/field-registry';
 import { PageScanner } from './engines/detection/page-scanner';
+import { InferenceRouter } from './inference/InferenceRouter';
+import { PromptTemplateManager } from './inference/PromptTemplateManager';
 
 export { WebPlatform };
 export {
@@ -82,6 +84,7 @@ export class CognilotSDK {
   public detection: DetectionEngine;
   /** Orchestrates all field interactions and form solving */
   public action: ActionEngine;
+  public inference: InferenceRouter;
 
   // Internal Engines (Orchestrated by ActionEngine)
   /** @internal Processes textual suggestions */
@@ -130,6 +133,34 @@ export class CognilotSDK {
     this.facade = new DetectionFacade(this);
     this.apiClient = new ApiClient(this);
     this.policy = new PlanGuard();
+
+    const templateManager = new PromptTemplateManager(this);
+    this.inference = new InferenceRouter({
+      apiBaseUrl: this.apiClient.apiBaseUrl,
+      getAuthToken: async () => {
+        const auth = this.adapters?.auth;
+        if (!auth) return null;
+        return auth.getToken();
+      },
+      getByokConfig: async () => {
+        const settings = this.adapters?.settings;
+        if (!settings) return null;
+        const suggestionsProvider = await settings.getSetting(
+          'aiModels.suggestionsProvider',
+          'llama-3.1-8b-instant'
+        );
+        if (!suggestionsProvider || !suggestionsProvider.startsWith('byok-')) return null;
+        const provider = suggestionsProvider.replace('byok-', '');
+        const apiKey = await settings.getSetting(`byok.providers.${provider}.apiKey`, '');
+        const model = await settings.getSetting(`byok.providers.${provider}.model`, '');
+        return { provider, apiKey, model };
+      },
+      getProfile: async () => {
+        if (!this.profile) return {};
+        return this.profile.getProfile();
+      },
+      templateManager: templateManager,
+    });
   }
 
   /**

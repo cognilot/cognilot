@@ -7,6 +7,7 @@ import type {
 import { GeminiNanoProvider } from './providers/GeminiNanoProvider.js';
 import { GroqProvider, type GroqProviderConfig } from './providers/GroqProvider.js';
 import { BYOKProvider, type BYOKConfig } from './providers/BYOKProvider.js';
+import { PromptTemplateManager } from './PromptTemplateManager.js';
 
 /** Configuration for the InferenceRouter */
 export interface InferenceRouterConfig {
@@ -16,6 +17,10 @@ export interface InferenceRouterConfig {
   getAuthToken: () => Promise<string | null>;
   /** Returns BYOK config if the user has configured their own key, or null otherwise */
   getByokConfig: () => Promise<BYOKConfig | null>;
+  /** Returns the local profile cache */
+  getProfile?: () => Promise<any>;
+  /** The prompt template manager */
+  templateManager?: PromptTemplateManager;
 }
 
 /** Field context shape used to build the prompt */
@@ -56,7 +61,7 @@ export class InferenceRouter {
       apiBaseUrl: config.apiBaseUrl,
       getAuthToken: config.getAuthToken,
     });
-    this.byok = new BYOKProvider(config.getByokConfig);
+    this.byok = new BYOKProvider(config.getByokConfig, config.getProfile, config.templateManager);
   }
 
   /**

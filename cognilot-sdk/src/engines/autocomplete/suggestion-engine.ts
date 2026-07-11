@@ -132,16 +132,19 @@ export class SuggestionEngine {
     }
 
     // 5. Build Request Payload with Local Context
-    const globalContext = this.platform.getGlobalContext();
     const settings = this.sdk.adapters?.settings
       ? await (this.sdk.adapters.settings as any).getSettings()
       : {};
     const provider = settings.aiModels?.suggestionsProvider || 'llama-3.1-8b-instant';
+    const useProfileContext = settings.copilotSuggestions?.useProfileContext !== false;
 
     // NEW: Get Local Profile and Sync Queue
-    const profile = (await this.sdk.adapters?.auth?.getActiveProfile()) || {};
+    const profile = useProfileContext
+      ? (await this.sdk.adapters?.auth?.getActiveProfile()) || {}
+      : {};
     // LAZY SYNC: We no longer send sync_queue in the Priority request to minimize latency.
     const syncQueue: any[] = [];
+    const globalContext = this.platform.getGlobalContext();
 
     const payload: any = {
       provider: provider,
@@ -170,6 +173,43 @@ export class SuggestionEngine {
         h1: globalContext.document.querySelector('h1')?.innerText || '',
       },
     };
+
+    const activeProvider = await this.sdk.inference.getSelectedProviderName();
+    if (activeProvider === 'byok' || activeProvider === 'gemini-nano') {
+      console.log(`[SuggestionEngine] Local inference route chosen: ${activeProvider}`);
+      const promptContext = {
+        label: metadata.label,
+        type: (node as any).type || 'text',
+        placeholder: (node as any).getAttribute('placeholder') || undefined,
+        value: (node as any).value || undefined,
+        formContext: (node as any).formContext || undefined,
+        pageUrl: globalContext.location.href,
+        pageTitle: globalContext.document.title,
+      };
+
+      try {
+        const result = await this.sdk.inference.route(promptContext);
+        console.log(`[SuggestionEngine] Local Inference Result:`, result);
+
+        if (result && result.value) {
+          const finalRes = {
+            success: true,
+            value: result.value,
+            options: [result.value],
+            field: {
+              ...metadata,
+              placeholder: (node as any).getAttribute('placeholder') || '',
+            },
+            source: result.provider,
+            type: 'discrete' as const,
+          };
+          this.requestCache.set(cacheKey, finalRes);
+          return finalRes;
+        }
+      } catch (err) {
+        console.warn('[SuggestionEngine] Local inference failed:', err);
+      }
+    }
 
     try {
       console.log(`[SuggestionEngine] ==> Request Payload (${provider}):`, payload);
@@ -263,6 +303,12 @@ export class SuggestionEngine {
    * Checks for local matches (Alias/Profile) before calling AI.
    */
   async resolveLocally(node: CognilotNode, metadata: LabelMetadata) {
+    const settings = this.sdk.adapters?.settings
+      ? await (this.sdk.adapters.settings as any).getSettings()
+      : {};
+    const useProfileContext = settings.copilotSuggestions?.useProfileContext !== false;
+    if (!useProfileContext) return null;
+
     // Convert to DTO expected by Resolvers
     const fieldDto: any = {
       text: metadata.label,
@@ -346,9 +392,56 @@ export class SuggestionEngine {
       ? await (this.sdk.adapters.settings as any).getSettings()
       : {};
     const provider = settings.aiModels?.suggestionsProvider || 'llama-3.1-8b-instant';
+    const activeProvider = await this.sdk.inference.getSelectedProviderName();
+    if (activeProvider === 'byok' || activeProvider === 'gemini-nano') {
+      console.log(`[SuggestionEngine] Prefetch: Local inference route chosen: ${activeProvider}`);
+      const globalContext = this.platform.getGlobalContext();
+
+      await Promise.all(
+        pendingItems.map(async (p) => {
+          const promptContext = {
+            label: p.item.metadata.label,
+            type: (p.item.node as any).type || 'text',
+            placeholder: (p.item.node as any).getAttribute('placeholder') || undefined,
+            value: (p.item.node as any).value || undefined,
+            formContext: (p.item.node as any).formContext || undefined,
+            pageUrl: globalContext.location.href,
+            pageTitle: globalContext.document.title,
+          };
+
+          try {
+            const result = await this.sdk.inference.route(promptContext);
+            if (result && result.value) {
+              const finalRes = {
+                success: true,
+                value: result.value,
+                options: [result.value],
+                field: {
+                  ...p.item.metadata,
+                  placeholder: (p.item.node as any).getAttribute('placeholder') || '',
+                },
+                source: result.provider,
+                type: 'discrete' as const,
+              };
+              this.requestCache.set(p.key, finalRes);
+            }
+          } catch (err) {
+            console.warn(
+              `[SuggestionEngine] Prefetch local inference failed for key "${p.key}":`,
+              err
+            );
+          }
+        })
+      );
+      return;
+    }
+
+    const useProfileContext = settings.copilotSuggestions?.useProfileContext !== false;
 
     // Build multi-question payload
-    const profile = (await this.sdk.adapters?.auth?.getActiveProfile()) || {};
+    const profile = useProfileContext
+      ? (await this.sdk.adapters?.auth?.getActiveProfile()) || {}
+      : {};
 
     // SYNC: No longer piggybacking. Dedicated /api/learner/standardize handles this.
     const syncQueue: any[] = [];

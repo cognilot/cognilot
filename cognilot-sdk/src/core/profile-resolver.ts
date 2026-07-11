@@ -186,6 +186,12 @@ export class ProfileResolver {
    * Merges standardized refinement data from the backend into the local profile cache.
    */
   async updateFromStandardizedData(standardizedProfile: Record<string, any>) {
+    const settings = this.sdk.adapters?.settings
+      ? await (this.sdk.adapters.settings as any).getSettings()
+      : {};
+    const useProfileContext = settings.copilotSuggestions?.useProfileContext !== false;
+    if (!useProfileContext) return;
+
     const storage = this.sdk.adapters?.storage;
     if (!storage || !standardizedProfile) return;
 

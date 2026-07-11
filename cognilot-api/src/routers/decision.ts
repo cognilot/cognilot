@@ -24,22 +24,35 @@ const decisionQuestionSchema = z.object({
 
 const batchDecisionSchema = z.object({
   questions: z.array(decisionQuestionSchema).min(1).max(20),
+  provider: z.string().optional(),
+  user_context: z.any().optional(),
 });
 
-const createGroqClient = () =>
-  new ChatGroq({
+const createGroqClient = (modelName?: string) => {
+  const model =
+    modelName === 'llama-3.1-8b-instant' ? 'llama-3.1-8b-instant' : 'llama-3.3-70b-versatile';
+  return new ChatGroq({
     apiKey: process.env['GROQ_API_KEY']!,
-    model: 'llama-3.3-70b-versatile',
+    model,
     temperature: 0.1,
     maxTokens: 512,
   });
+};
 
 decisionRouter.post('/batch', zValidator('json', batchDecisionSchema), async (c) => {
   const userId = c.get('userId');
-  const { questions } = c.req.valid('json');
+  const reqBody = c.req.valid('json');
+  const { questions } = reqBody;
 
-  const [profile] = await db.select().from(userProfiles).where(eq(userProfiles.userId, userId));
-  const userProfileData = profile?.dataLearned ?? {};
+  let userProfileData = {};
+
+  if (reqBody.user_context !== undefined) {
+    const clientProfile = reqBody.user_context?.profile || {};
+    userProfileData = clientProfile.data_learned || clientProfile;
+  } else {
+    const [profile] = await db.select().from(userProfiles).where(eq(userProfiles.userId, userId));
+    userProfileData = profile?.dataLearned ?? {};
+  }
 
   const systemPrompt = `You are an intelligent form autofill assistant.
 Your job is to select the correct options for choice-based form fields (such as dropdown select, radio buttons, or checkboxes) based on the user's profile data.
@@ -79,8 +92,13 @@ No explanations, no markdown block wrappers. Return raw JSON.`;
     })
     .join('\n\n');
 
+  const model =
+    reqBody.provider === 'llama-3.1-8b-instant'
+      ? 'llama-3.1-8b-instant'
+      : 'llama-3.3-70b-versatile';
+
   try {
-    const llm = createGroqClient();
+    const llm = createGroqClient(reqBody.provider);
     const response = await llm.invoke([
       new SystemMessage(systemPrompt),
       new HumanMessage(`Make decisions for these fields:\n${fieldsText}`),
@@ -104,7 +122,7 @@ No explanations, no markdown block wrappers. Return raw JSON.`;
     return c.json({
       results: standardizedResults,
       meta: {
-        model: 'llama-3.3-70b-versatile',
+        model,
       },
     });
   } catch (err) {

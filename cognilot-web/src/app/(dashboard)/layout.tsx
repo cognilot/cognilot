@@ -6,6 +6,11 @@ import { createBrowserClient } from '@supabase/ssr';
 import Link from 'next/link';
 import type { User } from '@supabase/supabase-js';
 
+const supabase = createBrowserClient(
+  process.env['NEXT_PUBLIC_SUPABASE_URL'] ?? '',
+  process.env['NEXT_PUBLIC_SUPABASE_ANON_KEY'] ?? ''
+);
+
 /**
  * Dashboard Layout — Client Component.
  *
@@ -21,24 +26,19 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const supabase = createBrowserClient(
-    process.env['NEXT_PUBLIC_SUPABASE_URL'] ?? '',
-    process.env['NEXT_PUBLIC_SUPABASE_ANON_KEY'] ?? ''
-  );
-
   useEffect(() => {
     const checkSession = async () => {
       const {
         data: { session },
       } = await supabase.auth.getSession();
-      
+
       if (!session) {
         router.replace('/auth');
         return;
       }
-      
+
       setUser(session.user);
-      
+
       // Fetch local user profile and sync with extension
       try {
         const { authService } = await import('../../services/auth.service');
@@ -48,7 +48,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
       } catch (error) {
         console.error('Failed to sync with extension:', error);
       }
-      
+
       setLoading(false);
     };
 
@@ -58,7 +58,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === 'SIGNED_OUT') {
-        import('../../utils/extensionBridge').then(m => m.extensionBridge.clearTokens());
+        import('../../utils/extensionBridge').then((m) => m.extensionBridge.clearTokens());
         router.replace('/auth');
       } else if (session?.user) {
         setUser(session.user);
@@ -67,7 +67,9 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
 
     const handleVisibilityChange = async () => {
       if (document.visibilityState === 'visible') {
-        const { data: { session } } = await supabase.auth.getSession();
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
         if (session) {
           try {
             const { authService } = await import('../../services/auth.service');
@@ -88,13 +90,14 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       window.removeEventListener('focus', handleVisibilityChange);
     };
-  }, [router, supabase]);
+  }, [router]);
 
   const handleSignOut = async () => {
     await supabase.auth.signOut();
   };
 
   const navItems = [
+    { href: '/dashboard/welcome', label: 'welcome', hint: '// getting started' },
     { href: '/dashboard/memory', label: 'memory', hint: '// profile & learned data' },
     { href: '/dashboard/aliases', label: 'aliases', hint: '// shorthand mappings' },
     { href: '/dashboard/playground', label: 'playground', hint: '// skills & testing' },

@@ -1,0 +1,23 @@
+{
+  "skill_name": "daily-init",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Buenos días!",
+      "expected_output": "Health check de git, MCP agile-harness, npx skills. Session recap con branch actual, HU detectada, último commit. Pending items vía MCP. Breaches (tests, stale branches, cambios sin commit, .env drift, docs). Menú de acción.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "Cómo vamos con el proyecto?",
+      "expected_output": "Misma estructura: recap + pendientes + brechas + menú.",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "Qué hay pendiente hoy?",
+      "expected_output": "Recap de sesión, pending items del MCP y brechas detectadas.",
+      "files": []
+    }
+  ]
+}

@@ -1,0 +1,29 @@
+{
+  "skill_name": "git-workflow-manager",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Necesito implementar login con JWT usando Supabase. Crea una HU y su branch.",
+      "expected_output": "Usar MCP agile-harness para crear HU, extraer ID y título, crear branch tipo '{huId}-{titulo-kebab}' desde master/main. GitHub Flow por defecto.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "Crea una rama para la HU-42 del sprint 3.",
+      "expected_output": "Usar MCP agile-harness para fetch HU-42, extraer título y tipo, crear branch tipo '42-{titulo-kebab}' desde master/main.",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "Hay un bug en producción donde la alineación del header se rompe en mobile. Issue #42 en el repo.",
+      "expected_output": "Crear branch tipo '42-fix-header-alignment' desde master/main, sin borrar locales.",
+      "files": []
+    },
+    {
+      "id": 4,
+      "prompt": "Quiero pushear mis cambios de forma segura, que valide conflictos y corra tests antes de subir.",
+      "expected_output": "Detectar target branch, fetch, dry-run merge local sin commitear, detectar toolchain y correr lint/format/test, push, preguntar si crear PR.",
+      "files": []
+    }
+  ]
+}

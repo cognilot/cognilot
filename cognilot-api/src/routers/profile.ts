@@ -19,7 +19,18 @@ const patchProfileSchema = z.object({
 
 const syncProfileSchema = z.object({
   /** Partial learned data from the extension's local cache */
-  learnedData: z.record(z.unknown()),
+  learnedData: z.record(z.unknown()).optional(),
+  /** Sync queue of learned entries from extension */
+  sync_queue: z
+    .array(
+      z.object({
+        key: z.string(),
+        value: z.string(),
+        domain: z.string().optional(),
+        confirmedAt: z.string().optional(),
+      })
+    )
+    .optional(),
 });
 
 // ── Handlers ──────────────────────────────────────────────────────────────────
@@ -89,7 +100,17 @@ profileRouter.patch('/', zValidator('json', patchProfileSchema), async (c) => {
  */
 profileRouter.post('/sync', zValidator('json', syncProfileSchema), async (c) => {
   const userId = c.get('userId');
-  const { learnedData } = c.req.valid('json');
+  const { learnedData, sync_queue } = c.req.valid('json');
+
+  // Map sync_queue into incoming learned data
+  const incomingLearnedData: Record<string, any> = { ...(learnedData || {}) };
+  if (sync_queue && Array.isArray(sync_queue)) {
+    for (const item of sync_queue) {
+      if (item.key && item.value) {
+        incomingLearnedData[item.key] = item.value;
+      }
+    }
+  }
 
   // Fetch current profile
   const [current] = await db.select().from(userProfiles).where(eq(userProfiles.userId, userId));
@@ -99,7 +120,7 @@ profileRouter.post('/sync', zValidator('json', syncProfileSchema), async (c) => 
     ...(typeof current?.dataLearned === 'object' && current.dataLearned !== null
       ? (current.dataLearned as Record<string, unknown>)
       : {}),
-    ...learnedData,
+    ...incomingLearnedData,
   };
 
   const [updated] = await db
@@ -113,7 +134,7 @@ profileRouter.post('/sync', zValidator('json', syncProfileSchema), async (c) => 
 
   return c.json({
     message: 'Profile synced successfully.',
-    fieldsLearned: Object.keys(learnedData).length,
+    fieldsLearned: Object.keys(incomingLearnedData).length,
     profile: { dataLearned: updated?.dataLearned },
   });
 });

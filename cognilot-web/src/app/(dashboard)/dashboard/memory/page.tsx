@@ -1,9 +1,18 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { createBrowserClient } from '@supabase/ssr';
 import { toast } from 'sonner';
-import { RefreshCw, Trash2, Plus, Check, Save } from 'lucide-react';
+import { useSearchParams } from 'next/navigation';
+import { MemoryForm } from '../../../../components/memory/MemoryForm';
+import { MemorySidebar } from '../../../../components/memory/MemorySidebar';
+import {
+  flattenDataLearned,
+  normalizeDataLearned,
+  promoteLearnedValue,
+} from '../../../../utils/dataLearned';
+import { profileService } from '../../../../services/profile.service';
+import { extensionBridge } from '../../../../utils/extensionBridge';
 
 interface UserInfo {
   id: string;
@@ -12,7 +21,7 @@ interface UserInfo {
 }
 
 interface ProfileData {
-  dataLearned: Record<string, any>;
+  dataLearned: Record<string, string[]>;
   onboardingCompleted: boolean | null;
 }
 
@@ -23,20 +32,22 @@ interface ProfileData {
 export default function MemoryPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [showSaveSuccess, setShowSaveSuccess] = useState(false);
   const [user, setUser] = useState<UserInfo | null>(null);
-  const [profile, setProfile] = useState<ProfileData | null>(null);
-  const [showSavedMessage, setShowSavedMessage] = useState(false);
+  const [formData, setFormData] = useState<Record<string, unknown>>({});
+  const [originalData, setOriginalData] = useState<Record<string, unknown>>({});
+  const [hasChanges, setHasChanges] = useState(false);
+  const [isLocating, setIsLocating] = useState(false);
 
-  // States for adding custom key-value pairs
-  const [newKey, setNewKey] = useState('');
-  const [newValue, setNewValue] = useState('');
+  const searchParams = useSearchParams();
+  const focusParam = searchParams.get('focus');
 
   const supabase = createBrowserClient(
     process.env['NEXT_PUBLIC_SUPABASE_URL'] ?? '',
     process.env['NEXT_PUBLIC_SUPABASE_ANON_KEY'] ?? ''
   );
 
-  const fetchProfile = async () => {
+  const fetchProfile = useCallback(async () => {
     try {
       setLoading(true);
       const {
@@ -57,79 +68,155 @@ export default function MemoryPage() {
 
       const data = await response.json();
       setUser(data.user);
-      setProfile(data.profile);
+
+      const dbProfile = data.profile as ProfileData;
+      const dataLearned = dbProfile?.dataLearned || {};
+
+      // Flatten learned data for easy form binding
+      const flatLearned = flattenDataLearned(dataLearned);
+
+      // Seed standard metadata if not present
+      const seedKeys = {
+        email: data.user?.email || '',
+        display_name: data.user?.email ? data.user.email.split('@')[0] : '',
+      };
+
+      Object.entries(seedKeys).forEach(([k, v]) => {
+        if (v && (!dataLearned[k] || dataLearned[k].length === 0)) {
+          dataLearned[k] = [v];
+          flatLearned[k] = v;
+        }
+      });
+
+      const initialForm = {
+        ...flatLearned,
+        data_learned: dataLearned,
+      };
+
+      setFormData(initialForm);
+      setOriginalData(initialForm);
+      setHasChanges(false);
+
+      // Update local first-class extension cache too
+      if (typeof window !== 'undefined') {
+        await profileService.updateProfile({
+          data_learned: dataLearned,
+          preferences: {},
+        });
+      }
     } catch (err) {
       console.error(err);
       toast.error('Failed to load profile memory.');
     } finally {
       setLoading(false);
     }
-  };
+  }, [supabase.auth]);
 
   useEffect(() => {
     void fetchProfile();
-  }, []);
+  }, [fetchProfile]);
 
-  const handleFieldChange = (key: string, value: string) => {
-    if (!profile) return;
-    setProfile({
-      ...profile,
-      dataLearned: {
-        ...profile.dataLearned,
-        [key]: value,
-      },
+  // Real-time Sync with Extension Messages
+  useEffect(() => {
+    const handleSync = (event: MessageEvent) => {
+      if (event.data.type === 'Cognilot_CACHE_UPDATED') {
+        const keys = event.data.keys || [];
+        if (keys.includes('Cognilot_profile_cache') || keys.includes('Cognilot_alias_cache')) {
+          console.log('🔄 [Memory Page] Extension cache updated, refreshing view...');
+          profileService.clearCache();
+          void fetchProfile();
+        }
+      }
+    };
+
+    window.addEventListener('message', handleSync);
+    return () => window.removeEventListener('message', handleSync);
+  }, [fetchProfile]);
+
+  // Track Form Changes
+  useEffect(() => {
+    const checkChanges = () => {
+      const allKeys = new Set([...Object.keys(formData), ...Object.keys(originalData)]);
+      for (const key of allKeys) {
+        const val1 = formData[key];
+        const val2 = originalData[key];
+        if (val1 === val2) continue;
+        const v1 = val1 === null || val1 === undefined ? '' : val1;
+        const v2 = val2 === null || val2 === undefined ? '' : val2;
+        if (v1 === v2) continue;
+        if (typeof v1 === 'object' && typeof v2 === 'object') {
+          if (JSON.stringify(v1) !== JSON.stringify(v2)) return true;
+          continue;
+        }
+        return true;
+      }
+      return false;
+    };
+
+    setHasChanges(checkChanges());
+  }, [formData, originalData]);
+
+  const handleFieldChange = (name: string, value: unknown) => {
+    setFormData((prev) => {
+      const newData = { ...prev };
+      if (value === undefined) {
+        delete newData[name];
+      } else {
+        newData[name] = value;
+      }
+      return newData;
     });
   };
 
-  const handleDeleteField = (key: string) => {
-    if (!profile) return;
-    const updatedLearned = { ...profile.dataLearned };
-    delete updatedLearned[key];
-    setProfile({
-      ...profile,
-      dataLearned: updatedLearned,
-    });
-    toast.success(`Removed memory key: ${key}`);
-  };
-
-  const handleAddCustomField = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!profile || !newKey.trim() || !newValue.trim()) return;
-
-    const normalizedKey = newKey
-      .toLowerCase()
-      .trim()
-      .replace(/[^a-z0-9]+/g, '_')
-      .replace(/^_|_$/g, '');
-
-    if (profile.dataLearned[normalizedKey] !== undefined) {
-      toast.error(`Key "${normalizedKey}" already exists.`);
-      return;
-    }
-
-    setProfile({
-      ...profile,
-      dataLearned: {
-        ...profile.dataLearned,
-        [normalizedKey]: newValue,
-      },
-    });
-
-    setNewKey('');
-    setNewValue('');
-    toast.success(`Added memory key: ${normalizedKey}`);
-  };
-
-  const handleSave = async () => {
-    if (!profile) return;
-    setSaving(true);
-    setShowSavedMessage(false);
-
+  const saveProfile = async (
+    data: Record<string, any>,
+    silent = false,
+    extraLearnedData: Record<string, string[]> = {}
+  ) => {
+    if (!silent) setSaving(true);
     try {
       const {
         data: { session },
       } = await supabase.auth.getSession();
       if (!session) return;
+
+      const { data_learned, ...formFields } = data;
+
+      // Build updated learned map
+      let learnedPayload: Record<string, string[]> = {
+        ...normalizeDataLearned(data_learned || {}),
+        ...extraLearnedData,
+      };
+
+      const configKeys = [
+        'preferences',
+        'data_learned',
+        'id',
+        'user_id',
+        'created_at',
+        'updated_at',
+        'onboarding_completed',
+        'avatar_url',
+        'display_name',
+        'google_id',
+        'is_active',
+        'last_login',
+        'plan',
+        'provider',
+        'cv_url',
+        'email',
+        'given_name',
+        'family_name',
+      ];
+
+      for (const [key, value] of Object.entries(formFields)) {
+        if (!configKeys.includes(key)) {
+          const stringValue = String(value ?? '').trim();
+          if (stringValue) {
+            learnedPayload = promoteLearnedValue(learnedPayload, key, stringValue);
+          }
+        }
+      }
 
       const apiBase = process.env['NEXT_PUBLIC_API_URL'] || '';
       const response = await fetch(`${apiBase}/api/profile`, {
@@ -139,7 +226,7 @@ export default function MemoryPage() {
           Authorization: `Bearer ${session.access_token}`,
         },
         body: JSON.stringify({
-          dataLearned: profile.dataLearned,
+          dataLearned: learnedPayload,
         }),
       });
 
@@ -147,44 +234,156 @@ export default function MemoryPage() {
         throw new Error('Save failed');
       }
 
-      setShowSavedMessage(true);
-      toast.success('Cognilot memory synced successfully.');
-      setTimeout(() => setShowSavedMessage(false), 4000);
+      const responseData = await response.json();
+      const updatedFormData = {
+        ...data,
+        data_learned: learnedPayload,
+      };
+
+      setFormData(updatedFormData);
+      setOriginalData(updatedFormData);
+      setHasChanges(false);
+
+      // Sync extension cache
+      if (typeof window !== 'undefined') {
+        await profileService.updateProfile({
+          data_learned: learnedPayload,
+          preferences: {},
+        });
+        extensionBridge.refreshProfileCache();
+      }
+
+      if (!silent) {
+        setShowSaveSuccess(true);
+        toast.success('Cognilot memory synced successfully.');
+        setTimeout(() => setShowSaveSuccess(false), 3000);
+      }
     } catch (err) {
       console.error(err);
       toast.error('Failed to sync changes with the cloud.');
     } finally {
-      setSaving(false);
+      if (!silent) setSaving(false);
     }
   };
 
-  // Preset categories for clean layout grouping
-  const coreFields = [
-    { key: 'first_name', label: 'first_name', placeholder: 'John' },
-    { key: 'last_name', label: 'last_name', placeholder: 'Doe' },
-    { key: 'email', label: 'contact_email', placeholder: 'john.doe@example.com' },
-    { key: 'phone', label: 'phone_number', placeholder: '+1 (555) 0199' },
-    { key: 'location', label: 'location_address', placeholder: 'San Francisco, CA' },
-  ];
+  const handleSaveClick = async () => {
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      if (!session) return;
 
-  const socialFields = [
-    { key: 'github_url', label: 'github_profile', placeholder: 'https://github.com/username' },
-    {
-      key: 'linkedin_url',
-      label: 'linkedin_profile',
-      placeholder: 'https://linkedin.com/in/username',
-    },
-    { key: 'portfolio_url', label: 'portfolio_site', placeholder: 'https://username.dev' },
-  ];
+      const apiBase = process.env['NEXT_PUBLIC_API_URL'] || '';
+      // Sync onboarding completion status too
+      await fetch(`${apiBase}/api/profile`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          onboardingCompleted: new Date().toISOString(),
+        }),
+      });
 
-  // Any keys in dataLearned that aren't core or social, and aren't bio
-  const customEntries = profile
-    ? Object.entries(profile.dataLearned).filter(([k]) => {
-        const isCore = coreFields.some((f) => f.key === k);
-        const isSocial = socialFields.some((f) => f.key === k);
-        return !isCore && !isSocial && k !== 'bio';
-      })
-    : [];
+      await saveProfile(formData, false);
+    } catch (error) {
+      console.error('Error completing profile:', error);
+    }
+  };
+
+  const handleCVUpload = async (parsedData: any) => {
+    if (!parsedData) return;
+    try {
+      const cvLearned: Record<string, string[]> = {};
+      Object.entries(parsedData).forEach(([k, v]) => {
+        if (v) {
+          cvLearned[k] = Array.isArray(v) ? v : [String(v)];
+        }
+      });
+
+      const flatCV = flattenDataLearned(cvLearned);
+      const newData = {
+        ...formData,
+        ...flatCV,
+        data_learned: {
+          ...normalizeDataLearned(formData.data_learned || {}),
+          ...cvLearned,
+        },
+      };
+
+      setFormData(newData);
+      await saveProfile(newData, true, cvLearned);
+      toast.success('CV import completed and saved successfully.');
+    } catch (error) {
+      console.error('Error handling CV upload:', error);
+    }
+  };
+
+  const handleDetectLocation = async () => {
+    if (!navigator.geolocation) {
+      toast.error('La geolocalización no es compatible con este navegador.');
+      return;
+    }
+
+    setIsLocating(true);
+
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        try {
+          const { latitude, longitude } = position.coords;
+          const response = await fetch(
+            `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=18&addressdetails=1&email=support@cognilot.app`
+          );
+
+          if (!response.ok) throw new Error('Error al conectar con el servicio de mapas');
+
+          const data = await response.json();
+          const addr = data.address;
+
+          if (addr) {
+            const updates: Record<string, string> = {};
+            if (addr.country) updates.country = addr.country;
+            if (addr.city || addr.town || addr.village || addr.state) {
+              updates.city = addr.city || addr.town || addr.village || addr.state;
+            }
+            if (addr.road) {
+              updates.address = `${addr.road} ${addr.house_number || ''}`.trim();
+            }
+
+            const newData = {
+              ...formData,
+              ...updates,
+            };
+
+            setFormData(newData);
+            await saveProfile(newData, true);
+            toast.success('Ubicación autocompletada con éxito');
+          } else {
+            toast.warning('No se pudo determinar una dirección exacta');
+          }
+        } catch (error) {
+          console.error('Error detecting location:', error);
+          toast.error('Hubo un fallo al obtener los detalles de ubicación');
+        } finally {
+          setIsLocating(false);
+        }
+      },
+      (error) => {
+        console.error('Geolocation error:', error);
+        let msg = 'Error de ubicación desconocido';
+        if (error.code === error.PERMISSION_DENIED)
+          msg = 'Permiso de ubicación denegado por el usuario';
+        if (error.code === error.POSITION_UNAVAILABLE)
+          msg = 'La información de ubicación no está disponible';
+        if (error.code === error.TIMEOUT) msg = 'Tiempo de espera agotado al obtener la ubicación';
+
+        toast.error(msg);
+        setIsLocating(false);
+      },
+      { timeout: 10000 }
+    );
+  };
 
   if (loading) {
     return (
@@ -196,232 +395,27 @@ export default function MemoryPage() {
   }
 
   return (
-    <div className="p-8 max-w-4xl mx-auto animate-fade-in font-mono text-[13px]">
-      {/* Heading */}
-      <div className="mb-8">
-        <h1 className="text-xl font-bold text-white mb-2 flex items-center gap-2">
-          <span className="text-accent-violet">#</span> memory.md
-        </h1>
-        <div className="text-white/40 flex items-center justify-between">
-          <span>{'// View and modify facts the AI assistant has learned about you'}</span>
-          <button
-            onClick={fetchProfile}
-            className="text-white/30 hover:text-white/70 transition-colors flex items-center gap-1.5"
-            title="Reload from server"
-          >
-            <RefreshCw className="w-3.5 h-3.5" />
-            [RELOAD]
-          </button>
+    <div className="p-8 max-w-7xl mx-auto font-mono text-[13px]">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <div className="lg:col-span-2 space-y-6">
+          <MemoryForm
+            formData={formData}
+            onFieldChange={handleFieldChange}
+            isLocating={isLocating}
+            onDetectLocation={handleDetectLocation}
+            isSaving={saving}
+            showSaveSuccess={showSaveSuccess}
+            focusField={focusParam}
+          />
         </div>
-      </div>
-
-      {/* Main Terminal Window */}
-      <div className="bg-bg-primary/90 backdrop-blur-2xl border border-white/10 rounded-xl shadow-2xl overflow-hidden relative">
-        {/* IDE Title Bar */}
-        <div className="px-5 py-4 border-b border-white/5 bg-white/3 flex items-center gap-2 select-none">
-          <div className="flex gap-1.5 mr-4">
-            <div className="w-3 h-3 rounded-full bg-red-500/70" />
-            <div className="w-3 h-3 rounded-full bg-yellow-500/70" />
-            <div className="w-3 h-3 rounded-full bg-green-500/70" />
-          </div>
-          <div className="text-white/30 text-[10px] uppercase tracking-widest font-sans font-bold flex-1 text-right">
-            profile/memory.md
-          </div>
-        </div>
-
-        {/* Editor Body */}
-        <div className="p-6 md:p-8 space-y-8">
-          {/* Section: Core Profile Data */}
-          <div>
-            <div className="text-white/30 mb-4 select-none font-bold uppercase tracking-wider text-[11px]">
-              ## core_profile_data
-            </div>
-            <div className="space-y-3">
-              {coreFields.map((field) => (
-                <div
-                  key={field.key}
-                  className="flex relative items-start hover:bg-white/5 -mx-4 px-4 rounded transition-colors py-1"
-                >
-                  <div className="text-accent-violet select-none w-[180px] shrink-0 py-1.5 flex items-center font-semibold">
-                    {field.label}
-                    <span className="text-accent-violet/50 ml-1">:</span>
-                  </div>
-                  <input
-                    type="text"
-                    value={profile?.dataLearned[field.key] ?? ''}
-                    onChange={(e) => handleFieldChange(field.key, e.target.value)}
-                    className="bg-transparent text-white flex-1 py-1.5 min-w-0 placeholder:text-white/10 focus:bg-white/5 rounded px-2 -mx-2 transition-colors outline-none"
-                    placeholder={field.placeholder}
-                  />
-                  {profile?.dataLearned[field.key] && (
-                    <button
-                      onClick={() => handleDeleteField(field.key)}
-                      className="text-white/15 hover:text-red-400 p-1.5 transition-colors self-center"
-                      title="Clear field"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  )}
-                </div>
-              ))}
-
-              {/* Bio block (large textarea) */}
-              <div className="flex flex-col md:flex-row relative items-start hover:bg-white/5 -mx-4 px-4 rounded transition-colors py-3">
-                <div className="text-accent-violet select-none w-[180px] shrink-0 py-1 flex items-center font-semibold">
-                  profile_bio
-                  <span className="text-accent-violet/50 ml-1">:</span>
-                </div>
-                <textarea
-                  value={profile?.dataLearned['bio'] ?? ''}
-                  onChange={(e) => handleFieldChange('bio', e.target.value)}
-                  className="bg-transparent text-white flex-1 py-1 min-w-0 placeholder:text-white/10 focus:bg-white/5 rounded px-2 -mx-2 transition-colors outline-none resize-y min-h-[80px]"
-                  placeholder="Describe your professional background, core skills, and goals..."
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Section: Social & Profiles */}
-          <div>
-            <div className="text-white/30 mb-4 select-none font-bold uppercase tracking-wider text-[11px]">
-              ## professional_networks
-            </div>
-            <div className="space-y-3">
-              {socialFields.map((field) => (
-                <div
-                  key={field.key}
-                  className="flex relative items-start hover:bg-white/5 -mx-4 px-4 rounded transition-colors py-1"
-                >
-                  <div className="text-accent-violet select-none w-[180px] shrink-0 py-1.5 flex items-center font-semibold">
-                    {field.label}
-                    <span className="text-accent-violet/50 ml-1">:</span>
-                  </div>
-                  <input
-                    type="url"
-                    value={profile?.dataLearned[field.key] ?? ''}
-                    onChange={(e) => handleFieldChange(field.key, e.target.value)}
-                    className="bg-transparent text-white flex-1 py-1.5 min-w-0 placeholder:text-white/10 focus:bg-white/5 rounded px-2 -mx-2 transition-colors outline-none"
-                    placeholder={field.placeholder}
-                  />
-                  {profile?.dataLearned[field.key] && (
-                    <button
-                      onClick={() => handleDeleteField(field.key)}
-                      className="text-white/15 hover:text-red-400 p-1.5 transition-colors self-center"
-                      title="Clear URL"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Section: AI-Learned Facts */}
-          <div>
-            <div className="text-white/30 mb-4 select-none font-bold uppercase tracking-wider text-[11px]">
-              ## cognitive_memory_facts
-            </div>
-
-            {customEntries.length === 0 ? (
-              <div className="text-white/20 select-none py-3 px-2 border border-dashed border-white/5 rounded-lg text-center">
-                // No custom or AI-extracted facts registered in memory block.
-              </div>
-            ) : (
-              <div className="space-y-2 max-h-[300px] overflow-y-auto pr-2 border border-white/5 rounded-lg p-2 bg-white/[0.01]">
-                {customEntries.map(([key, val]) => (
-                  <div
-                    key={key}
-                    className="flex items-start gap-4 py-2 px-3 hover:bg-white/5 rounded transition-colors"
-                  >
-                    <span
-                      className="text-accent-cyan font-bold select-none shrink-0 w-[160px] truncate"
-                      title={key}
-                    >
-                      {key}
-                    </span>
-                    <input
-                      type="text"
-                      value={val ?? ''}
-                      onChange={(e) => handleFieldChange(key, e.target.value)}
-                      className="bg-transparent text-white flex-1 min-w-0 outline-none placeholder:text-white/10"
-                    />
-                    <button
-                      onClick={() => handleDeleteField(key)}
-                      className="text-white/30 hover:text-red-400 p-1 transition-colors"
-                      title="Delete fact key"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Sub-form: Add Custom Memory Fact */}
-          <form
-            onSubmit={handleAddCustomField}
-            className="border-t border-white/5 pt-6 flex flex-col sm:flex-row gap-4 items-end"
-          >
-            <div className="w-full sm:w-1/3">
-              <label className="text-white/40 block text-[11px] mb-1 select-none font-bold uppercase tracking-wider">
-                custom_key:
-              </label>
-              <input
-                type="text"
-                value={newKey}
-                onChange={(e) => setNewKey(e.target.value)}
-                placeholder="e.g. key_skills"
-                className="w-full bg-transparent border border-white/10 text-white rounded p-2 focus:border-white/20 outline-none"
-              />
-            </div>
-            <div className="w-full sm:w-1/2">
-              <label className="text-white/40 block text-[11px] mb-1 select-none font-bold uppercase tracking-wider">
-                fact_value:
-              </label>
-              <input
-                type="text"
-                value={newValue}
-                onChange={(e) => setNewValue(e.target.value)}
-                placeholder="React, TypeScript, Next.js"
-                className="w-full bg-transparent border border-white/10 text-white rounded p-2 focus:border-white/20 outline-none"
-              />
-            </div>
-            <button
-              type="submit"
-              className="px-4 py-2 bg-white/5 hover:bg-white/10 border border-white/10 text-white rounded flex items-center gap-1.5 select-none hover:text-accent-cyan transition-colors w-full sm:w-auto justify-center font-bold"
-            >
-              <Plus className="w-3.5 h-3.5 text-accent-cyan" />
-              [ADD]
-            </button>
-          </form>
-        </div>
-
-        {/* Footer controls bar */}
-        <div className="px-6 py-5 border-t border-white/5 bg-white/[0.01] flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <button
-              onClick={handleSave}
-              disabled={saving}
-              className="py-2.5 px-6 bg-white/5 hover:bg-white/10 text-white rounded transition-colors flex items-center gap-2 border border-white/10 group disabled:opacity-50 select-none cursor-pointer"
-            >
-              <span className="text-accent-violet font-bold opacity-50 group-hover:opacity-100 transition-opacity">
-                {saving ? '::' : '>'}
-              </span>
-              {saving ? './syncing_memory.sh...' : './save_profile.sh'}
-            </button>
-
-            {showSavedMessage && (
-              <span className="text-green-400 flex items-center gap-1 animate-fade-in font-bold">
-                <Check className="w-4 h-4" />
-                // sync_complete_ok
-              </span>
-            )}
-          </div>
-          <div className="text-white/20 text-[10px] select-none uppercase tracking-widest hidden sm:block">
-            // status: synced
-          </div>
+        <div>
+          <MemorySidebar
+            isSaving={saving}
+            hasChanges={hasChanges}
+            formData={formData}
+            handleCVUpload={handleCVUpload}
+            handleSubmit={handleSaveClick}
+          />
         </div>
       </div>
     </div>

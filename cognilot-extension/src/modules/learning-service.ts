@@ -87,6 +87,14 @@ export class LearningService {
   async confirm(key: string, value: string, domain: string): Promise<void> {
     if (!key || !value) return;
 
+    const prefs = await chrome.storage.local.get('Cognilot_preference_cache');
+    const settings = prefs.Cognilot_preference_cache || {};
+    const useProfileContext = settings.copilotSuggestions?.useProfileContext !== false;
+    if (!useProfileContext) {
+      console.log('[LearningService] Skip confirm learning: useProfileContext is disabled');
+      return;
+    }
+
     const normalizedKey = this.normalizeKey(key);
     const entry: LearningEntry = {
       key: normalizedKey,

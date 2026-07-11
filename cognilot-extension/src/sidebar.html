@@ -14,7 +14,7 @@
   </head>
   <body>
     <!-- AUTH GUARD OVERLAY: Full screen blocker for logged out users -->
-    <div id="auth-guard-overlay" class="auth-guard-overlay" style="display: flex">
+    <div id="auth-guard-overlay" class="auth-guard-overlay" style="display: none">
       <div class="auth-guard-content">
         <div class="auth-guard-logo">
           <svg
@@ -65,7 +65,7 @@
       </div>
     </div>
 
-    <div class="app-layout" style="display: none">
+    <div class="app-layout" style="display: flex">
       <!-- HEADER: Title + Profile Controls -->
       <header class="app-header">
         <div class="header-tools">
@@ -562,16 +562,30 @@
                           <div
                             class="model-option model-option--active"
                             data-value="llama-3.1-8b-instant"
-                            data-label="Llama 3.1 (Fast)"
+                            data-label="Llama 3.1 8B"
                           >
-                            Llama 3.1 8B (Fast)
+                            Llama 3.1 8B (Gratuito)
                           </div>
                           <div
                             class="model-option"
-                            data-value="llama-3.3-70b-versatile"
-                            data-label="Llama 3.3 (Smart)"
+                            data-value="byok-openai"
+                            data-label="GPT-4o-mini"
                           >
-                            Llama 3.3 70B (Smart)
+                            OpenAI GPT-4o-mini (BYOK)
+                          </div>
+                          <div
+                            class="model-option"
+                            data-value="byok-anthropic"
+                            data-label="Claude 3"
+                          >
+                            Anthropic Claude 3 (BYOK)
+                          </div>
+                          <div
+                            class="model-option"
+                            data-value="byok-groq"
+                            data-label="Llama 70B"
+                          >
+                            Groq Llama 3.3 70B (BYOK)
                           </div>
                         </div>
                       </div>
@@ -825,6 +839,83 @@
                         >
                           Clear Cache
                         </button>
+                      </div>
+                    </div>
+
+                    <!-- Block: Profile Context -->
+                    <div class="settings-card">
+                      <div class="settings-row">
+                        <div class="settings-info">
+                          <span class="settings-label">Use Personal Context</span>
+                          <span class="settings-desc">Use profile and aliases for suggestions</span>
+                        </div>
+                        <label class="toggle">
+                          <input type="checkbox" id="copilot-use-profile-context" checked />
+                          <span class="toggle__slider"></span>
+                        </label>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Accordion Item: Bring Your Own Key (BYOK) -->
+              <div class="accordion-item" id="acc-byok">
+                <div class="accordion-header">
+                  <span class="acc-title">Bring Your Own Key (BYOK)</span>
+                  <span class="acc-arrow"></span>
+                </div>
+                <div class="accordion-content">
+                  <div
+                    id="byok-settings"
+                    style="display: flex; flex-direction: column; gap: 12px; padding: 12px 0"
+                  >
+                    <div class="settings-card">
+                      <div class="settings-row">
+                        <div class="settings-info">
+                          <span class="settings-label">Enable BYOK</span>
+                          <span class="settings-desc">Override inference with your own API key</span>
+                        </div>
+                        <label class="toggle">
+                          <input type="checkbox" id="byok-enabled" />
+                          <span class="toggle__slider"></span>
+                        </label>
+                      </div>
+                    </div>
+
+                    <div class="settings-card byok-field-group" style="padding: 12px;">
+                      <div style="display: flex; flex-direction: column; gap: 8px; width: 100%;">
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                          <span class="settings-label" style="font-weight: 500;">Provider</span>
+                        </div>
+                        <select id="byok-provider" class="settings-select" style="width: 100%; box-sizing: border-box;">
+                          <option value="openai">OpenAI (gpt-4o-mini)</option>
+                          <option value="anthropic">Anthropic (claude-3-haiku)</option>
+                          <option value="groq">Groq (llama-3.3-70b)</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <div class="settings-card byok-field-group" style="padding: 12px;">
+                      <div style="display: flex; flex-direction: column; gap: 8px; width: 100%;">
+                        <span class="settings-label" style="font-weight: 500;">API Key</span>
+                        <input type="password" id="byok-api-key" placeholder="Enter your API Key" class="sh-input" style="box-sizing: border-box;" />
+                      </div>
+                    </div>
+
+                    <div class="settings-card byok-field-group" style="padding: 12px;">
+                      <div style="display: flex; flex-direction: column; gap: 8px; width: 100%;">
+                        <span class="settings-label" style="font-weight: 500;">Model (Optional)</span>
+                        <input type="text" id="byok-model" placeholder="Default for selected provider" class="sh-input" style="box-sizing: border-box;" />
+                      </div>
+                    </div>
+
+                    <div class="settings-card" style="padding: 12px;">
+                      <div style="display: flex; justify-content: space-between; align-items: center; width: 100%; gap: 12px;">
+                        <button id="byok-test-connection" class="btn-sh">
+                          ./test_connection.sh
+                        </button>
+                        <span id="byok-test-status" style="font-size: 11px; color: var(--text-secondary); font-family: monospace; text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 150px;"></span>
                       </div>
                     </div>
                   </div>

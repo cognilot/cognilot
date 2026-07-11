@@ -16,6 +16,9 @@ interface MemoryFormProps {
   focusField?: string | null;
 }
 
+/**
+ * Auto-resizing textarea that expands vertically as the user types.
+ */
 const AutoResizeTextarea: FC<React.TextareaHTMLAttributes<HTMLTextAreaElement>> = (props) => {
   const ref = useRef<HTMLTextAreaElement>(null);
 
@@ -36,6 +39,9 @@ const AutoResizeTextarea: FC<React.TextareaHTMLAttributes<HTMLTextAreaElement>> 
   );
 };
 
+/**
+ * Single editable key:value row rendered in the terminal/memory style.
+ */
 const CustomFieldRow: FC<{
   labelKey: string;
   value: string;
@@ -84,6 +90,13 @@ const CustomFieldRow: FC<{
   );
 };
 
+/**
+ * MemoryForm
+ *
+ * Renders all profile memory data exclusively in the terminal key:value style.
+ * There are no standard form inputs — every field follows the IDE/terminal aesthetic
+ * consistent with the rest of the Cognilot design system.
+ */
 export const MemoryForm: FC<MemoryFormProps> = ({
   formData,
   onFieldChange,
@@ -96,15 +109,17 @@ export const MemoryForm: FC<MemoryFormProps> = ({
   const customSectionRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (focusField === 'custom' && customSectionRef.current) {
-      customSectionRef.current.scrollIntoView({
-        behavior: 'smooth',
-        block: 'center',
-      });
+    if (focusField) {
+      const element = document.getElementById(`section-${focusField}`);
+      if (element) {
+        element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      } else if (focusField === 'custom' && customSectionRef.current) {
+        customSectionRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
     }
   }, [focusField]);
 
-  // Dynamic Fields
+  // All memory data lives in the JSONB data_learned field
   const customData = normalizeDataLearned(formData.data_learned);
   const customKeys = Object.keys(customData);
 
@@ -121,7 +136,7 @@ export const MemoryForm: FC<MemoryFormProps> = ({
     delete newData[oldKey];
     onFieldChange('data_learned', newData);
     onFieldChange(newKey, newData[newKey]?.[0] || undefined);
-    // Remove the old flattened entry to prevent it being added back during save
+    // Remove old flattened entry to prevent it being re-added on save
     onFieldChange(oldKey, undefined);
   };
 
@@ -129,7 +144,7 @@ export const MemoryForm: FC<MemoryFormProps> = ({
     const newData = { ...customData };
     delete newData[key];
     onFieldChange('data_learned', newData);
-    // Remove the flattened entry that could cause it to be added back during save
+    // Remove flattened entry to prevent it being re-added on save
     onFieldChange(key, undefined);
   };
 
@@ -153,12 +168,12 @@ export const MemoryForm: FC<MemoryFormProps> = ({
 
   return (
     <section className="bg-surface/90 backdrop-blur-2xl border border-white/10 rounded-xl shadow-2xl overflow-hidden font-mono text-[13px] leading-relaxed relative animate-scale-in">
-      {/* OVERLAY */}
+      {/* Saving / Success overlay */}
       {(isSaving || showSaveSuccess) && (
         <div className="absolute inset-0 z-50 bg-surface/80 backdrop-blur-xl flex flex-col items-center justify-center transition-all duration-300">
           {isSaving ? (
             <div className="flex flex-col items-center gap-6">
-              <div className="w-12 h-12 border-4 border-brand-secondary/20 border-t-brand-secondary rounded-full animate-spin"></div>
+              <div className="w-12 h-12 border-4 border-brand-secondary/20 border-t-brand-secondary rounded-full animate-spin" />
               <span className="text-brand-secondary font-bold tracking-[0.2em] font-sans text-sm animate-pulse">
                 GUARDANDO...
               </span>
@@ -189,6 +204,7 @@ export const MemoryForm: FC<MemoryFormProps> = ({
       </div>
 
       <div className="p-6 md:p-8">
+        {/* Header */}
         <div className="mb-8 flex items-center justify-between gap-4">
           <div>
             <h1 className="text-xl font-bold text-white mb-2 flex items-center gap-2">
@@ -211,10 +227,15 @@ export const MemoryForm: FC<MemoryFormProps> = ({
           </button>
         </div>
 
-        {/* JSONB / Dynamic Extra Information */}
+        {/* All memory fields rendered in terminal key:value style */}
         <div
           ref={customSectionRef}
-          className={`relative transition-all duration-1000 ${focusField === 'custom' ? 'ring-2 ring-brand-secondary/50 rounded-xl p-4 bg-brand-secondary/5' : ''}`}
+          id="section-custom"
+          className={`relative transition-all duration-1000 ${
+            focusField === 'custom'
+              ? 'ring-2 ring-brand-secondary/50 rounded-xl p-4 bg-brand-secondary/5'
+              : ''
+          }`}
         >
           <div className="space-y-1">
             {customKeys.map((key) => (
@@ -228,7 +249,7 @@ export const MemoryForm: FC<MemoryFormProps> = ({
               />
             ))}
 
-            {/* New Line Input */}
+            {/* New field input */}
             <div className="flex relative items-start mt-4 bg-black/20 border border-dashed border-white/10 rounded-lg p-2.5 hover:border-brand-secondary/30 transition-colors focus-within:border-brand-secondary/50 focus-within:bg-brand-secondary/5">
               <div className="text-brand-secondary/50 select-none shrink-0 mr-3 flex items-center font-bold">
                 +

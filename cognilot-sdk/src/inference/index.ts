@@ -6,6 +6,7 @@ export { InferenceRouter, InferenceUnavailableError } from './InferenceRouter.js
 export { GeminiNanoProvider } from './providers/GeminiNanoProvider.js';
 export { GroqProvider } from './providers/GroqProvider.js';
 export { BYOKProvider } from './providers/BYOKProvider.js';
+export { PromptTemplateManager } from './PromptTemplateManager.js';
 export type {
   InferenceProvider,
   CompletionOptions,

@@ -920,12 +920,54 @@ class CognilotSidebar {
     await this.checkAuthStatus();
   }
 
+  showByokWarningBanner(provider: string) {
+    const existing = document.getElementById('byok-warning-banner');
+    if (existing) existing.remove();
+
+    const byokSettings = document.getElementById('byok-settings');
+    if (byokSettings) {
+      const banner = document.createElement('div');
+      banner.id = 'byok-warning-banner';
+      banner.style.padding = '8px 12px';
+      banner.style.background = 'rgba(239, 68, 68, 0.1)';
+      banner.style.border = '1px solid rgba(239, 68, 68, 0.3)';
+      banner.style.borderRadius = '4px';
+      banner.style.color = '#ef4444';
+      banner.style.fontSize = '12px';
+      banner.style.fontFamily = 'monospace';
+      banner.style.lineHeight = '1.4';
+      banner.innerHTML = `// WARNING: Configura tu API Key para ${provider.toUpperCase()}<br/>// o selecciona un modelo gratuito.`;
+
+      byokSettings.insertBefore(banner, byokSettings.firstChild);
+    }
+  }
+
   updateUIWithSettings() {
     this.setToggle('copilot-enabled', this.currentSettings.copilotSuggestions?.enabled);
     this.setToggle(
       'copilot-learn-fields',
       this.currentSettings.copilotSuggestions?.learnCustomFields
     );
+    this.setToggle(
+      'copilot-use-profile-context',
+      this.currentSettings.copilotSuggestions?.useProfileContext !== false
+    );
+    this.setToggle('byok-enabled', this.currentSettings.byok?.enabled);
+
+    const provider = this.currentSettings.byok?.provider || 'openai';
+    this.setSelectValue('byok-provider', provider);
+
+    const apiKeyInput = document.getElementById('byok-api-key') as HTMLInputElement;
+    if (apiKeyInput) {
+      apiKeyInput.value = this.currentSettings.byok?.providers?.[provider]?.apiKey || '';
+    }
+
+    const modelInput = document.getElementById('byok-model') as HTMLInputElement;
+    if (modelInput) {
+      modelInput.value = this.currentSettings.byok?.providers?.[provider]?.model || '';
+    }
+
+    this.toggleByokFieldsVisibility(!!this.currentSettings.byok?.enabled);
 
     // AI Model selected in Home
     const modelValue = this.currentSettings.aiModels?.suggestionsProvider || 'llama-3.1-8b-instant';
@@ -966,6 +1008,8 @@ class CognilotSidebar {
   async saveSettings() {
     // Helper to safely get checked state
     const getChecked = (id) => document.getElementById(id)?.checked || false;
+    const getVal = (id) =>
+      (document.getElementById(id) as HTMLInputElement | HTMLSelectElement)?.value || '';
     const activeModelEl = document.querySelector('.model-option--active');
     const getModelVal = () => activeModelEl?.dataset?.value || 'llama-3.1-8b-instant';
 
@@ -979,9 +1023,57 @@ class CognilotSidebar {
         'copilotSuggestions.learnCustomFields',
         getChecked('copilot-learn-fields')
       );
+      await settingsAdapter.updateSetting(
+        'copilotSuggestions.useProfileContext',
+        getChecked('copilot-use-profile-context')
+      );
+      await settingsAdapter.updateSetting('byok.enabled', getChecked('byok-enabled'));
+
+      const oldProvider = this.currentSettings.byok?.provider || 'openai';
+      const newProvider = getVal('byok-provider');
+      const apiKey = getVal('byok-api-key');
+      const model = getVal('byok-model');
+
+      if (oldProvider !== newProvider) {
+        // Save inputs to old provider first
+        await settingsAdapter.updateSetting(`byok.providers.${oldProvider}.apiKey`, apiKey);
+        await settingsAdapter.updateSetting(`byok.providers.${oldProvider}.model`, model);
+
+        // Save new provider selection
+        await settingsAdapter.updateSetting('byok.provider', newProvider);
+
+        // Fetch refreshed settings
+        const newSettings = await settingsAdapter.getSettings();
+        this.currentSettings = newSettings;
+
+        // Load new provider values to UI
+        const newApiKey = newSettings.byok?.providers?.[newProvider]?.apiKey || '';
+        const newModel = newSettings.byok?.providers?.[newProvider]?.model || '';
+
+        const apiKeyInput = document.getElementById('byok-api-key') as HTMLInputElement;
+        if (apiKeyInput) apiKeyInput.value = newApiKey;
+        const modelInput = document.getElementById('byok-model') as HTMLInputElement;
+        if (modelInput) modelInput.value = newModel;
+
+        // Legacy compatibility sync
+        await settingsAdapter.updateSetting('byok.apiKey', newApiKey);
+        await settingsAdapter.updateSetting('byok.model', newModel);
+      } else {
+        await settingsAdapter.updateSetting(`byok.providers.${newProvider}.apiKey`, apiKey);
+        await settingsAdapter.updateSetting(`byok.providers.${newProvider}.model`, model);
+        await settingsAdapter.updateSetting('byok.apiKey', apiKey);
+        await settingsAdapter.updateSetting('byok.model', model);
+      }
+
       await settingsAdapter.updateSetting('aiModels.suggestionsProvider', getModelVal());
       await settingsAdapter.updateSetting('aiModels.actionsProvider', getModelVal());
       this.currentSettings = await settingsAdapter.getSettings();
+
+      // Clean warning banner if key exists
+      const existingWarning = document.getElementById('byok-warning-banner');
+      if (existingWarning && getVal('byok-api-key')) {
+        existingWarning.remove();
+      }
     }
 
     this.notifyContentScripts('settingsUpdated', this.currentSettings);
@@ -1047,15 +1139,13 @@ class CognilotSidebar {
   toggleAuthGuard(isAuthenticated) {
     const overlay = document.getElementById('auth-guard-overlay');
     if (overlay) {
-      overlay.style.display = isAuthenticated ? 'none' : 'flex';
+      overlay.style.display = 'none';
     }
 
     // strictly hide/show the layout to prevent accidental interactions and flickers
     const layout = document.querySelector('.app-layout') as HTMLElement;
     if (layout) {
-      layout.style.display = isAuthenticated ? 'flex' : 'none';
-      // We keep flex as the default layout for the app, or block if preferred.
-      // Based on sidebar.html, app-layout contains header and body.
+      layout.style.display = 'flex';
     }
   }
 
@@ -1441,6 +1531,63 @@ class CognilotSidebar {
     document.querySelectorAll('.model-option').forEach((option) => {
       option.addEventListener('click', async (e) => {
         e.stopPropagation();
+        const val = (option as HTMLElement).dataset.value || '';
+        if (val.startsWith('byok-')) {
+          const provider = val.replace('byok-', '');
+          const apiKey = this.currentSettings.byok?.providers?.[provider]?.apiKey || '';
+          if (!apiKey) {
+            // Close dropdown
+            modelDropdown?.classList.remove('model-dropdown--active');
+
+            // Revert option select in UI
+            const currentVal =
+              this.currentSettings.aiModels?.suggestionsProvider || 'llama-3.1-8b-instant';
+            const currentOption = document.querySelector(
+              `.model-option[data-value="${currentVal}"]`
+            );
+            if (currentOption) {
+              this.updateModelSelectionUI(currentOption);
+            }
+
+            // Redirect to settings
+            this.switchToTab('settings');
+
+            // Open BYOK accordion
+            const accordionItems = document.querySelectorAll('.accordion-item');
+            accordionItems.forEach((i) => i.classList.remove('accordion-item--active'));
+            const accByok = document.getElementById('acc-byok');
+            if (accByok) accByok.classList.add('accordion-item--active');
+
+            // Set select value
+            this.setSelectValue('byok-provider', provider);
+
+            // Update settings provider and inputs
+            const settingsAdapter = window.Cognilot.SDK.Core.Registry.getAdapter('settings');
+            if (settingsAdapter) {
+              await settingsAdapter.updateSetting('byok.provider', provider);
+
+              // Load the provider key/model
+              const config = await settingsAdapter.getSettings();
+              this.currentSettings = config;
+
+              // Update inputs
+              const apiKeyInput = document.getElementById('byok-api-key') as HTMLInputElement;
+              if (apiKeyInput) apiKeyInput.value = config.byok?.providers?.[provider]?.apiKey || '';
+
+              const modelInput = document.getElementById('byok-model') as HTMLInputElement;
+              if (modelInput) modelInput.value = config.byok?.providers?.[provider]?.model || '';
+
+              // Focus API Key input
+              if (apiKeyInput) {
+                apiKeyInput.focus();
+              }
+
+              // Show warning banner
+              this.showByokWarningBanner(provider);
+            }
+            return;
+          }
+        }
         this.updateModelSelectionUI(option);
         await this.saveSettings();
       });
@@ -1692,7 +1839,10 @@ class CognilotSidebar {
         f.status === 'resolved'
           ? {
               success: true,
-              source: f.resolution?.source === 'existing_value' ? 'pre-filled' : (f.resolution?.source || 'ai'),
+              source:
+                f.resolution?.source === 'existing_value'
+                  ? 'pre-filled'
+                  : f.resolution?.source || 'ai',
               value: f.resolution?.value,
             }
           : null,
@@ -1991,10 +2141,120 @@ class CognilotSidebar {
     });
 
     // Auto-Save toggles
-    ['copilot-enabled', 'copilot-learn-fields'].forEach((id) => {
+    [
+      'copilot-enabled',
+      'copilot-learn-fields',
+      'copilot-use-profile-context',
+      'byok-enabled',
+    ].forEach((id) => {
+      document.getElementById(id)?.addEventListener('change', (e: any) => {
+        if (id === 'byok-enabled') {
+          this.toggleByokFieldsVisibility(e.target.checked);
+        }
+        this.saveSettings();
+      });
+    });
+
+    ['byok-provider', 'byok-api-key', 'byok-model'].forEach((id) => {
       document.getElementById(id)?.addEventListener('change', () => {
         this.saveSettings();
       });
+    });
+
+    // BYOK connection tester
+    document.getElementById('byok-test-connection')?.addEventListener('click', async () => {
+      const provider = (document.getElementById('byok-provider') as HTMLSelectElement)?.value;
+      const apiKey = (document.getElementById('byok-api-key') as HTMLInputElement)?.value || '';
+      const customModel = (document.getElementById('byok-model') as HTMLInputElement)?.value || '';
+      const statusEl = document.getElementById('byok-test-status');
+
+      if (!apiKey) {
+        if (statusEl) {
+          statusEl.textContent = '[ERR] Missing API key';
+          statusEl.style.color = 'var(--danger-color)';
+        }
+        return;
+      }
+
+      if (statusEl) {
+        statusEl.textContent = 'Testing...';
+        statusEl.style.color = 'var(--text-secondary)';
+      }
+
+      try {
+        let success = false;
+        let errorMsg = '';
+
+        if (provider === 'openai') {
+          const res = await fetch('https://api.openai.com/v1/chat/completions', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${apiKey}`,
+            },
+            body: JSON.stringify({
+              model: customModel || 'gpt-4o-mini',
+              messages: [{ role: 'user', content: 'Say OK' }],
+              max_tokens: 5,
+            }),
+          });
+          if (res.ok) success = true;
+          else errorMsg = `${res.status} ${res.statusText}`;
+        } else if (provider === 'anthropic') {
+          const res = await fetch('https://api.anthropic.com/v1/messages', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'x-api-key': apiKey,
+              'anthropic-version': '2023-06-01',
+            },
+            body: JSON.stringify({
+              model: customModel || 'claude-3-haiku-20240307',
+              max_tokens: 5,
+              messages: [{ role: 'user', content: 'Say OK' }],
+            }),
+          });
+          if (res.ok) success = true;
+          else errorMsg = `${res.status} ${res.statusText}`;
+        } else if (provider === 'groq') {
+          const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${apiKey}`,
+            },
+            body: JSON.stringify({
+              model: customModel || 'llama-3.3-70b-versatile',
+              messages: [{ role: 'user', content: 'Say OK' }],
+              max_tokens: 5,
+            }),
+          });
+          if (res.ok) success = true;
+          else errorMsg = `${res.status} ${res.statusText}`;
+        }
+
+        if (statusEl) {
+          if (success) {
+            statusEl.textContent = '[OK] Verified!';
+            statusEl.style.color = 'var(--success-color)';
+          } else {
+            statusEl.textContent = `[ERR] ${errorMsg}`;
+            statusEl.style.color = 'var(--danger-color)';
+          }
+        }
+      } catch (err: any) {
+        if (statusEl) {
+          statusEl.textContent = `[ERR] ${err.message || 'Fetch failed'}`;
+          statusEl.style.color = 'var(--danger-color)';
+        }
+      }
+    });
+  }
+
+  toggleByokFieldsVisibility(visible: boolean) {
+    const fieldGroups = document.querySelectorAll('.byok-field-group');
+    fieldGroups.forEach((group: any) => {
+      group.style.display = visible ? 'block' : 'none';
     });
   }
 
@@ -2181,9 +2441,10 @@ class CognilotSidebar {
 
     const newActive = !this.inspectorActive;
     const action = newActive ? 'sidebarEnableInspector' : 'sidebarDisableInspector';
-    const activeFormId = this.activeScope && this.activeScope.startsWith('form_')
-      ? this.activeScope.replace('form_', '')
-      : null;
+    const activeFormId =
+      this.activeScope && this.activeScope.startsWith('form_')
+        ? this.activeScope.replace('form_', '')
+        : null;
     const data = newActive ? { activeFormId } : {};
 
     console.log('[Sidebar] handleManualSelection triggered', {

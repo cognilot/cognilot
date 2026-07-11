@@ -1,12 +1,12 @@
 import { type FC, useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useRouter } from 'next/navigation';
 import { Terminal, MapPin, FileText, Brain, CheckCircle2, Circle } from 'lucide-react';
 import { profileService } from '../services/profile.service';
 import { profileSections } from '../utils/profileFields';
 import { ProgressBar } from './ProgressBar';
 
 export const OnboardingGuide: FC = () => {
-  const navigate = useNavigate();
+  const router = useRouter();
   const [profileData, setProfileData] = useState<Record<string, unknown>>({});
   const [isLoading, setIsLoading] = useState(true);
 
@@ -115,9 +115,9 @@ export const OnboardingGuide: FC = () => {
 
   const handleStepClick = (focus: string) => {
     if (focus === 'custom') {
-      navigate('/memory?focus=custom');
+      router.push('/dashboard/memory?focus=custom');
     } else {
-      navigate(`/memory?focus=${focus}`);
+      router.push(`/dashboard/memory?focus=${focus}`);
     }
   };
 

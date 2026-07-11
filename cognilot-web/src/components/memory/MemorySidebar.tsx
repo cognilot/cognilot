@@ -1,6 +1,5 @@
 import { type FC } from 'react';
 import { Save, Sparkles } from 'lucide-react';
-import { profileSections, areRequiredFieldsComplete } from '../../utils/profileFields';
 import { CVUploader } from '../CVUploader';
 
 interface MemorySidebarProps {
@@ -18,43 +17,41 @@ export const MemorySidebar: FC<MemorySidebarProps> = ({
   handleCVUpload,
   handleSubmit,
 }) => {
-  // Calculate standard fields list
-  const standardFields = new Set<string>();
-  profileSections.forEach((section) => {
-    section.fields.forEach((f) => standardFields.add(f.name));
-  });
-
-  // Calculate steps completion (Onboarding Logic)
-  const isLocationDone = !!formData.country || !!formData.city;
+  /**
+   * Onboarding step completion — derived entirely from data_learned keys.
+   * No longer tied to profileSections (which were removed from the form).
+   */
+  const isLocationDone = !!formData.country || !!formData.city || !!formData.location;
   const isExperienceDone =
     !!formData.current_company ||
     !!formData.current_role ||
     !!formData.degree ||
     !!formData.university;
 
-  // Check for manual memory
+  const systemKeys = new Set([
+    'preferences',
+    'data_learned',
+    'id',
+    'user_id',
+    'created_at',
+    'updated_at',
+    'onboarding_completed',
+    'avatar_url',
+    'display_name',
+    'google_id',
+    'is_active',
+    'last_login',
+    'plan',
+    'provider',
+    'cv_url',
+    'email',
+    'given_name',
+    'family_name',
+  ]);
+
+  // Manual memory: any data_learned key that isn't a system field and has a value
   const isManualMemoryDone = Object.keys(formData).some((key) => {
-    const configKeys = [
-      'preferences',
-      'data_learned',
-      'id',
-      'user_id',
-      'created_at',
-      'updated_at',
-      'onboarding_completed',
-      'avatar_url',
-      'display_name',
-      'google_id',
-      'is_active',
-      'last_login',
-      'plan',
-      'provider',
-      'cv_url',
-      'email',
-      'given_name',
-      'family_name',
-    ];
-    if (standardFields.has(key) || configKeys.includes(key)) return false;
+    if (systemKeys.has(key)) return false;
     const value = formData[key];
     return value !== undefined && value !== null && value !== '';
   });
@@ -153,7 +150,7 @@ export const MemorySidebar: FC<MemorySidebarProps> = ({
           <div className="pt-6 border-t border-white/5">
             <button
               onClick={handleSubmit}
-              disabled={isSaving || !hasChanges || !areRequiredFieldsComplete(formData)}
+              disabled={isSaving || !hasChanges}
               className="w-full py-3 px-4 bg-brand-primary/10 hover:bg-brand-primary/20 text-brand-primary text-xs font-sans font-bold uppercase tracking-widest rounded-lg border border-brand-primary/20 transition-all flex items-center justify-center gap-3 disabled:opacity-20 disabled:grayscale disabled:cursor-not-allowed group/save shadow-lg shadow-brand-primary/5"
             >
               <Save className="w-4 h-4 group-hover/save:scale-110 transition-transform" />

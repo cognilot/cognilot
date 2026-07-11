@@ -11,10 +11,22 @@ export const SettingsManager = {
       showInPlaceholder: true,
       cacheSuggestions: true,
       learnCustomFields: true,
+      useProfileContext: true,
     },
     aiModels: {
       suggestionsProvider: 'llama-3.1-8b-instant',
       actionsProvider: 'llama-3.1-8b-instant',
+    },
+    byok: {
+      enabled: false,
+      provider: 'openai',
+      apiKey: '',
+      model: '',
+      providers: {
+        openai: { apiKey: '', model: 'gpt-4o-mini' },
+        anthropic: { apiKey: '', model: 'claude-3-5-sonnet-20241022' },
+        groq: { apiKey: '', model: 'llama-3.3-70b-versatile' },
+      },
     },
   },
 

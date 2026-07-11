@@ -43,6 +43,8 @@ const suggestionRequestSchema = z.object({
   fieldContext: fieldContextSchema,
   pageContext: pageContextSchema,
   options: optionsSchema,
+  provider: z.string().optional(),
+  user_context: z.any().optional(),
 });
 
 const refineRequestSchema = z.object({
@@ -59,6 +61,7 @@ const refineRequestSchema = z.object({
   raw_text: z.string(),
   learn_on_enhance: z.boolean().default(false),
   provider: z.string().optional(),
+  user_context: z.any().optional(),
 });
 
 const batchQuestionSchema = z.object({
@@ -84,14 +87,17 @@ const batchSuggestionSchema = z.object({
 // ── LLM Client ────────────────────────────────────────────────────────────────
 
 /** Groq LLM client factory */
-const createGroqClient = () =>
-  new ChatGroq({
+const createGroqClient = (modelName?: string) => {
+  const model =
+    modelName === 'llama-3.1-8b-instant' ? 'llama-3.1-8b-instant' : 'llama-3.3-70b-versatile';
+  return new ChatGroq({
     // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
     apiKey: process.env['GROQ_API_KEY']!,
-    model: 'llama-3.3-70b-versatile',
+    model,
     temperature: 0.3,
     maxTokens: 512,
   });
+};
 
 // ── Handlers ──────────────────────────────────────────────────────────────────
 
@@ -102,20 +108,31 @@ const createGroqClient = () =>
  */
 suggestionsRouter.post('/', zValidator('json', suggestionRequestSchema), async (c) => {
   const userId = c.get('userId');
-  const { fieldContext, pageContext, options } = c.req.valid('json');
+  const reqBody = c.req.valid('json');
+  const { fieldContext, pageContext, options } = reqBody;
 
-  // Load user context (profile + aliases)
-  const [profile] = await db.select().from(userProfiles).where(eq(userProfiles.userId, userId));
-  const userAliases = await db.select().from(aliases).where(eq(aliases.userId, userId));
+  let profileData = {};
+  let aliasesContext = 'No aliases defined.';
 
-  // Build aliases context string
-  const aliasesContext = userAliases.map((a) => `- "${a.label}" means "${a.value}"`).join('\n');
+  if (reqBody.user_context !== undefined) {
+    const clientProfile = reqBody.user_context?.profile || {};
+    profileData = clientProfile.data_learned || clientProfile;
+    if (Object.keys(clientProfile).length > 0) {
+      const userAliases = await db.select().from(aliases).where(eq(aliases.userId, userId));
+      aliasesContext = userAliases.map((a) => `- "${a.label}" means "${a.value}"`).join('\n');
+    }
+  } else {
+    const [profile] = await db.select().from(userProfiles).where(eq(userProfiles.userId, userId));
+    profileData = profile?.dataLearned ?? {};
+    const userAliases = await db.select().from(aliases).where(eq(aliases.userId, userId));
+    aliasesContext = userAliases.map((a) => `- "${a.label}" means "${a.value}"`).join('\n');
+  }
 
   const systemPrompt = `You are an intelligent form autofill assistant.
 Your job is to suggest the most appropriate value for a web form field based on the user's profile data and the page context.
 
 ## User Profile Data:
-${JSON.stringify(profile?.dataLearned ?? {}, null, 2)}
+${JSON.stringify(profileData, null, 2)}
 
 ## User Aliases (shortcuts):
 ${aliasesContext || 'No aliases defined.'}
@@ -135,7 +152,7 @@ Form Context: ${fieldContext.formContext ?? 'N/A'}
 Page: ${pageContext.title} (${pageContext.domain})`;
 
   try {
-    const llm = createGroqClient();
+    const llm = createGroqClient(reqBody.provider);
     const response = await llm.invoke([
       new SystemMessage(systemPrompt),
       new HumanMessage(userMessage),
@@ -160,19 +177,31 @@ Page: ${pageContext.title} (${pageContext.domain})`;
  */
 suggestionsRouter.post('/refine', zValidator('json', refineRequestSchema), async (c) => {
   const userId = c.get('userId');
-  const { field, page_context, raw_text } = c.req.valid('json');
+  const reqBody = c.req.valid('json');
+  const { field, page_context, raw_text } = reqBody;
 
-  // Load user context (profile + aliases)
-  const [profile] = await db.select().from(userProfiles).where(eq(userProfiles.userId, userId));
-  const userAliases = await db.select().from(aliases).where(eq(aliases.userId, userId));
+  let profileData = {};
+  let aliasesContext = 'No aliases defined.';
 
-  const aliasesContext = userAliases.map((a) => `- "${a.label}" means "${a.value}"`).join('\n');
+  if (reqBody.user_context !== undefined) {
+    const clientProfile = reqBody.user_context?.profile || {};
+    profileData = clientProfile.data_learned || clientProfile;
+    if (Object.keys(clientProfile).length > 0) {
+      const userAliases = await db.select().from(aliases).where(eq(aliases.userId, userId));
+      aliasesContext = userAliases.map((a) => `- "${a.label}" means "${a.value}"`).join('\n');
+    }
+  } else {
+    const [profile] = await db.select().from(userProfiles).where(eq(userProfiles.userId, userId));
+    profileData = profile?.dataLearned ?? {};
+    const userAliases = await db.select().from(aliases).where(eq(aliases.userId, userId));
+    aliasesContext = userAliases.map((a) => `- "${a.label}" means "${a.value}"`).join('\n');
+  }
 
   const systemPrompt = `You are an assistant that refines, enhances, and formats user input text within a form field.
 Your job is to rewrite or complete the user's text to make it fit perfectly in the context of the field.
 
 ## User Profile:
-${JSON.stringify(profile?.dataLearned ?? {}, null, 2)}
+${JSON.stringify(profileData, null, 2)}
 
 ## User Aliases:
 ${aliasesContext || 'No aliases defined.'}
@@ -194,7 +223,7 @@ Original Text to Refine:
 "${raw_text}"`;
 
   try {
-    const llm = createGroqClient();
+    const llm = createGroqClient(reqBody.provider);
     const response = await llm.invoke([
       new SystemMessage(systemPrompt),
       new HumanMessage(userMessage),
@@ -218,18 +247,35 @@ Original Text to Refine:
  */
 suggestionsRouter.post('/batch', zValidator('json', batchSuggestionSchema), async (c) => {
   const userId = c.get('userId');
-  const { questions } = c.req.valid('json');
+  const reqBody = c.req.valid('json');
+  const { questions } = reqBody;
+  const model =
+    reqBody.provider === 'llama-3.1-8b-instant'
+      ? 'llama-3.1-8b-instant'
+      : 'llama-3.3-70b-versatile';
 
-  const [profile] = await db.select().from(userProfiles).where(eq(userProfiles.userId, userId));
-  const userAliases = await db.select().from(aliases).where(eq(aliases.userId, userId));
+  let profileData = {};
+  let aliasesContext = 'No aliases defined.';
 
-  const aliasesContext = userAliases.map((a) => `- "${a.label}" means "${a.value}"`).join('\n');
+  if (reqBody.user_context !== undefined) {
+    const clientProfile = reqBody.user_context?.profile || {};
+    profileData = clientProfile.data_learned || clientProfile;
+    if (Object.keys(clientProfile).length > 0) {
+      const userAliases = await db.select().from(aliases).where(eq(aliases.userId, userId));
+      aliasesContext = userAliases.map((a) => `- "${a.label}" means "${a.value}"`).join('\n');
+    }
+  } else {
+    const [profile] = await db.select().from(userProfiles).where(eq(userProfiles.userId, userId));
+    profileData = profile?.dataLearned ?? {};
+    const userAliases = await db.select().from(aliases).where(eq(aliases.userId, userId));
+    aliasesContext = userAliases.map((a) => `- "${a.label}" means "${a.value}"`).join('\n');
+  }
 
   const systemPrompt = `You are an intelligent form autofill assistant.
 Your job is to suggest the most appropriate values for multiple form fields based on the user's profile data.
 
 ## User Profile:
-${JSON.stringify(profile?.dataLearned ?? {}, null, 2)}
+${JSON.stringify(profileData, null, 2)}
 
 ## User Aliases:
 ${aliasesContext || 'No aliases defined.'}
@@ -245,11 +291,14 @@ Example format:
 No explanations, no markdown wrappers. Return raw JSON.`;
 
   const fieldsText = questions
-    .map((q, i) => `${i + 1}. Key: "${q.key}", Label: "${q.field.label}", Type: "${q.field.type}", Placeholder: "${q.field.placeholder ?? ''}"`)
+    .map(
+      (q, i) =>
+        `${i + 1}. Key: "${q.key}", Label: "${q.field.label}", Type: "${q.field.type}", Placeholder: "${q.field.placeholder ?? ''}"`
+    )
     .join('\n');
 
   try {
-    const llm = createGroqClient();
+    const llm = createGroqClient(reqBody.provider);
     const response = await llm.invoke([
       new SystemMessage(systemPrompt),
       new HumanMessage(`Fill these fields:\n${fieldsText}`),
@@ -276,7 +325,7 @@ No explanations, no markdown wrappers. Return raw JSON.`;
       results: standardizedResults,
       meta: {
         processing_time_ms: 100, // mock duration
-        model: 'llama-3.3-70b-versatile',
+        model,
       },
     });
   } catch (err) {

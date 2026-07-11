@@ -22,7 +22,10 @@
     "https://docs.google.com/forms/*",
     "http://localhost:8000/*",
     "https://vague-felita-Cognilot-7f5d4232.koyeb.app/*",
-    "https://chatgpt.com/*"
+    "https://chatgpt.com/*",
+    "https://api.openai.com/*",
+    "https://api.anthropic.com/*",
+    "https://api.groq.com/*"
   ],
 
   "externally_connectable": {

@@ -163,11 +163,11 @@ export default function PlaygroundPage() {
         <div className="lg:col-span-2 space-y-8">
           {/* Create Skill Window */}
           <div className="bg-bg-primary/90 backdrop-blur-2xl border border-white/10 rounded-xl shadow-2xl overflow-hidden">
-            <div className="px-5 py-4 border-b border-white/5 bg-white/3 flex items-center gap-2 select-none">
+            <div className="px-5 py-4 border-b border-white/5 bg-white/5 flex items-center gap-2 select-none">
               <div className="flex gap-1.5">
-                <div className="w-3 h-3 rounded-full bg-red-500/70" />
-                <div className="w-3 h-3 rounded-full bg-yellow-500/70" />
-                <div className="w-3 h-3 rounded-full bg-green-500/70" />
+                <div className="w-3 h-3 rounded-full bg-red-500/80 shadow-[0_0_8px_rgba(239,68,68,0.4)]" />
+                <div className="w-3 h-3 rounded-full bg-yellow-500/80 shadow-[0_0_8px_rgba(234,179,8,0.4)]" />
+                <div className="w-3 h-3 rounded-full bg-green-500/80 shadow-[0_0_8px_rgba(34,197,94,0.4)]" />
               </div>
               <div className="text-white/30 text-[10px] uppercase tracking-widest font-sans font-bold flex-1 text-right">
                 skills/creator.sh
@@ -256,11 +256,11 @@ export default function PlaygroundPage() {
 
           {/* Test Bench Sandbox */}
           <div className="bg-bg-primary/90 backdrop-blur-2xl border border-white/10 rounded-xl shadow-2xl overflow-hidden">
-            <div className="px-5 py-4 border-b border-white/5 bg-white/3 flex items-center gap-2 select-none">
+            <div className="px-5 py-4 border-b border-white/5 bg-white/5 flex items-center gap-2 select-none">
               <div className="flex gap-1.5">
-                <div className="w-3 h-3 rounded-full bg-red-500/70" />
-                <div className="w-3 h-3 rounded-full bg-yellow-500/70" />
-                <div className="w-3 h-3 rounded-full bg-green-500/70" />
+                <div className="w-3 h-3 rounded-full bg-red-500/80 shadow-[0_0_8px_rgba(239,68,68,0.4)]" />
+                <div className="w-3 h-3 rounded-full bg-yellow-500/80 shadow-[0_0_8px_rgba(234,179,8,0.4)]" />
+                <div className="w-3 h-3 rounded-full bg-green-500/80 shadow-[0_0_8px_rgba(34,197,94,0.4)]" />
               </div>
               <div className="text-white/30 text-[10px] uppercase tracking-widest font-sans font-bold flex-1 text-right">
                 skills/test_bench.sh
@@ -272,29 +272,29 @@ export default function PlaygroundPage() {
                 ## interactive_sandbox_test
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="text-white/40 block text-[11px] mb-1">
-                    Simulate URL/Domain:
-                  </label>
+              <div className="space-y-0">
+                <div className="flex relative items-start hover:bg-white/5 -mx-4 px-4 rounded transition-colors py-1">
+                  <span className="text-accent-violet font-semibold w-[160px] md:w-[200px] shrink-0 py-1.5">
+                    simulate_domain<span className="text-accent-violet/50">:</span>
+                  </span>
                   <input
                     type="text"
                     value={testDomain}
                     onChange={(e) => setTestDomain(e.target.value)}
                     placeholder="e.g. linkedin.com"
-                    className="w-full bg-transparent border-b border-white/10 text-white pb-1 focus:border-white/30 outline-none"
+                    className="bg-transparent text-white flex-1 py-1.5 outline-none placeholder:text-white/10 focus:bg-white/5 rounded px-2 -mx-2 transition-colors"
                   />
                 </div>
-                <div>
-                  <label className="text-white/40 block text-[11px] mb-1">
-                    Simulate Field Label:
-                  </label>
+                <div className="flex relative items-start hover:bg-white/5 -mx-4 px-4 rounded transition-colors py-1">
+                  <span className="text-accent-violet font-semibold w-[160px] md:w-[200px] shrink-0 py-1.5">
+                    simulate_label<span className="text-accent-violet/50">:</span>
+                  </span>
                   <input
                     type="text"
                     value={testLabel}
                     onChange={(e) => setTestLabel(e.target.value)}
                     placeholder="e.g. Summary"
-                    className="w-full bg-transparent border-b border-white/10 text-white pb-1 focus:border-white/30 outline-none"
+                    className="bg-transparent text-white flex-1 py-1.5 outline-none placeholder:text-white/10 focus:bg-white/5 rounded px-2 -mx-2 transition-colors"
                   />
                 </div>
               </div>
@@ -329,9 +329,14 @@ export default function PlaygroundPage() {
         {/* Right Column: Active Skills List */}
         <div>
           <div className="bg-bg-primary/90 backdrop-blur-2xl border border-white/10 rounded-xl shadow-2xl overflow-hidden h-full">
-            <div className="px-5 py-4 border-b border-white/5 bg-white/3 flex items-center gap-2 select-none">
-              <div className="text-white/30 text-[10px] uppercase tracking-widest font-sans font-bold flex-1">
-                Active Skills Library
+            <div className="px-5 py-4 border-b border-white/5 bg-white/5 flex items-center gap-2 select-none">
+              <div className="flex gap-1.5">
+                <div className="w-3 h-3 rounded-full bg-red-500/80 shadow-[0_0_8px_rgba(239,68,68,0.4)]" />
+                <div className="w-3 h-3 rounded-full bg-yellow-500/80 shadow-[0_0_8px_rgba(234,179,8,0.4)]" />
+                <div className="w-3 h-3 rounded-full bg-green-500/80 shadow-[0_0_8px_rgba(34,197,94,0.4)]" />
+              </div>
+              <div className="text-white/30 text-[10px] uppercase tracking-widest font-sans font-bold flex-1 text-right">
+                SKILLS_LIBRARY.MD
               </div>
             </div>
 
