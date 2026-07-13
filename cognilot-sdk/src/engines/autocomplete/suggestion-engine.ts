@@ -159,6 +159,7 @@ export class SuggestionEngine {
             type: (node as any).type || 'text',
             tagName: node.tagName || 'INPUT',
             required: metadata.required || false,
+            helperText: metadata.helper_text || undefined,
           },
         },
       ],
@@ -178,11 +179,12 @@ export class SuggestionEngine {
     if (activeProvider === 'byok' || activeProvider === 'gemini-nano') {
       console.log(`[SuggestionEngine] Local inference route chosen: ${activeProvider}`);
       const promptContext = {
-        label: metadata.label,
+        label: metadata.label || '',
         type: (node as any).type || 'text',
         placeholder: (node as any).getAttribute('placeholder') || undefined,
         value: (node as any).value || undefined,
         formContext: (node as any).formContext || undefined,
+        helperText: metadata.helper_text || undefined,
         pageUrl: globalContext.location.href,
         pageTitle: globalContext.document.title,
       };
@@ -192,12 +194,13 @@ export class SuggestionEngine {
         console.log(`[SuggestionEngine] Local Inference Result:`, result);
 
         if (result && result.value) {
+          const { labelElement, ...cleanMetadata } = metadata;
           const finalRes = {
             success: true,
             value: result.value,
             options: [result.value],
             field: {
-              ...metadata,
+              ...cleanMetadata,
               placeholder: (node as any).getAttribute('placeholder') || '',
             },
             source: result.provider,
@@ -240,12 +243,13 @@ export class SuggestionEngine {
                   : suggestion;
 
             if (value !== undefined && value !== null) {
+              const { labelElement, ...cleanMetadata } = metadata;
               const finalRes = {
                 success: true,
                 value: value,
                 options: options.length > 0 ? options : [value],
                 field: {
-                  ...metadata,
+                  ...cleanMetadata,
                   placeholder: (node as any).getAttribute('placeholder') || '',
                 },
                 source: (response as any).meta?.model || provider,
@@ -318,6 +322,8 @@ export class SuggestionEngine {
       type: (node as any).type || 'text',
     };
 
+    const { labelElement, ...cleanMetadata } = metadata;
+
     // 1. Check Alias Cache
     if (this.sdk.alias) {
       const localMatch = await this.sdk.alias.resolve(fieldDto);
@@ -328,7 +334,7 @@ export class SuggestionEngine {
           value: localMatch.suggestion.options?.[0] || '',
           options: localMatch.suggestion.options || [localMatch.suggestion.options?.[0]],
           field: {
-            ...metadata,
+            ...cleanMetadata,
             placeholder: (node as any).getAttribute('placeholder') || '',
           },
           source: localMatch.suggestion.source || 'alias_cache',
@@ -347,7 +353,7 @@ export class SuggestionEngine {
           value: profileMatch.suggestion.options?.[0] || '',
           options: profileMatch.suggestion.options || [profileMatch.suggestion.options?.[0]],
           field: {
-            ...metadata,
+            ...cleanMetadata,
             placeholder: (node as any).getAttribute('placeholder') || '',
           },
           source: profileMatch.suggestion.source || 'profile_cache',
@@ -400,11 +406,12 @@ export class SuggestionEngine {
       await Promise.all(
         pendingItems.map(async (p) => {
           const promptContext = {
-            label: p.item.metadata.label,
+            label: p.item.metadata.label || '',
             type: (p.item.node as any).type || 'text',
             placeholder: (p.item.node as any).getAttribute('placeholder') || undefined,
             value: (p.item.node as any).value || undefined,
             formContext: (p.item.node as any).formContext || undefined,
+            helperText: p.item.metadata.helper_text || undefined,
             pageUrl: globalContext.location.href,
             pageTitle: globalContext.document.title,
           };
@@ -412,12 +419,13 @@ export class SuggestionEngine {
           try {
             const result = await this.sdk.inference.route(promptContext);
             if (result && result.value) {
+              const { labelElement, ...cleanMetadata } = p.item.metadata;
               const finalRes = {
                 success: true,
                 value: result.value,
                 options: [result.value],
                 field: {
-                  ...p.item.metadata,
+                  ...cleanMetadata,
                   placeholder: (p.item.node as any).getAttribute('placeholder') || '',
                 },
                 source: result.provider,
@@ -458,6 +466,7 @@ export class SuggestionEngine {
           type: (p.item.node as any).type || 'text',
           tagName: p.item.node.tagName || 'INPUT',
           required: p.item.metadata.required || false,
+          helperText: p.item.metadata.helper_text || undefined,
         },
       })),
       user_context: {
@@ -508,12 +517,13 @@ export class SuggestionEngine {
                     : suggestion;
 
               if (value !== undefined && value !== null) {
+                const { labelElement, ...cleanMetadata } = p.item.metadata;
                 const result = {
                   success: true,
                   value,
                   options: options.length > 0 ? options : [value],
                   field: {
-                    ...p.item.metadata,
+                    ...cleanMetadata,
                     placeholder: (p.item.node as any).getAttribute('placeholder') || '',
                   },
                   source: (response as any).meta?.model || provider,

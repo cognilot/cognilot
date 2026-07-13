@@ -594,4 +594,17 @@ import { Modules, init as initModules } from './index';
       */
     }
   });
+
+  // ─── Listen to batch prefetch completion from ActionEngine ──
+  window.addEventListener('cognilot-prefetch-complete', (e: Event) => {
+    const customEvent = e as CustomEvent;
+    chrome.runtime
+      .sendMessage({
+        action: 'batchPrefetchCompleted',
+        data: {
+          formScopeId: customEvent.detail?.formScopeId,
+        },
+      })
+      .catch(() => {});
+  });
 })();

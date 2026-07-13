@@ -58,6 +58,7 @@ export class GroqProvider implements InferenceProvider {
         placeholder: this.extractFromPrompt(prompt, 'Placeholder'),
         value: this.extractFromPrompt(prompt, 'Current Value'),
         formContext: this.extractFromPrompt(prompt, 'Form Context'),
+        helperText: this.extractFromPrompt(prompt, 'Helper Text'),
       },
       pageContext: {
         url: this.extractFromPrompt(prompt, 'URL') ?? window.location.href,

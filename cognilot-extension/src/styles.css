@@ -99,6 +99,10 @@
   opacity: 0.86;
 }
 
+.Cognilot-ghost-overlay.Cognilot-ghost-example {
+  opacity: 0.42 !important;
+}
+
 /* Terminal-style Block Cursor */
 .Cognilot-terminal-cursor {
   position: fixed;

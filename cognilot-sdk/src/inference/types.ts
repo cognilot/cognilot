@@ -31,6 +31,8 @@ export interface CompletionOptions {
   temperature?: number;
   /** Override the system prompt */
   systemPrompt?: string;
+  /** Preferred language for the response (e.g. 'English', 'Spanish') */
+  language?: string;
 }
 
 /** Reason why a provider was selected */

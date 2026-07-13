@@ -10,7 +10,7 @@ interface AuthContextType {
   isAuthenticated: boolean;
   isLoading: boolean;
   login: () => Promise<void>;
-  logout: () => void;
+  logout: () => Promise<void>;
   updateUser: (updates: Partial<User>) => void;
 }
 
@@ -24,10 +24,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await authService.loginWithGoogle();
   };
 
-  const logout = () => {
-    authService.logout();
-    extensionBridge.clearTokens();
+  const logout = async () => {
     setUser(null);
+    extensionBridge.clearTokens();
+    await authService.logout();
   };
 
   const updateUser = (updates: Partial<User>) => {
@@ -52,6 +52,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     } else {
       setUser(null);
+      extensionBridge.clearTokens();
     }
     setIsLoading(false);
   };

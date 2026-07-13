@@ -272,11 +272,6 @@ function handleKeyboard(e: KeyboardEvent): void {
 
   // ACCEPT: Tab
   if (e.key === 'Tab' && !e.shiftKey) {
-    if (suggestion.type === 'example') {
-      clearUI(element);
-      return;
-    }
-
     if (suggestion.isLoading || suggestion.isError) {
       clearUI(element);
       return;

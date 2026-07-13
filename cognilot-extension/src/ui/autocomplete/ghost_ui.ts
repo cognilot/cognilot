@@ -123,12 +123,7 @@ export function paint(element: HTMLElement, suggestion: SuggestionState): void {
   const hasUserText = userText.trim().length > 0;
 
   const isMatch = activeText.toLowerCase().startsWith(userText.toLowerCase());
-  const shouldShowGhost =
-    isMatch &&
-    !suggestion.isLoading &&
-    !suggestion.isError &&
-    suggestion.type !== 'example' &&
-    !!activeText;
+  const shouldShowGhost = isMatch && !suggestion.isLoading && !suggestion.isError && !!activeText;
 
   if (!shouldShowGhost || !supportsGhost(element)) return;
 
@@ -136,6 +131,9 @@ export function paint(element: HTMLElement, suggestion: SuggestionState): void {
 
   const ghost = document.createElement('div');
   ghost.className = 'Cognilot-ghost-overlay';
+  if (suggestion.type === 'example') {
+    ghost.classList.add('Cognilot-ghost-example');
+  }
 
   ghost.textContent = hasUserText ? activeText.slice(userText.length) : activeText;
 

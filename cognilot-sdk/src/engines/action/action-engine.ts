@@ -56,7 +56,11 @@ export class ActionEngine {
       // If the field was resolved from an existing value, but is now empty,
       // it means the user cleared the field and wants a suggestion. We reset it to pending.
       const currentValue = node.value?.trim() ?? '';
-      if (entry.status === 'resolved' && entry.resolution?.source === 'existing_value' && !currentValue) {
+      if (
+        entry.status === 'resolved' &&
+        entry.resolution?.source === 'existing_value' &&
+        !currentValue
+      ) {
         entry.status = 'pending';
         entry.resolution = null;
       }
@@ -108,8 +112,12 @@ export class ActionEngine {
         // Update registry with the AI result
         if (aiResult && !aiResult.error) {
           this.sdk.registry.updateResolution(entry.id, {
-            value: aiResult.value ?? null,
-            options: aiResult.options ?? (aiResult.value ? [aiResult.value] : []),
+            value: isChoice
+              ? aiResult.selected_values?.[0] || 'Selected'
+              : (aiResult.value ?? null),
+            options: isChoice
+              ? aiResult.selected_values || []
+              : (aiResult.options ?? (aiResult.value ? [aiResult.value] : [])),
             source: 'ai',
           });
         } else {
@@ -231,10 +239,25 @@ export class ActionEngine {
     }
 
     if (choiceFields.length > 0) {
-      batchPromises.push(this.sdk.decision.prefetchBatch(choiceFields as any));
+      batchPromises.push(
+        this.sdk.decision.prefetchBatch(choiceFields as any).then(() => {
+          this._syncDecisionBatchResultsToRegistry(
+            pendingFields.filter((f) => ['radio', 'checkbox', 'file', 'select'].includes(f.type))
+          );
+        })
+      );
     }
 
     await Promise.allSettled(batchPromises);
+
+    // Notify listeners (e.g. Chrome Extension Content Script) that batch prefetching has finished
+    if (typeof window !== 'undefined' && typeof CustomEvent !== 'undefined') {
+      window.dispatchEvent(
+        new CustomEvent('cognilot-prefetch-complete', {
+          detail: { formScopeId },
+        })
+      );
+    }
   }
 
   /**
@@ -257,6 +280,34 @@ export class ActionEngine {
           source: 'ai',
         });
       }
+    }
+  }
+
+  /**
+   * After a batch prefetch completes, check the DecisionEngine's storage cache
+   * and update the FieldRegistry for any choice fields that were resolved.
+   */
+  private async _syncDecisionBatchResultsToRegistry(pendingEntries: FieldRegistryEntry[]) {
+    const storage = this.sdk.adapters?.storage;
+    if (!storage) return;
+
+    try {
+      const cached = await storage.get('Cognilot_decisions_cache');
+      const cachedDecisions = cached?.Cognilot_decisions_cache || cached || {};
+
+      for (const entry of pendingEntries) {
+        if (entry.status !== 'pending') continue;
+        const decision = cachedDecisions[entry.id];
+        if (decision) {
+          this.sdk.registry.updateResolution(entry.id, {
+            value: decision.selected_values?.[0] || 'Selected',
+            options: decision.selected_values || [],
+            source: 'ai',
+          });
+        }
+      }
+    } catch (e) {
+      console.warn('[ActionEngine] Failed to sync decision batch to registry:', e);
     }
   }
 
@@ -336,8 +387,16 @@ export class ActionEngine {
             success = await this._applyDecision(q.node, result);
             answerValue = result.selected_values?.[0] || 'Selected';
           } else if (result.value) {
-            success = await this._applySuggestion(q.node, result.value);
-            answerValue = result.value;
+            if (result.type === 'example') {
+              console.log(
+                `[ActionEngine] Skipping batch autofill for field "${q.text}" because suggestion is an example.`
+              );
+              success = true;
+              answerValue = 'Omitido (Ejemplo)';
+            } else {
+              success = await this._applySuggestion(q.node, result.value);
+              answerValue = result.value;
+            }
           }
         }
 

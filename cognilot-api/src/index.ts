@@ -64,7 +64,10 @@ app.onError((err, c) => {
   return c.json({ error: 'Internal Server Error', message: err.message }, 500);
 });
 
-if (process.env['COGNILOT_ENVIRONMENT'] === 'development' || !process.env['VERCEL']) {
+if (
+  (process.env['COGNILOT_ENVIRONMENT'] === 'development' || !process.env['VERCEL']) &&
+  !process.env['VITEST']
+) {
   const port = 8000;
   console.log(`[Cognilot API] Server is running on port ${port}`);
   serve({

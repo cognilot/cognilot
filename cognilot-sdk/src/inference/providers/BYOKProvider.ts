@@ -136,7 +136,7 @@ Page: {{PAGE_TITLE}} ({{PAGE_URL}})`;
         Authorization: `Bearer ${config.apiKey}`,
       },
       body: JSON.stringify({
-        model: config.model ?? 'gpt-4o-mini',
+        model: config.model || 'gpt-4o-mini',
         messages: [
           {
             role: 'system',
@@ -174,7 +174,7 @@ Page: {{PAGE_TITLE}} ({{PAGE_URL}})`;
         'anthropic-version': '2023-06-01',
       },
       body: JSON.stringify({
-        model: config.model ?? 'claude-3-haiku-20240307',
+        model: config.model || 'claude-3-haiku-20240307',
         max_tokens: options.maxTokens ?? 256,
         system:
           options.systemPrompt ??
@@ -205,7 +205,7 @@ Page: {{PAGE_TITLE}} ({{PAGE_URL}})`;
         Authorization: `Bearer ${config.apiKey}`,
       },
       body: JSON.stringify({
-        model: config.model ?? 'llama-3.3-70b-versatile',
+        model: config.model || 'llama-3.3-70b-versatile',
         messages: [
           {
             role: 'system',

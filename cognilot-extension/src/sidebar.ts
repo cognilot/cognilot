@@ -1097,7 +1097,8 @@ class CognilotSidebar {
         return;
       }
 
-      const user = await authAdapter.getUser();
+      const isAuthenticated = await authAdapter.isAuthenticated();
+      const user = isAuthenticated ? await authAdapter.getUser() : null;
       this.userPlan = String(user?.plan || 'free').toLowerCase();
 
       const loginBtn = document.getElementById('header-login-btn');
@@ -1106,7 +1107,7 @@ class CognilotSidebar {
       const dropdownEmail = document.getElementById('dropdown-user-email');
       const planTypeText = document.getElementById('user-plan-type');
 
-      if (user) {
+      if (isAuthenticated && user) {
         if (loginBtn) loginBtn.style.display = 'none';
         if (userInfo) userInfo.style.display = 'flex';
 
@@ -1130,7 +1131,7 @@ class CognilotSidebar {
       );
 
       // Update Auth Guard Overlay
-      this.toggleAuthGuard(!!user);
+      this.toggleAuthGuard(isAuthenticated);
     } catch (error) {
       this.debug(`Auth check failed: ${error.message}`);
     }
@@ -1138,14 +1139,22 @@ class CognilotSidebar {
 
   toggleAuthGuard(isAuthenticated) {
     const overlay = document.getElementById('auth-guard-overlay');
-    if (overlay) {
-      overlay.style.display = 'none';
-    }
-
-    // strictly hide/show the layout to prevent accidental interactions and flickers
     const layout = document.querySelector('.app-layout') as HTMLElement;
-    if (layout) {
-      layout.style.display = 'flex';
+
+    if (isAuthenticated) {
+      if (overlay) {
+        overlay.style.display = 'none';
+      }
+      if (layout) {
+        layout.style.display = 'flex';
+      }
+    } else {
+      if (overlay) {
+        overlay.style.display = 'flex';
+      }
+      if (layout) {
+        layout.style.display = 'none';
+      }
     }
   }
 
@@ -1687,6 +1696,10 @@ class CognilotSidebar {
             this.updateContextPreview();
           }
         }
+        sendResponse({ received: true });
+      } else if (request.action === 'batchPrefetchCompleted') {
+        // Hydrate from registry again since the batch completed
+        this.syncWithRegistry(2, 400);
         sendResponse({ received: true });
       }
     });

@@ -30,6 +30,7 @@ export interface FieldPromptContext {
   placeholder?: string;
   value?: string;
   formContext?: string;
+  helperText?: string;
   pageUrl?: string;
   pageTitle?: string;
 }
@@ -74,6 +75,7 @@ export class InferenceRouter {
     if (context.placeholder) lines.push(`Placeholder: ${context.placeholder}`);
     if (context.value) lines.push(`Current Value: ${context.value}`);
     if (context.formContext) lines.push(`Form Context: ${context.formContext}`);
+    if (context.helperText) lines.push(`Helper Text: ${context.helperText}`);
 
     const url = context.pageUrl ?? (typeof window !== 'undefined' ? window.location.href : '');
     const title = context.pageTitle ?? (typeof document !== 'undefined' ? document.title : '');

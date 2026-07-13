@@ -67,6 +67,7 @@ export type {
 
 export interface SDKConfig {
   platform: PlatformAdapter;
+  apiBaseUrl?: string;
   adapters?: {
     storage?: any;
     messaging?: any;
@@ -131,7 +132,7 @@ export class CognilotSDK {
 
     // Tools
     this.facade = new DetectionFacade(this);
-    this.apiClient = new ApiClient(this);
+    this.apiClient = new ApiClient(this, config.apiBaseUrl);
     this.policy = new PlanGuard();
 
     const templateManager = new PromptTemplateManager(this);

@@ -6,9 +6,11 @@ import { CognilotSDK } from '../index';
  */
 export class ApiClient {
   private sdk: CognilotSDK;
+  public apiBaseUrl: string;
 
-  constructor(sdk: CognilotSDK) {
+  constructor(sdk: CognilotSDK, apiBaseUrl?: string) {
     this.sdk = sdk;
+    this.apiBaseUrl = apiBaseUrl || '';
   }
 
   /**
@@ -45,12 +47,8 @@ export class ApiClient {
     return response;
   }
 
-  /**
-   * Helper to build absolute URLs.
-   */
   buildUrl(path: string): string {
-    // Note: Base URL should ideally come from configuration injected into the SDK
-    const baseUrl = ''; // Placeholder, should be passed in SDKConfig
+    const baseUrl = this.apiBaseUrl;
     const normalizedPath = path.startsWith('/') ? path : `/${path}`;
     return `${baseUrl}${normalizedPath}`;
   }

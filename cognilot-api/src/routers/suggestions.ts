@@ -24,6 +24,7 @@ const fieldContextSchema = z.object({
   placeholder: z.string().optional(),
   value: z.string().optional(),
   formContext: z.string().optional(),
+  helperText: z.string().optional(),
 });
 
 const pageContextSchema = z.object({
@@ -74,6 +75,7 @@ const batchQuestionSchema = z.object({
     type: z.string().default('text'),
     tagName: z.string().default('INPUT'),
     required: z.boolean().default(false),
+    helperText: z.string().optional().nullable(),
   }),
 });
 
@@ -138,15 +140,20 @@ ${JSON.stringify(profileData, null, 2)}
 ${aliasesContext || 'No aliases defined.'}
 
 ## Instructions:
-- Return ONLY the value to fill in the field. No explanations, no quotes, no markdown.
+- Suggest a value for the field. If you cannot find the exact information in the user profile data, infer a highly plausible example value based on the field label, type, placeholder, and context.
+- Return ONLY a valid JSON object matching the following structure. Do not include markdown code block wrappers (e.g. \`\`\`json) or conversational filler:
+{
+  "value": "The suggested value",
+  "isExample": boolean // false if found/derived from user profile, true if it is a generic placeholder/example
+}
 - Be ${options?.tone ?? 'professional'} in tone.
-- Respond in ${options?.language ?? 'English'}.
-- If you cannot confidently determine the value, return an empty string.`;
+- Respond in ${options?.language ?? 'English'}.`;
 
   const userMessage = `Fill in this form field:
 Field Label: ${fieldContext.label}
 Field Type: ${fieldContext.type}
 Placeholder: ${fieldContext.placeholder ?? 'N/A'}
+Helper Text: ${fieldContext.helperText ?? 'N/A'}
 Current Value: ${fieldContext.value ?? '(empty)'}
 Form Context: ${fieldContext.formContext ?? 'N/A'}
 Page: ${pageContext.title} (${pageContext.domain})`;
@@ -158,12 +165,18 @@ Page: ${pageContext.title} (${pageContext.domain})`;
       new HumanMessage(userMessage),
     ]);
 
-    const suggestion = typeof response.content === 'string' ? response.content.trim() : '';
+    const content = typeof response.content === 'string' ? response.content.trim() : '{}';
+    const jsonMatch = content.match(/\{[\s\S]*\}/);
+    const parsed = jsonMatch ? JSON.parse(jsonMatch[0]) : { value: '', isExample: true };
+    const suggestion = (parsed.value ?? '').trim();
+    const isExample = !!parsed.isExample;
 
     return c.json({
       suggestion,
       field: fieldContext.label,
-      confidence: suggestion.length > 0 ? 'high' : 'low',
+      confidence: isExample ? 'low' : 'high',
+      isExample,
+      type: isExample ? 'example' : 'discrete',
     });
   } catch (err) {
     console.error('[Suggestions] LLM error:', err);
@@ -281,19 +294,19 @@ ${JSON.stringify(profileData, null, 2)}
 ${aliasesContext || 'No aliases defined.'}
 
 ## Instructions:
-For each field in the request, return the best suggestion value.
-Return ONLY a JSON object mapping each question's key to an array containing the suggested value.
+For each field in the request, return the best suggestion value. If you cannot find the exact information in the user profile, infer a highly plausible example value.
+Return ONLY a JSON object mapping each question's key to an object with "value" and "isExample" (boolean) properties.
 Example format:
 {
-  "key_1": ["Suggested Value 1"],
-  "key_2": []
+  "key_1": { "value": "Suggested Value 1", "isExample": false },
+  "key_2": { "value": "example@email.com", "isExample": true }
 }
-No explanations, no markdown wrappers. Return raw JSON.`;
+No explanations, no markdown code block wrappers (e.g. \`\`\`json). Return raw JSON.`;
 
   const fieldsText = questions
     .map(
       (q, i) =>
-        `${i + 1}. Key: "${q.key}", Label: "${q.field.label}", Type: "${q.field.type}", Placeholder: "${q.field.placeholder ?? ''}"`
+        `${i + 1}. Key: "${q.key}", Label: "${q.field.label}", Type: "${q.field.type}", Placeholder: "${q.field.placeholder ?? ''}", Helper Text: "${q.field.helperText ?? ''}"`
     )
     .join('\n');
 
@@ -311,12 +324,27 @@ No explanations, no markdown wrappers. Return raw JSON.`;
     // Standardize results into the { [key]: { value, options, type } } format expected by SuggestionEngine
     const standardizedResults: Record<string, any> = {};
     for (const q of questions) {
-      const suggestionsArray = results[q.key] || [];
-      const val = suggestionsArray[0] ?? '';
+      const resVal = results[q.key];
+      let val = '';
+      let isExample = true;
+
+      if (resVal) {
+        if (typeof resVal === 'object' && !Array.isArray(resVal)) {
+          val = resVal.value ?? '';
+          isExample = resVal.isExample ?? true;
+        } else if (Array.isArray(resVal)) {
+          val = resVal[0] ?? '';
+          isExample = false; // Fallback for legacy format if any
+        } else {
+          val = String(resVal);
+          isExample = false;
+        }
+      }
+
       standardizedResults[q.key] = {
         value: val,
-        options: suggestionsArray.length > 0 ? suggestionsArray : [val],
-        type: 'discrete',
+        options: [val],
+        type: isExample ? 'example' : 'discrete',
       };
     }
 
