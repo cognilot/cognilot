@@ -56,3 +56,7 @@ cognilot-api.bak/
 *.tsbuildinfo
 .next/
 dist/
+
+# project audit report
+.audit-report.md
+
