@@ -26,12 +26,6 @@ export default defineConfig({
     environment: 'jsdom',
     setupFiles: './src/setupTests.ts',
     css: true,
-    // Exclude legacy MemoryPage.location tests — MemoryPage.tsx is being migrated
-    // to Next.js App Router in Sprint 3 and these tests will be rewritten then.
-    exclude: [
-      '**/node_modules/**',
-      '**/dist/**',
-      'src/views/__tests__/MemoryPage.location.test.tsx',
-    ],
+    exclude: ['**/node_modules/**', '**/dist/**'],
   },
 });
