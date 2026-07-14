@@ -11,6 +11,11 @@
   --color-violet-500: #8b5cf6;
   --color-cyan-500: #06b6d4;
 
+  /* Design System Skill Aliases (used by Terminal/IDE components) */
+  --color-accent-cyan: var(--color-cyan-500);
+  --color-accent-violet: var(--color-violet-500);
+  --color-bg-primary: var(--color-slate-950);
+
   /* 2. Semantic Tokens - Usage Based */
   --color-background: var(--color-slate-1000);
   --color-surface: var(--color-slate-950);
@@ -62,7 +67,7 @@
 @import 'tw-animate-css';
 @import 'shadcn/tailwind.css';
 
-@custom-variant dark (&:is(.dark *));
+@custom-variant dark (&:where(.dark, .dark *));
 
 @keyframes float {
   0%,
@@ -218,7 +223,9 @@
 body {
   background-color: var(--color-background);
   color: var(--color-main);
-  font-family: 'Inter', sans-serif;
+  font-family:
+    ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New',
+    monospace;
   min-height: 100vh;
 }
 

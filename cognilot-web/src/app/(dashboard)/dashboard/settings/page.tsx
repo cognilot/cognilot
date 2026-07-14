@@ -345,7 +345,7 @@ export default function SettingsPage() {
                   onClick={() => setPrefs({ ...prefs, ghostTextEnabled: !prefs.ghostTextEnabled })}
                   className={`px-3 py-1 font-bold text-xs rounded transition-colors cursor-pointer select-none ${
                     prefs.ghostTextEnabled
-                      ? 'bg-green-500/10 border border-green-500/20 text-green-400 hover:bg-green-500/20'
+                      ? 'bg-success/10 border border-success/20 text-success hover:bg-success/20'
                       : 'bg-white/5 border border-white/10 text-white/30 hover:bg-white/10'
                   }`}
                 >
@@ -369,7 +369,7 @@ export default function SettingsPage() {
                   }
                   className={`px-3 py-1 font-bold text-xs rounded transition-colors cursor-pointer select-none ${
                     prefs.useProfileContext
-                      ? 'bg-green-500/10 border border-green-500/20 text-green-400 hover:bg-green-500/20'
+                      ? 'bg-success/10 border border-success/20 text-success hover:bg-success/20'
                       : 'bg-white/5 border border-white/10 text-white/30 hover:bg-white/10'
                   }`}
                 >

@@ -1,5 +1,5 @@
 import { type FC, useState, useRef, useEffect, type KeyboardEvent } from 'react';
-import { Sparkles, MapPin, X } from 'lucide-react';
+import { Sparkles, X } from 'lucide-react';
 import {
   formatLearnedTextarea,
   normalizeDataLearned,
@@ -68,9 +68,9 @@ const CustomFieldRow: FC<{
         onBlur={handleKeyBlur}
         aria-label="Clave de dato"
         placeholder="clave"
-        className="text-brand-secondary font-semibold bg-transparent outline-none w-[160px] md:w-[200px] shrink-0 py-1.5 focus:bg-white/5 rounded px-2 -ml-2 transition-colors"
+        className="text-accent-violet font-semibold bg-transparent outline-none w-[160px] md:w-[200px] shrink-0 py-1.5 focus:bg-white/5 rounded px-2 -ml-2 transition-colors"
       />
-      <span className="text-brand-secondary/50 py-1.5 pr-3 select-none -ml-1">:</span>
+      <span className="text-accent-violet/50 py-1.5 pr-3 select-none -ml-1">:</span>
 
       <AutoResizeTextarea
         value={value}
@@ -81,10 +81,10 @@ const CustomFieldRow: FC<{
 
       <button
         onClick={() => onDelete(labelKey)}
-        className="text-error/50 hover:text-error opacity-0 group-hover:opacity-100 p-1.5 ml-2 transition-opacity h-fit mt-0.5"
+        className="text-error/50 hover:text-error opacity-0 group-hover:opacity-100 p-3 ml-2 -my-1.5 transition-opacity h-11 w-11 flex items-center justify-center rounded-md hover:bg-white/5 h-fit"
         title="Eliminar campo"
       >
-        <X className="w-3.5 h-3.5" />
+        <X className="w-4 h-4" />
       </button>
     </div>
   );
@@ -97,11 +97,9 @@ const CustomFieldRow: FC<{
  * There are no standard form inputs — every field follows the IDE/terminal aesthetic
  * consistent with the rest of the Cognilot design system.
  */
-export const MemoryForm: FC<MemoryFormProps> = ({
+export const MemoryForm: FC<Omit<MemoryFormProps, 'isLocating' | 'onDetectLocation'>> = ({
   formData,
   onFieldChange,
-  isLocating,
-  onDetectLocation,
   isSaving,
   showSaveSuccess,
   focusField,
@@ -204,29 +202,6 @@ export const MemoryForm: FC<MemoryFormProps> = ({
       </div>
 
       <div className="p-6 md:p-8">
-        {/* Header */}
-        <div className="mb-8 flex items-center justify-between gap-4">
-          <div>
-            <h1 className="text-xl font-bold text-white mb-2 flex items-center gap-2">
-              <span className="text-brand-secondary">#</span> Memory AI
-            </h1>
-            <div className="text-white/40 text-[12px] uppercase tracking-wider font-bold">
-              ## Contexto y datos aprendidos por Cognilot
-            </div>
-          </div>
-
-          <button
-            onClick={onDetectLocation}
-            disabled={isLocating}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl border border-brand-secondary/30 bg-brand-secondary/5 text-brand-secondary text-xs hover:bg-brand-secondary/10 transition-all group shrink-0"
-          >
-            <MapPin
-              className={`w-4 h-4 ${isLocating ? 'animate-pulse' : 'group-hover:scale-110 transition-transform'}`}
-            />
-            <span>{isLocating ? 'Detectando...' : 'Autocompletar Ubicación'}</span>
-          </button>
-        </div>
-
         {/* All memory fields rendered in terminal key:value style */}
         <div
           ref={customSectionRef}

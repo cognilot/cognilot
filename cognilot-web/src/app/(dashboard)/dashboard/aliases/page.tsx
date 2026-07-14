@@ -231,13 +231,13 @@ export default function AliasesPage() {
       <div className="bg-bg-primary/90 backdrop-blur-2xl border border-white/10 rounded-xl shadow-2xl overflow-hidden relative">
         {/* Title bar */}
         <div className="px-5 py-4 border-b border-white/5 bg-white/5 flex items-center gap-2 select-none">
-          <div className="flex gap-1.5 mr-4">
+          <div className="flex gap-2 mr-4">
             <div className="w-3 h-3 rounded-full bg-red-500/80 shadow-[0_0_8px_rgba(239,68,68,0.4)]" />
             <div className="w-3 h-3 rounded-full bg-yellow-500/80 shadow-[0_0_8px_rgba(234,179,8,0.4)]" />
             <div className="w-3 h-3 rounded-full bg-green-500/80 shadow-[0_0_8px_rgba(34,197,94,0.4)]" />
           </div>
-          <div className="text-white/30 text-[10px] uppercase tracking-widest font-sans font-bold flex-1 text-right">
-            config/aliases.env
+          <div className="text-white/30 text-[11px] uppercase tracking-[0.2em] font-sans font-bold flex-1 text-right">
+            CONFIG/ALIASES.ENV
           </div>
         </div>
 
@@ -317,115 +317,122 @@ export default function AliasesPage() {
                 // No alias shortcuts configured. Add your first shortcut above.
               </div>
             ) : (
-              <div className="border border-white/5 rounded-lg overflow-hidden divide-y divide-white/5 bg-white/[0.01]">
-                {aliases.map((alias) => {
-                  const isEditing = editingId === alias.id;
+              <div className="border border-white/5 rounded-lg overflow-x-auto divide-y divide-white/5 bg-white/[0.01]">
+                <div className="min-w-[600px] divide-y divide-white/5">
+                  {aliases.map((alias) => {
+                    const isEditing = editingId === alias.id;
 
-                  if (isEditing) {
+                    if (isEditing) {
+                      return (
+                        <div key={alias.id} className="px-4 py-3 bg-white/3 space-y-0.5">
+                          {/* Edit label row */}
+                          <div className="flex relative items-start hover:bg-white/5 -mx-4 px-4 rounded transition-colors py-1">
+                            <span className="text-accent-violet font-semibold w-[160px] md:w-[200px] shrink-0 py-1.5">
+                              shortcut_key<span className="text-accent-violet/50">:</span>
+                            </span>
+                            <input
+                              type="text"
+                              value={editLabel}
+                              onChange={(e) => setEditLabel(e.target.value)}
+                              className="bg-transparent text-white flex-1 py-1.5 outline-none placeholder:text-white/10 focus:bg-white/5 rounded px-2 -mx-2 transition-colors border-b border-accent-cyan/40"
+                            />
+                          </div>
+
+                          {/* Edit value row */}
+                          <div className="flex relative items-start hover:bg-white/5 -mx-4 px-4 rounded transition-colors py-1">
+                            <span className="text-accent-violet font-semibold w-[160px] md:w-[200px] shrink-0 py-1.5">
+                              expanded_value<span className="text-accent-violet/50">:</span>
+                            </span>
+                            <input
+                              type="text"
+                              value={editValue}
+                              onChange={(e) => setEditValue(e.target.value)}
+                              className="bg-transparent text-white flex-1 py-1.5 outline-none placeholder:text-white/10 focus:bg-white/5 rounded px-2 -mx-2 transition-colors border-b border-accent-cyan/40"
+                            />
+                          </div>
+
+                          {/* Edit category row */}
+                          <div className="flex relative items-start hover:bg-white/5 -mx-4 px-4 rounded transition-colors py-1">
+                            <span className="text-accent-violet font-semibold w-[160px] md:w-[200px] shrink-0 py-1.5">
+                              category<span className="text-accent-violet/50">:</span>
+                            </span>
+                            <input
+                              type="text"
+                              value={editCategory}
+                              onChange={(e) => setEditCategory(e.target.value)}
+                              className="bg-transparent text-white flex-1 py-1.5 outline-none placeholder:text-white/10 focus:bg-white/5 rounded px-2 -mx-2 transition-colors border-b border-accent-cyan/40"
+                            />
+                          </div>
+
+                          {/* Save / Cancel */}
+                          <div className="flex items-center gap-2 pt-2">
+                            <button
+                              onClick={() => handleUpdateAlias(alias.id)}
+                              disabled={updating}
+                              className="p-3 bg-success/10 hover:bg-success/20 border border-success/20 text-success rounded transition-colors h-11 w-11 flex items-center justify-center cursor-pointer"
+                              title="Save updates"
+                            >
+                              <Check className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={cancelEdit}
+                              className="p-3 bg-white/5 hover:bg-white/10 border border-white/10 text-white/60 rounded transition-colors h-11 w-11 flex items-center justify-center cursor-pointer"
+                              title="Cancel editing"
+                            >
+                              <X className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    }
+
                     return (
-                      <div key={alias.id} className="px-4 py-3 bg-white/3 space-y-0.5">
-                        {/* Edit label row */}
-                        <div className="flex relative items-start hover:bg-white/5 -mx-4 px-4 rounded transition-colors py-1">
-                          <span className="text-accent-violet font-semibold w-[160px] md:w-[200px] shrink-0 py-1.5">
-                            shortcut_key<span className="text-accent-violet/50">:</span>
+                      <div
+                        key={alias.id}
+                        className="p-3.5 flex items-center justify-between hover:bg-white/5 transition-colors group"
+                      >
+                        <div className="flex items-center gap-4 min-w-0">
+                          <span className="text-white/20 select-none text-[12px] shrink-0">
+                            {'>'}
                           </span>
-                          <input
-                            type="text"
-                            value={editLabel}
-                            onChange={(e) => setEditLabel(e.target.value)}
-                            className="bg-transparent text-white flex-1 py-1.5 outline-none placeholder:text-white/10 focus:bg-white/5 rounded px-2 -mx-2 transition-colors border-b border-accent-cyan/40"
-                          />
+                          <div className="flex flex-col sm:flex-row sm:items-center gap-1.5 min-w-0">
+                            <span className="text-accent-violet font-semibold shrink-0">
+                              {alias.label}
+                            </span>
+                            <span className="text-white/30 select-none hidden sm:inline">=</span>
+                            <span
+                              className="text-accent-cyan font-mono truncate"
+                              title={alias.value}
+                            >
+                              &quot;{alias.value}&quot;
+                            </span>
+                          </div>
+                          <span className="text-[10px] px-2 py-0.5 bg-white/5 rounded-full text-white/40 select-none uppercase tracking-wide">
+                            {alias.category || 'general'}
+                          </span>
                         </div>
 
-                        {/* Edit value row */}
-                        <div className="flex relative items-start hover:bg-white/5 -mx-4 px-4 rounded transition-colors py-1">
-                          <span className="text-accent-violet font-semibold w-[160px] md:w-[200px] shrink-0 py-1.5">
-                            expanded_value<span className="text-accent-violet/50">:</span>
-                          </span>
-                          <input
-                            type="text"
-                            value={editValue}
-                            onChange={(e) => setEditValue(e.target.value)}
-                            className="bg-transparent text-white flex-1 py-1.5 outline-none placeholder:text-white/10 focus:bg-white/5 rounded px-2 -mx-2 transition-colors border-b border-accent-cyan/40"
-                          />
-                        </div>
-
-                        {/* Edit category row */}
-                        <div className="flex relative items-start hover:bg-white/5 -mx-4 px-4 rounded transition-colors py-1">
-                          <span className="text-accent-violet font-semibold w-[160px] md:w-[200px] shrink-0 py-1.5">
-                            category<span className="text-accent-violet/50">:</span>
-                          </span>
-                          <input
-                            type="text"
-                            value={editCategory}
-                            onChange={(e) => setEditCategory(e.target.value)}
-                            className="bg-transparent text-white flex-1 py-1.5 outline-none placeholder:text-white/10 focus:bg-white/5 rounded px-2 -mx-2 transition-colors border-b border-accent-cyan/40"
-                          />
-                        </div>
-
-                        {/* Save / Cancel */}
-                        <div className="flex items-center gap-1.5 pt-2">
+                        {/* Action buttons */}
+                        <div className="flex items-center gap-1.5 ml-4 select-none opacity-40 group-hover:opacity-100 transition-opacity">
                           <button
-                            onClick={() => handleUpdateAlias(alias.id)}
-                            disabled={updating}
-                            className="p-1.5 bg-green-500/10 hover:bg-green-500/20 border border-green-500/20 text-green-400 rounded transition-colors"
-                            title="Save updates"
+                            onClick={() => startEdit(alias)}
+                            className="p-3 text-white/40 hover:text-white/95 hover:bg-white/5 rounded-md transition-colors h-11 w-11 flex items-center justify-center cursor-pointer"
+                            title="Edit alias"
                           >
-                            <Check className="w-3.5 h-3.5" />
+                            <Edit2 className="w-4 h-4" />
                           </button>
                           <button
-                            onClick={cancelEdit}
-                            className="p-1.5 bg-white/5 hover:bg-white/10 border border-white/10 text-white/60 rounded transition-colors"
-                            title="Cancel editing"
+                            onClick={() => handleDeleteAlias(alias.id, alias.label)}
+                            className="p-3 text-white/40 hover:text-red-400 hover:bg-white/5 rounded-md transition-colors h-11 w-11 flex items-center justify-center cursor-pointer"
+                            title="Delete alias"
                           >
-                            <X className="w-3.5 h-3.5" />
+                            <Trash2 className="w-4 h-4" />
                           </button>
                         </div>
                       </div>
                     );
-                  }
-
-                  return (
-                    <div
-                      key={alias.id}
-                      className="p-3.5 flex items-center justify-between hover:bg-white/5 transition-colors group"
-                    >
-                      <div className="flex items-center gap-4 min-w-0">
-                        <span className="text-white/20 select-none text-[12px] shrink-0">&gt;</span>
-                        <div className="flex flex-col sm:flex-row sm:items-center gap-1.5 min-w-0">
-                          <span className="text-accent-violet font-semibold shrink-0">
-                            {alias.label}
-                          </span>
-                          <span className="text-white/30 select-none hidden sm:inline">=</span>
-                          <span className="text-accent-cyan font-mono truncate" title={alias.value}>
-                            &quot;{alias.value}&quot;
-                          </span>
-                        </div>
-                        <span className="text-[10px] px-2 py-0.5 bg-white/5 rounded-full text-white/40 select-none uppercase tracking-wide">
-                          {alias.category || 'general'}
-                        </span>
-                      </div>
-
-                      {/* Action buttons */}
-                      <div className="flex items-center gap-1 ml-4 select-none opacity-40 group-hover:opacity-100 transition-opacity">
-                        <button
-                          onClick={() => startEdit(alias)}
-                          className="p-1.5 text-white/40 hover:text-white/95 hover:bg-white/5 rounded transition-colors"
-                          title="Edit alias"
-                        >
-                          <Edit2 className="w-3.5 h-3.5" />
-                        </button>
-                        <button
-                          onClick={() => handleDeleteAlias(alias.id, alias.label)}
-                          className="p-1.5 text-white/40 hover:text-red-400 hover:bg-white/5 rounded transition-colors"
-                          title="Delete alias"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    </div>
-                  );
-                })}
+                  })}
+                </div>
               </div>
             )}
           </div>

@@ -75,7 +75,11 @@ Workflow por defecto: GitHub Flow (Enter para confirmar)
    - Stash previo, sync base branch
    - Incluir el enlace o referencia a la HU en el commit template
 
-3. **Summary:** "HU-42 creada: Agregar login con JWT. Branch 42-add-jwt-auth creada desde master."
+3. **Crear Draft PR (GitHub Flow):**
+   - Publicar la rama en remote: `git push -u origin {branch-name}` (si no hay cambios locales, se puede hacer un commit vacío: `git commit --allow-empty -m "chore: initial draft commit"`)
+   - Crear un Pull Request en estado Draft llamando a `create_pull_request` con `draft: true` apuntando a la rama base (`master`/`main`).
+
+4. **Summary:** "HU-42 creada: Agregar login con JWT. Branch 42-add-jwt-auth y Draft PR creados."
 
 #### 4b. Branch desde HU existente
 
@@ -91,7 +95,11 @@ Workflow por defecto: GitHub Flow (Enter para confirmar)
    - Stash previo, sync base branch
    - `git checkout -b "{huId}-{huTitle-kebab}"`
 
-3. **Summary:** "Branch 42-add-jwt-auth creada desde master para HU-42: Agregar login con JWT."
+3. **Crear Draft PR (GitHub Flow):**
+   - Publicar la rama en remote: `git push -u origin {branch-name}`
+   - Crear un Pull Request en estado Draft llamando a `create_pull_request` con `draft: true` apuntando a la rama base (`master`/`main`).
+
+4. **Summary:** "Branch 42-add-jwt-auth y Draft PR creados para HU-42."
 
 #### 4c. Push seguro
 

@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { createBrowserClient } from '@supabase/ssr';
 import { toast } from 'sonner';
+import { MapPin } from 'lucide-react';
 import { useSearchParams } from 'next/navigation';
 import { MemoryForm } from '../../../../components/memory/MemoryForm';
 import { MemorySidebar } from '../../../../components/memory/MemorySidebar';
@@ -395,7 +396,30 @@ export default function MemoryPage() {
   }
 
   return (
-    <div className="p-8 max-w-7xl mx-auto font-mono text-[13px]">
+    <div className="p-8 max-w-7xl mx-auto font-mono text-[13px] animate-fade-in">
+      {/* Page Header (Outside the Window) */}
+      <div className="mb-8 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-xl font-bold text-white mb-2 flex items-center gap-2">
+            <span className="text-accent-violet">#</span> memory.md
+          </h1>
+          <div className="text-white/40">
+            <span>{'// Contexto y datos de perfil aprendidos por tu asistente AI'}</span>
+          </div>
+        </div>
+
+        <button
+          onClick={handleDetectLocation}
+          disabled={isLocating}
+          className="flex items-center gap-2 px-5 py-2.5 bg-white/5 hover:bg-white/10 text-white rounded transition-colors border border-white/10 font-bold select-none cursor-pointer group shrink-0"
+        >
+          <MapPin
+            className={`w-3.5 h-3.5 text-accent-cyan ${isLocating ? 'animate-pulse' : 'group-hover:scale-110 transition-transform'}`}
+          />
+          <span>{isLocating ? 'Detectando...' : 'Autocompletar Ubicación'}</span>
+        </button>
+      </div>
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2 space-y-6">
           <MemoryForm
