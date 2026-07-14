@@ -14,7 +14,7 @@ Este documento define de forma precisa los límites funcionales y técnicos de *
 | **Refinamiento de Texto (Ctrl+Enter)**  | **Sí**   | MVP             | API / Extensión     | Refinamiento rápido con IA en campos individuales de la web.                   |
 | **Aprendizaje Pasivo / Guardar Alias**  | **Sí**   | MVP             | SDK / Extensión     | Sincronización pasiva en desenfoque del input (`blur`) al escribir un valor.   |
 | **Teclado Móvil Integrado**             | No       | Alcance Futuro  | Core / Mobile       | Planificado para la Fase 3 del Roadmap.                                        |
-| **Dashboard Web de Configuración**      | **Sí**   | MVP             | React Web App       | Vista básica para ver los alias guardados, perfil y configurar API Key propia. |
+| **Dashboard Web de Configuración**      | **Sí**   | MVP             | Next.js Web App     | Vista básica para ver los alias guardados, perfil y configurar API Key propia. |
 | **Comandos Inline en Inputs (/)**       | **Sí**   | MVP             | API / Extensión     | Captura sintáctica en inputs web de comandos (Ej: `/traducir hola`).           |
 | **Inferencia Adaptativa (Gemini Nano)** | **Sí**   | MVP             | SDK / Extensión     | Uso directo de la API del navegador si está disponible (Costo $0).             |
 | **Soporte BYOK (Key Propia)**           | **Sí**   | MVP             | SDK / Extensión     | Permitir ingresar claves API (OpenAI/Groq) locales para evadir límites.        |
@@ -39,7 +39,7 @@ Para que cualquier componente o funcionalidad se considere completa y lista para
 
 1.  **Cero dependencias huérfanas o redundantes:** El paquete debe estar optimizado y usar `pnpm` como gestor de paquetes exclusivo.
 2.  **Cobertura de pruebas automatizadas:**
-    - Tests de backend (FastAPI/Pytest) validando las respuestas de los endpoints `/suggestions/v2` y `/suggestions/batch`.
+    - Tests de backend (Hono/Vitest) validando las respuestas de los endpoints `/suggestions/v2` y `/suggestions/batch`.
     - Tests de SDK (Vitest) verificando la correcta inserción en el `FieldRegistry`.
 3.  **Tipado Estricto:** Código escrito en TypeScript sin uso de `any` en los tipos de negocio principales (exclusiones de terceros deben tener `@ts-ignore` justificados).
 4.  **Compilación Exitosa:** La extensión y la aplicación web deben compilar sin errores en su versión de producción (`pnpm build`).
