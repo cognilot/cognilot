@@ -58,6 +58,8 @@
   --animate-blob: blob 10s infinite alternate;
 }
 
+@custom-variant dark (&:where(.dark, .dark *));
+
 @keyframes float {
   0%,
   100% {
@@ -147,7 +149,102 @@
   body {
     background-color: var(--color-background);
     color: var(--color-main);
-    font-family: 'Inter', sans-serif;
+    font-family:
+      ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New',
+      monospace;
     min-height: 100vh;
   }
+}
+
+/* Legal page rendered-md content */
+.legal-content {
+  font-family:
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    'Segoe UI',
+    Roboto,
+    'Helvetica Neue',
+    Arial,
+    sans-serif;
+  font-size: 15px;
+  line-height: 1.8;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.legal-content p {
+  margin-bottom: 1em;
+}
+
+.legal-h2 {
+  font-family:
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    'Segoe UI',
+    Roboto,
+    'Helvetica Neue',
+    Arial,
+    sans-serif;
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: #f8f9fa;
+  margin-top: 2.5em;
+  margin-bottom: 0.75em;
+  padding-bottom: 0.5em;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.legal-title {
+  font-family:
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    'Segoe UI',
+    Roboto,
+    'Helvetica Neue',
+    Arial,
+    sans-serif;
+  font-size: 2.5rem;
+  font-weight: 700;
+  color: #f8f9fa;
+  line-height: 1.2;
+  margin-bottom: 0.25em;
+}
+
+.legal-subtitle {
+  font-family:
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    'Segoe UI',
+    Roboto,
+    'Helvetica Neue',
+    Arial,
+    sans-serif;
+  font-size: 0.875rem;
+  color: rgba(255, 255, 255, 0.4);
+  margin-bottom: 1.5em;
+}
+
+.legal-h3 {
+  font-family:
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    'Segoe UI',
+    Roboto,
+    'Helvetica Neue',
+    Arial,
+    sans-serif;
+  font-size: 1rem;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.85);
+  margin-top: 1.5em;
+  margin-bottom: 0.5em;
 }

@@ -9,9 +9,9 @@ export const ProgressBar: React.FC<ProgressBarProps> = ({ progress }) => {
 
   // Custom styles for the gradient colors since we're using standard CSS
   const getGradient = (p: number) => {
-    if (p >= 80) return 'linear-gradient(90deg, #10b981, #06b6d4)';
-    if (p >= 50) return 'linear-gradient(90deg, #f59e0b, #10b981)';
-    return 'linear-gradient(90deg, #ef4444, #f59e0b)';
+    if (p >= 80) return 'linear-gradient(90deg, var(--color-success), var(--color-accent-cyan))';
+    if (p >= 50) return 'linear-gradient(90deg, var(--color-warning), var(--color-success))';
+    return 'linear-gradient(90deg, var(--color-error), var(--color-warning))';
   };
 
   return (

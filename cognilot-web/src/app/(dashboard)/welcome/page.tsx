@@ -2,13 +2,14 @@
 
 import { useRouter } from 'next/navigation';
 import { OnboardingGuide } from '@/components/OnboardingGuide';
+import { Button } from '@/components/ui/button';
 
 export default function WelcomePage() {
   const router = useRouter();
 
   return (
     <div className="p-8 max-w-4xl mx-auto font-mono text-[13px] animate-fade-in space-y-6">
-      <div className="bg-[#1e1e1e]/90 backdrop-blur-2xl border border-white/10 rounded-xl shadow-2xl overflow-hidden relative">
+      <div className="bg-bg-primary/90 backdrop-blur-2xl border border-white/10 rounded-xl shadow-2xl overflow-hidden relative">
         <div className="px-5 py-4 border-b border-white/5 bg-white/5 flex items-center justify-between select-none">
           <div className="flex gap-2">
             <div className="w-3 h-3 rounded-full bg-red-500/80 shadow-[0_0_8px_rgba(239,68,68,0.4)]" />
@@ -37,12 +38,12 @@ export default function WelcomePage() {
           </div>
 
           <div className="flex flex-wrap gap-4 pt-4 border-t border-white/5">
-            <button
-              onClick={() => router.push('/dashboard/memory')}
-              className="py-2.5 px-5 bg-white/5 hover:bg-white/10 text-white rounded transition-colors flex items-center gap-2 border border-white/10 cursor-pointer"
-            >
-              <span className="text-cyan-400 font-bold">{'>'}</span> ./edit_memory.sh
-            </button>
+            <Button variant="terminal" size="sm" onClick={() => router.push('/memory')}>
+              <span className="text-accent-violet opacity-50 group-hover:opacity-100 transition-opacity font-bold">
+                {'>'}
+              </span>{' '}
+              ./edit_memory.sh
+            </Button>
             <button
               className="py-2.5 px-5 bg-violet-500/10 hover:bg-violet-500/20 text-violet-400 rounded transition-colors flex items-center gap-2 border border-violet-500/20 font-bold"
               onClick={(e) => e.preventDefault()}
@@ -54,7 +55,7 @@ export default function WelcomePage() {
       </div>
 
       <div className="grid md:grid-cols-2 gap-6 mt-6">
-        <div className="bg-[#1e1e1e]/90 border border-white/10 rounded-xl p-6 hover:border-white/20 transition-colors">
+        <div className="bg-bg-primary/90 border border-white/10 rounded-xl p-6 hover:border-white/20 transition-colors">
           <div className="text-white/20 select-none mb-3">
             <span className="text-violet-400">##</span> ANALYTICS
           </div>
@@ -63,7 +64,7 @@ export default function WelcomePage() {
             completados.
           </p>
         </div>
-        <div className="bg-[#1e1e1e]/90 border border-white/10 rounded-xl p-6 hover:border-cyan-500/30 transition-colors group">
+        <div className="bg-bg-primary/90 border border-white/10 rounded-xl p-6 hover:border-cyan-500/30 transition-colors group">
           <div className="text-white/20 select-none mb-3 group-hover:text-cyan-400 transition-colors">
             <span className="text-cyan-400">##</span> UNLOCK_PRO
           </div>

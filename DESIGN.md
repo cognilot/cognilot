@@ -4,6 +4,7 @@ version: alpha
 description: Developer-centric, IDE/Terminal-inspired design system for Cognilot. Every visual decision derives from the Memory view as the canonical reference.
 colors:
   bg-void: '#050505'
+  bg-primary: '#0a0a0f'
   bg-surface: 'rgba(255,255,255,0.03)'
   bg-surface-hover: 'rgba(255,255,255,0.05)'
   bg-overlay: 'rgba(5,5,5,0.80)'
@@ -101,6 +102,7 @@ The palette lives in extreme contrast — near-black backgrounds with neon accen
 | Token              | Value                    | Usage                                               |
 | ------------------ | ------------------------ | --------------------------------------------------- |
 | `bg-void`          | `#050505`                | Absolute root background                            |
+| `bg-primary`       | `#0a0a0f`                | Default background for major window containers      |
 | `bg-surface`       | `rgba(255,255,255,0.03)` | Subtle section fill inside a window                 |
 | `bg-surface-hover` | `rgba(255,255,255,0.05)` | Row hover state                                     |
 | `accent-violet`    | `#8b5cf6`                | Labels, `#` headings, `>` prefixes, primary accents |

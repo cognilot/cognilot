@@ -1,5 +1,5 @@
 import { type FC, useState, useRef, useEffect, type KeyboardEvent } from 'react';
-import { Sparkles, MapPin, X } from 'lucide-react';
+import { Sparkles, X } from 'lucide-react';
 import {
   formatLearnedTextarea,
   normalizeDataLearned,
@@ -16,9 +16,6 @@ interface MemoryFormProps {
   focusField?: string | null;
 }
 
-/**
- * Auto-resizing textarea that expands vertically as the user types.
- */
 const AutoResizeTextarea: FC<React.TextareaHTMLAttributes<HTMLTextAreaElement>> = (props) => {
   const ref = useRef<HTMLTextAreaElement>(null);
 
@@ -39,9 +36,6 @@ const AutoResizeTextarea: FC<React.TextareaHTMLAttributes<HTMLTextAreaElement>> 
   );
 };
 
-/**
- * Single editable key:value row rendered in the terminal/memory style.
- */
 const CustomFieldRow: FC<{
   labelKey: string;
   value: string;
@@ -60,48 +54,39 @@ const CustomFieldRow: FC<{
   };
 
   return (
-    <div className="flex relative items-start hover:bg-white/5 -mx-4 px-4 rounded transition-colors group py-1">
+    <div className="flex relative items-start hover:bg-white/5 -mx-4 px-4 rounded transition-colors group py-2">
       <input
         type="text"
         value={localKey}
         onChange={(e) => setLocalKey(e.target.value)}
         onBlur={handleKeyBlur}
-        aria-label="Clave de dato"
-        placeholder="clave"
-        className="text-brand-secondary font-semibold bg-transparent outline-none w-[160px] md:w-[200px] shrink-0 py-1.5 focus:bg-white/5 rounded px-2 -ml-2 transition-colors"
+        aria-label="Field name"
+        placeholder="field name"
+        className="text-white/90 font-medium bg-transparent outline-none w-[160px] md:w-[200px] shrink-0 py-1.5 focus:bg-white/5 rounded px-2 -ml-2 transition-colors"
       />
-      <span className="text-brand-secondary/50 py-1.5 pr-3 select-none -ml-1">:</span>
+      <span className="text-white/20 py-1.5 pr-3 select-none -ml-1">:</span>
 
       <AutoResizeTextarea
         value={value}
         onChange={(e) => onChange(labelKey, e.target.value)}
         aria-label={labelKey}
-        className="text-white flex-1 py-1.5 min-w-0 placeholder:text-white/10 focus:bg-white/5 rounded px-2 -mx-2 transition-colors"
+        className="text-white/70 flex-1 py-1.5 min-w-0 placeholder:text-white/15 focus:bg-white/5 rounded px-2 -mx-2 transition-colors"
       />
 
       <button
         onClick={() => onDelete(labelKey)}
-        className="text-error/50 hover:text-error opacity-0 group-hover:opacity-100 p-1.5 ml-2 transition-opacity h-fit mt-0.5"
-        title="Eliminar campo"
+        className="text-white/20 hover:text-red-400 opacity-0 group-hover:opacity-100 p-3 ml-2 -my-1.5 transition-opacity h-11 w-11 flex items-center justify-center rounded-md hover:bg-white/5 h-fit"
+        title="Delete field"
       >
-        <X className="w-3.5 h-3.5" />
+        <X className="w-4 h-4" />
       </button>
     </div>
   );
 };
 
-/**
- * MemoryForm
- *
- * Renders all profile memory data exclusively in the terminal key:value style.
- * There are no standard form inputs — every field follows the IDE/terminal aesthetic
- * consistent with the rest of the Cognilot design system.
- */
-export const MemoryForm: FC<MemoryFormProps> = ({
+export const MemoryForm: FC<Omit<MemoryFormProps, 'isLocating' | 'onDetectLocation'>> = ({
   formData,
   onFieldChange,
-  isLocating,
-  onDetectLocation,
   isSaving,
   showSaveSuccess,
   focusField,
@@ -119,7 +104,6 @@ export const MemoryForm: FC<MemoryFormProps> = ({
     }
   }, [focusField]);
 
-  // All memory data lives in the JSONB data_learned field
   const customData = normalizeDataLearned(formData.data_learned);
   const customKeys = Object.keys(customData);
 
@@ -136,7 +120,6 @@ export const MemoryForm: FC<MemoryFormProps> = ({
     delete newData[oldKey];
     onFieldChange('data_learned', newData);
     onFieldChange(newKey, newData[newKey]?.[0] || undefined);
-    // Remove old flattened entry to prevent it being re-added on save
     onFieldChange(oldKey, undefined);
   };
 
@@ -144,7 +127,6 @@ export const MemoryForm: FC<MemoryFormProps> = ({
     const newData = { ...customData };
     delete newData[key];
     onFieldChange('data_learned', newData);
-    // Remove flattened entry to prevent it being re-added on save
     onFieldChange(key, undefined);
   };
 
@@ -167,73 +149,35 @@ export const MemoryForm: FC<MemoryFormProps> = ({
   };
 
   return (
-    <section className="bg-surface/90 backdrop-blur-2xl border border-white/10 rounded-xl shadow-2xl overflow-hidden font-mono text-[13px] leading-relaxed relative animate-scale-in">
-      {/* Saving / Success overlay */}
+    <section className="bg-bg-primary/90 backdrop-blur-2xl border border-white/10 rounded-xl shadow-2xl overflow-hidden relative animate-fade-in">
       {(isSaving || showSaveSuccess) && (
         <div className="absolute inset-0 z-50 bg-surface/80 backdrop-blur-xl flex flex-col items-center justify-center transition-all duration-300">
           {isSaving ? (
             <div className="flex flex-col items-center gap-6">
-              <div className="w-12 h-12 border-4 border-brand-secondary/20 border-t-brand-secondary rounded-full animate-spin" />
-              <span className="text-brand-secondary font-bold tracking-[0.2em] font-sans text-sm animate-pulse">
-                GUARDANDO...
-              </span>
+              <div className="w-12 h-12 border-4 border-white/10 border-t-accent-cyan rounded-full animate-spin" />
+              <span className="text-white/60 font-medium text-sm animate-pulse">Saving...</span>
             </div>
           ) : (
             <div className="flex flex-col items-center gap-6 animate-scale-in">
-              <div className="w-14 h-14 bg-success/10 text-success rounded-full flex items-center justify-center border border-success/30 shadow-[0_0_20px_rgba(16,185,129,0.3)]">
+              <div className="w-14 h-14 bg-success/10 text-success rounded-full flex items-center justify-center border border-success/30">
                 <Sparkles className="w-6 h-6" />
               </div>
-              <span className="text-success font-bold tracking-[0.2em] font-sans text-sm">
-                GUARDADO EXITOSO
-              </span>
+              <span className="text-success font-medium text-sm">Saved successfully</span>
             </div>
           )}
         </div>
       )}
 
-      {/* macOS window controls mock */}
-      <div className="px-5 py-4 border-b border-white/5 bg-white/5 flex items-center gap-2 select-none">
-        <div className="flex gap-2 mr-4">
-          <div className="w-3 h-3 rounded-full bg-red-500/80 shadow-[0_0_8px_rgba(239,68,68,0.4)]" />
-          <div className="w-3 h-3 rounded-full bg-yellow-500/80 shadow-[0_0_8px_rgba(234,179,8,0.4)]" />
-          <div className="w-3 h-3 rounded-full bg-green-500/80 shadow-[0_0_8px_rgba(34,197,94,0.4)]" />
-        </div>
-        <div className="text-white/30 text-[11px] uppercase tracking-[0.2em] flex items-center gap-2 font-sans font-bold flex-1 justify-end">
-          MEMORY.MD
-        </div>
-      </div>
-
       <div className="p-6 md:p-8">
-        {/* Header */}
-        <div className="mb-8 flex items-center justify-between gap-4">
-          <div>
-            <h1 className="text-xl font-bold text-white mb-2 flex items-center gap-2">
-              <span className="text-brand-secondary">#</span> Memory AI
-            </h1>
-            <div className="text-white/40 text-[12px] uppercase tracking-wider font-bold">
-              ## Contexto y datos aprendidos por Cognilot
-            </div>
-          </div>
-
-          <button
-            onClick={onDetectLocation}
-            disabled={isLocating}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl border border-brand-secondary/30 bg-brand-secondary/5 text-brand-secondary text-xs hover:bg-brand-secondary/10 transition-all group shrink-0"
-          >
-            <MapPin
-              className={`w-4 h-4 ${isLocating ? 'animate-pulse' : 'group-hover:scale-110 transition-transform'}`}
-            />
-            <span>{isLocating ? 'Detectando...' : 'Autocompletar Ubicación'}</span>
-          </button>
+        <div className="text-xs font-semibold text-white/30 uppercase tracking-wider mb-4">
+          Learned Data
         </div>
-
-        {/* All memory fields rendered in terminal key:value style */}
         <div
           ref={customSectionRef}
           id="section-custom"
           className={`relative transition-all duration-1000 ${
             focusField === 'custom'
-              ? 'ring-2 ring-brand-secondary/50 rounded-xl p-4 bg-brand-secondary/5'
+              ? 'ring-2 ring-accent-cyan/30 rounded-xl p-4 bg-accent-cyan/5'
               : ''
           }`}
         >
@@ -249,15 +193,14 @@ export const MemoryForm: FC<MemoryFormProps> = ({
               />
             ))}
 
-            {/* New field input */}
-            <div className="flex relative items-start mt-4 bg-black/20 border border-dashed border-white/10 rounded-lg p-2.5 hover:border-brand-secondary/30 transition-colors focus-within:border-brand-secondary/50 focus-within:bg-brand-secondary/5">
-              <div className="text-brand-secondary/50 select-none shrink-0 mr-3 flex items-center font-bold">
+            <div className="flex relative items-start mt-4 bg-white/2 border border-dashed border-white/10 rounded-lg p-2.5 hover:border-accent-cyan/30 transition-colors focus-within:border-accent-cyan/50 focus-within:bg-accent-cyan/5">
+              <div className="text-accent-cyan/50 select-none shrink-0 mr-3 flex items-center font-bold">
                 +
               </div>
               <input
                 type="text"
                 className="bg-transparent text-white outline-none flex-1 placeholder:text-white/20 text-sm"
-                placeholder="Ejemplo: 'Disponibilidad: Inmediata' y presiona Enter..."
+                placeholder="Type 'Field: Value' and press Enter..."
                 value={newFieldText}
                 onChange={(e) => setNewFieldText(e.target.value)}
                 onKeyDown={handleNewFieldKeyDown}

@@ -65,7 +65,7 @@ export const MemoryField: FC<MemoryFieldProps> = ({ field, value, onChange }) =>
         <Popover>
           <PopoverTrigger asChild>
             <Button
-              variant={'outline'}
+              variant="terminal"
               className={cn(
                 'w-full justify-start text-left font-normal bg-surface-soft/50 border-white/10 hover:bg-surface-soft hover:text-white',
                 !value && 'text-muted-foreground'

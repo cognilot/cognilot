@@ -97,12 +97,12 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
   };
 
   const navItems = [
-    { href: '/dashboard/welcome', label: 'welcome', hint: '// getting started' },
-    { href: '/dashboard/memory', label: 'memory', hint: '// profile & learned data' },
-    { href: '/dashboard/aliases', label: 'aliases', hint: '// shorthand mappings' },
-    { href: '/dashboard/playground', label: 'playground', hint: '// skills & testing' },
-    { href: '/dashboard/settings', label: 'settings', hint: '// BYOK & preferences' },
-    { href: '/dashboard/plan', label: 'plan', hint: '// billing & usage' },
+    { href: '/welcome', label: 'welcome', hint: '// getting started' },
+    { href: '/memory', label: 'memory', hint: '// profile & learned data' },
+    { href: '/aliases', label: 'aliases', hint: '// shorthand mappings' },
+    { href: '/playground', label: 'playground', hint: '// skills & testing' },
+    { href: '/settings', label: 'settings', hint: '// BYOK & preferences' },
+    { href: '/plan', label: 'plan', hint: '// billing & usage' },
   ];
 
   if (loading) {
@@ -132,7 +132,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
         {/* Logo */}
         <div className="px-5 mb-8">
           <Link
-            href="/dashboard/memory"
+            href="/memory"
             className="font-mono text-base font-bold text-white flex items-center gap-1 hover:opacity-80 transition-opacity"
           >
             <span className="text-violet-400">&gt;</span>

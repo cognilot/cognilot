@@ -1,6 +1,5 @@
 import { type FC, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Terminal, MapPin, FileText, Brain, CheckCircle2, Circle } from 'lucide-react';
 import { profileService } from '../services/profile.service';
 import { profileSections } from '../utils/profileFields';
 import { ProgressBar } from './ProgressBar';
@@ -80,21 +79,21 @@ export const OnboardingGuide: FC = () => {
     {
       id: 'location',
       title: 'Configurar Localización',
-      icon: <MapPin className="w-4 h-4" />,
+      iconCode: 'geo_config',
       completed: isLocationDone,
       focus: 'location',
     },
     {
       id: 'experience',
       title: 'Cargar Experiencia (CV)',
-      icon: <FileText className="w-4 h-4" />,
+      iconCode: 'cv_parser',
       completed: isExperienceDone,
       focus: 'experience',
     },
     {
       id: 'manual',
       title: 'Probar Memoria Manual',
-      icon: <Brain className="w-4 h-4" />,
+      iconCode: 'ai_trainer',
       completed: isManualMemoryDone,
       focus: 'custom',
     },
@@ -115,19 +114,31 @@ export const OnboardingGuide: FC = () => {
 
   const handleStepClick = (focus: string) => {
     if (focus === 'custom') {
-      router.push('/dashboard/memory?focus=custom');
+      router.push('/memory?focus=custom');
     } else {
-      router.push(`/dashboard/memory?focus=${focus}`);
+      router.push(`/memory?focus=${focus}`);
     }
   };
 
   return (
-    <div className="bg-surface/90 backdrop-blur-2xl border border-brand-secondary/30 rounded-xl shadow-2xl shadow-brand-secondary/5 overflow-hidden relative mb-8 animate-scale-in">
-      <div className="p-6 md:p-8">
+    <section className="bg-bg-primary/90 backdrop-blur-2xl border border-white/10 rounded-xl shadow-2xl overflow-hidden relative mb-8 animate-scale-in">
+      {/* macOS Title Bar */}
+      <div className="px-5 py-4 border-b border-white/5 bg-white/5 flex items-center gap-2 select-none">
+        <div className="flex gap-2 mr-4">
+          <div className="w-3 h-3 rounded-full bg-red-500/80 shadow-[0_0_8px_rgba(239,68,68,0.4)]" />
+          <div className="w-3 h-3 rounded-full bg-yellow-500/80 shadow-[0_0_8px_rgba(234,179,8,0.4)]" />
+          <div className="w-3 h-3 rounded-full bg-green-500/80 shadow-[0_0_8px_rgba(34,197,94,0.4)]" />
+        </div>
+        <div className="text-white/30 text-[11px] uppercase tracking-[0.2em] font-sans font-bold flex-1 justify-end flex">
+          ONBOARDING_GUIDE.MD
+        </div>
+      </div>
+
+      <div className="p-6 md:p-8 font-mono text-[13px]">
         <div className="flex flex-col md:flex-row md:items-center gap-6 mb-8">
           <div className="flex-1">
             <div className="text-brand-secondary mb-2 flex items-center gap-2 font-bold uppercase tracking-widest text-[11px]">
-              <Terminal className="w-4 h-4" /> AI_CAPACITY_METER
+              AI_CAPACITY_METER
             </div>
             <h2 className="text-xl font-bold text-white mb-2">
               Desbloquea el 100% de tu Asistente
@@ -151,7 +162,7 @@ export const OnboardingGuide: FC = () => {
             <button
               key={step.id}
               onClick={() => handleStepClick(step.focus)}
-              className={`text-left p-3.5 rounded-xl border transition-all group relative overflow-hidden ${
+              className={`text-left p-3.5 rounded-xl border transition-all group relative overflow-hidden cursor-pointer ${
                 step.completed
                   ? 'bg-success/5 border-success/20 hover:border-success/40'
                   : 'bg-white/5 border-white/10 hover:border-brand-secondary/40 hover:bg-white/10'
@@ -162,9 +173,13 @@ export const OnboardingGuide: FC = () => {
               <div className="flex items-center justify-between relative z-10">
                 <div className="flex items-center gap-3">
                   <div
-                    className={`p-2 rounded-lg ${step.completed ? 'bg-success/20 text-success' : 'bg-white/10 text-white/60 group-hover:text-brand-secondary transition-colors'}`}
+                    className={`p-2 rounded font-mono text-[10px] uppercase font-bold shrink-0 ${
+                      step.completed
+                        ? 'bg-success/20 text-success'
+                        : 'bg-white/10 text-white/60 group-hover:text-brand-secondary transition-colors'
+                    }`}
                   >
-                    {step.icon}
+                    {step.iconCode}
                   </div>
                   <h3
                     className={`font-bold text-[13px] leading-tight ${step.completed ? 'text-success' : 'text-white'}`}
@@ -175,9 +190,11 @@ export const OnboardingGuide: FC = () => {
 
                 <div>
                   {step.completed ? (
-                    <CheckCircle2 className="w-4 h-4 text-success" />
+                    <span className="text-success font-bold font-mono text-xs">[DONE]</span>
                   ) : (
-                    <Circle className="w-4 h-4 text-white/20 group-hover:text-brand-secondary/50 transition-colors" />
+                    <span className="text-white/20 group-hover:text-brand-secondary/50 font-bold font-mono text-xs transition-colors">
+                      [TODO]
+                    </span>
                   )}
                 </div>
               </div>
@@ -185,6 +202,6 @@ export const OnboardingGuide: FC = () => {
           ))}
         </div>
       </div>
-    </div>
+    </section>
   );
 };
