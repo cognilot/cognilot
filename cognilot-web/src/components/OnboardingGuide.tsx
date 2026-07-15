@@ -114,9 +114,9 @@ export const OnboardingGuide: FC = () => {
 
   const handleStepClick = (focus: string) => {
     if (focus === 'custom') {
-      router.push('/dashboard/memory?focus=custom');
+      router.push('/memory?focus=custom');
     } else {
-      router.push(`/dashboard/memory?focus=${focus}`);
+      router.push(`/memory?focus=${focus}`);
     }
   };
 

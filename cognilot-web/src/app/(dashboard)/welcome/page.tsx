@@ -2,6 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 import { OnboardingGuide } from '@/components/OnboardingGuide';
+import { Button } from '@/components/ui/button';
 
 export default function WelcomePage() {
   const router = useRouter();
@@ -37,15 +38,12 @@ export default function WelcomePage() {
           </div>
 
           <div className="flex flex-wrap gap-4 pt-4 border-t border-white/5">
-            <button
-              onClick={() => router.push('/dashboard/memory')}
-              className="py-2.5 px-5 bg-white/5 hover:bg-white/10 text-white rounded transition-colors flex items-center gap-2 border border-white/10 cursor-pointer group"
-            >
+            <Button variant="terminal" size="sm" onClick={() => router.push('/memory')}>
               <span className="text-accent-violet opacity-50 group-hover:opacity-100 transition-opacity font-bold">
                 {'>'}
               </span>{' '}
               ./edit_memory.sh
-            </button>
+            </Button>
             <button
               className="py-2.5 px-5 bg-violet-500/10 hover:bg-violet-500/20 text-violet-400 rounded transition-colors flex items-center gap-2 border border-violet-500/20 font-bold"
               onClick={(e) => e.preventDefault()}

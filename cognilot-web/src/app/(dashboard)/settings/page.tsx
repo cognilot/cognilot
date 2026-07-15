@@ -5,6 +5,8 @@ import { createBrowserClient } from '@supabase/ssr';
 import { toast } from 'sonner';
 import { Shield, Eye, EyeOff, Trash2, Check } from 'lucide-react';
 import { extensionBridge } from '@/utils/extensionBridge';
+import { ReadmeLayout } from '@/components/layout/ReadmeLayout';
+import { Button } from '@/components/ui/button';
 
 interface ExtSettings {
   ghostTextEnabled: boolean;
@@ -181,107 +183,76 @@ export default function SettingsPage() {
 
   if (loading) {
     return (
-      <div className="p-8 max-w-4xl mx-auto font-mono text-[13px] text-white/30 space-y-6 animate-pulse">
-        <div>// reading_system_configurations.sh...</div>
-        <div className="h-64 bg-white/2 rounded-xl" />
-      </div>
+      <ReadmeLayout filename="settings.md" description="// loading system configurations...">
+        <div className="h-64 bg-white/2 rounded-xl animate-pulse" />
+      </ReadmeLayout>
     );
   }
 
   return (
-    <div className="p-8 max-w-4xl mx-auto animate-fade-in font-mono text-[13px]">
-      {/* Title */}
-      <div className="mb-8">
-        <h1 className="text-xl font-bold text-white mb-2 flex items-center gap-2">
-          <span className="text-accent-violet">#</span> settings.md
-        </h1>
-        <p className="text-white/40">
-          {'// Configure BYOK LLM models, extension behavior, and database security'}
-        </p>
-      </div>
-
+    <ReadmeLayout
+      filename="settings.md"
+      description="Configure BYOK LLM models, extension behavior, and database security"
+    >
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Left Columns (Form & Prefs) */}
         <div className="lg:col-span-2 space-y-8">
-          {/* BYOK Config Window */}
+          {/* BYOK Config */}
           <div className="bg-bg-primary/90 backdrop-blur-2xl border border-white/10 rounded-xl shadow-2xl overflow-hidden">
-            <div className="px-5 py-4 border-b border-white/5 bg-white/5 flex items-center gap-2 select-none">
-              <div className="flex gap-1.5 mr-4">
-                <div className="w-3 h-3 rounded-full bg-red-500/80 shadow-[0_0_8px_rgba(239,68,68,0.4)]" />
-                <div className="w-3 h-3 rounded-full bg-yellow-500/80 shadow-[0_0_8px_rgba(234,179,8,0.4)]" />
-                <div className="w-3 h-3 rounded-full bg-green-500/80 shadow-[0_0_8px_rgba(34,197,94,0.4)]" />
-              </div>
-              <div className="text-white/30 text-[10px] uppercase tracking-widest font-sans font-bold flex-1 text-right">
-                config/byok.sh
-              </div>
-            </div>
-
             <form onSubmit={handleSaveByok} className="p-6 space-y-5">
               <div className="flex justify-between items-center mb-2">
-                <div className="text-white/30 select-none font-bold uppercase tracking-wider text-[11px]">
-                  ## inference_providers_config
+                <div className="text-xs font-semibold text-white/30 uppercase tracking-wider">
+                  LLM Provider
                 </div>
-                <span className="text-[10px] px-2 py-0.5 rounded bg-violet-500/10 border border-violet-500/20 text-accent-violet font-bold select-none">
-                  ACTIVE_ROUTE: [{activeProviderBadge}]
+                <span className="text-[10px] px-2 py-0.5 rounded bg-accent-violet/10 border border-accent-violet/20 text-accent-violet font-bold">
+                  {activeProviderBadge}
                 </span>
               </div>
 
-              {/* Provider */}
               <div className="flex relative items-start hover:bg-white/5 -mx-4 px-4 rounded transition-colors py-1">
-                <div className="text-accent-violet select-none w-[140px] shrink-0 py-1.5 flex items-center font-semibold">
-                  llm_provider
-                  <span className="text-accent-violet/50 ml-1">:</span>
-                </div>
+                <div className="text-white/60 font-medium w-[140px] shrink-0 py-1.5">Provider</div>
                 <select
                   value={provider}
                   onChange={(e) => setProvider(e.target.value as any)}
-                  className="bg-transparent text-white flex-1 py-1.5 min-w-0 placeholder:text-white/10 focus:bg-white/5 rounded px-2 -mx-2 transition-colors outline-none cursor-pointer border-none"
+                  className="bg-transparent text-white flex-1 py-1.5 min-w-0 focus:bg-white/5 rounded px-2 -mx-2 transition-colors outline-none cursor-pointer border-none"
                 >
                   <option className="bg-slate-950 text-white" value="groq">
-                    Groq (Default Backend proxy)
+                    Groq (Default Backend)
                   </option>
                   <option className="bg-slate-950 text-white" value="openai">
-                    OpenAI (Direct client-side)
+                    OpenAI (Direct)
                   </option>
                   <option className="bg-slate-950 text-white" value="anthropic">
-                    Anthropic (Direct client-side)
+                    Anthropic (Direct)
                   </option>
                 </select>
               </div>
 
-              {/* API Key */}
               <div className="flex relative items-center hover:bg-white/5 -mx-4 px-4 rounded transition-colors py-1">
-                <div className="text-accent-violet select-none w-[140px] shrink-0 py-1.5 flex items-center font-semibold">
-                  api_secret_key
-                  <span className="text-accent-violet/50 ml-1">:</span>
-                </div>
+                <div className="text-white/60 font-medium w-[140px] shrink-0 py-1.5">API Key</div>
                 <div className="flex-1 flex items-center">
                   <input
                     type={showKey ? 'text' : 'password'}
                     value={apiKey}
                     onChange={(e) => setApiKey(e.target.value)}
                     placeholder={
-                      apiKey
-                        ? '••••••••••••••••••••'
-                        : '// leave empty to use server default / local Nano'
+                      apiKey ? '••••••••••••••••••••' : 'Leave empty to use server default'
                     }
-                    className="bg-transparent text-white flex-1 py-1.5 min-w-0 placeholder:text-white/10 focus:bg-white/5 rounded px-2 -mx-2 transition-colors outline-none"
+                    className="bg-transparent text-white flex-1 py-1.5 min-w-0 placeholder:text-white/15 focus:bg-white/5 rounded px-2 -mx-2 transition-colors outline-none"
                   />
                   <button
                     type="button"
                     onClick={() => setShowKey(!showKey)}
-                    className="text-white/30 hover:text-white/70 p-1.5 transition-colors cursor-pointer select-none"
+                    className="text-white/30 hover:text-white/70 p-1.5 transition-colors cursor-pointer"
                   >
                     {showKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
                 </div>
               </div>
 
-              {/* Model Override */}
               <div className="flex relative items-start hover:bg-white/5 -mx-4 px-4 rounded transition-colors py-1">
-                <div className="text-accent-violet select-none w-[140px] shrink-0 py-1.5 flex items-center font-semibold">
-                  model_override
-                  <span className="text-accent-violet/50 ml-1">:</span>
+                <div className="text-white/60 font-medium w-[140px] shrink-0 py-1.5">
+                  Model Override
                 </div>
                 <input
                   type="text"
@@ -294,97 +265,69 @@ export default function SettingsPage() {
                         ? 'gpt-4o-mini'
                         : 'claude-3-haiku-20240307'
                   }
-                  className="bg-transparent text-white flex-1 py-1.5 min-w-0 placeholder:text-white/10 focus:bg-white/5 rounded px-2 -mx-2 transition-colors outline-none"
+                  className="bg-transparent text-white flex-1 py-1.5 min-w-0 placeholder:text-white/15 focus:bg-white/5 rounded px-2 -mx-2 transition-colors outline-none"
                 />
               </div>
 
               <div className="pt-2 flex items-center gap-3">
-                <button
-                  type="submit"
-                  disabled={savingByok}
-                  className="py-2.5 px-5 bg-white/5 hover:bg-white/10 text-white rounded transition-colors flex items-center gap-2 border border-white/10 group font-bold select-none cursor-pointer"
-                >
-                  <span className="text-accent-violet font-bold opacity-50 group-hover:opacity-100 transition-opacity">
-                    {'>'}
-                  </span>
-                  {savingByok ? './saving...' : './save_byok.sh'}
-                </button>
-                <div className="text-white/20 select-none text-[11px]">
-                  // keys are stored securely in local cache
+                <Button variant="terminal" size="sm" type="submit" disabled={savingByok}>
+                  {savingByok ? 'Saving...' : 'Save Configuration'}
+                </Button>
+                <div className="text-white/20 text-[11px]">
+                  Keys stored locally in browser cache
                 </div>
               </div>
             </form>
           </div>
 
-          {/* Preferences Config Window */}
+          {/* Preferences */}
           <div className="bg-bg-primary/90 backdrop-blur-2xl border border-white/10 rounded-xl shadow-2xl overflow-hidden">
-            <div className="px-5 py-4 border-b border-white/5 bg-white/5 flex items-center gap-2 select-none">
-              <div className="flex gap-1.5 mr-4">
-                <div className="w-3 h-3 rounded-full bg-red-500/80 shadow-[0_0_8px_rgba(239,68,68,0.4)]" />
-                <div className="w-3 h-3 rounded-full bg-yellow-500/80 shadow-[0_0_8px_rgba(234,179,8,0.4)]" />
-                <div className="w-3 h-3 rounded-full bg-green-500/80 shadow-[0_0_8px_rgba(34,197,94,0.4)]" />
-              </div>
-              <div className="text-white/30 text-[10px] uppercase tracking-widest font-sans font-bold flex-1 text-right">
-                config/preferences.sh
-              </div>
-            </div>
-
             <form onSubmit={handleSavePrefs} className="p-6 space-y-5">
-              <div className="text-white/30 select-none font-bold uppercase tracking-wider text-[11px]">
-                ## browser_extension_preferences
+              <div className="text-xs font-semibold text-white/30 uppercase tracking-wider">
+                Extension Preferences
               </div>
 
-              {/* Ghost Text */}
               <div className="flex relative items-center hover:bg-white/5 -mx-4 px-4 rounded transition-colors py-1.5">
-                <div className="text-accent-violet select-none w-[140px] shrink-0 flex items-center font-semibold">
-                  ghost_autocomplete
-                  <span className="text-accent-violet/50 ml-1">:</span>
-                </div>
+                <div className="text-white/60 font-medium w-[140px] shrink-0">Ghost Text</div>
                 <button
                   type="button"
                   onClick={() => setPrefs({ ...prefs, ghostTextEnabled: !prefs.ghostTextEnabled })}
-                  className={`px-3 py-1 font-bold text-xs rounded transition-colors cursor-pointer select-none ${
+                  className={`px-3 py-1 font-medium text-xs rounded transition-colors cursor-pointer ${
                     prefs.ghostTextEnabled
                       ? 'bg-success/10 border border-success/20 text-success hover:bg-success/20'
                       : 'bg-white/5 border border-white/10 text-white/30 hover:bg-white/10'
                   }`}
                 >
-                  {prefs.ghostTextEnabled ? '[ENABLED]' : '[DISABLED]'}
+                  {prefs.ghostTextEnabled ? 'Enabled' : 'Disabled'}
                 </button>
-                <span className="text-white/20 select-none ml-4 text-[11px]">
-                  // renders gray shadow values inside inputs
+                <span className="text-white/20 ml-4 text-[11px]">
+                  Shows gray shadow values inside inputs
                 </span>
               </div>
 
-              {/* Personal Context */}
               <div className="flex relative items-center hover:bg-white/5 -mx-4 px-4 rounded transition-colors py-1.5">
-                <div className="text-accent-violet select-none w-[140px] shrink-0 flex items-center font-semibold">
-                  personal_context
-                  <span className="text-accent-violet/50 ml-1">:</span>
-                </div>
+                <div className="text-white/60 font-medium w-[140px] shrink-0">Profile Context</div>
                 <button
                   type="button"
                   onClick={() =>
                     setPrefs({ ...prefs, useProfileContext: !prefs.useProfileContext })
                   }
-                  className={`px-3 py-1 font-bold text-xs rounded transition-colors cursor-pointer select-none ${
+                  className={`px-3 py-1 font-medium text-xs rounded transition-colors cursor-pointer ${
                     prefs.useProfileContext
                       ? 'bg-success/10 border border-success/20 text-success hover:bg-success/20'
                       : 'bg-white/5 border border-white/10 text-white/30 hover:bg-white/10'
                   }`}
                 >
-                  {prefs.useProfileContext ? '[ENABLED]' : '[DISABLED]'}
+                  {prefs.useProfileContext ? 'Enabled' : 'Disabled'}
                 </button>
-                <span className="text-white/20 select-none ml-4 text-[11px]">
-                  // uses profile facts & aliases for autofills
+                <span className="text-white/20 ml-4 text-[11px]">
+                  Uses profile data and aliases for autofills
                 </span>
               </div>
 
-              {/* Autocomplete Delay */}
               <div className="flex relative items-start hover:bg-white/5 -mx-4 px-4 rounded transition-colors py-1">
-                <div className="text-accent-violet select-none w-[140px] shrink-0 py-1.5 flex items-center font-semibold">
-                  trigger_delay_ms
-                  <span className="text-accent-violet/50 ml-1">:</span>
+                <div className="text-white/60 font-medium w-[140px] shrink-0 py-1.5">
+                  Trigger Delay
                 </div>
                 <div className="flex-1 flex items-center gap-4">
                   <input
@@ -397,37 +340,21 @@ export default function SettingsPage() {
                     max="5000"
                     className="bg-transparent text-white py-1.5 max-w-[80px] border-b border-white/10 outline-none text-center"
                   />
-                  <span className="text-white/20 select-none text-[11px]">
-                    // wait period before triggering AI inference scan
-                  </span>
+                  <span className="text-white/20 text-[11px]">ms before triggering AI scan</span>
                 </div>
               </div>
 
-              {/* UI Theme */}
               <div className="flex relative items-start hover:bg-white/5 -mx-4 px-4 rounded transition-colors py-1">
-                <div className="text-accent-violet select-none w-[140px] shrink-0 py-1.5 flex items-center font-semibold">
-                  ui_console_theme
-                  <span className="text-accent-violet/50 ml-1">:</span>
-                </div>
+                <div className="text-white/60 font-medium w-[140px] shrink-0 py-1.5">Theme</div>
                 <span className="py-1.5 text-white/60">
-                  dark_terminal{' '}
-                  <span className="text-white/20 text-[11px] select-none">
-                    (only option available)
-                  </span>
+                  Dark <span className="text-white/20 text-[11px]">(only option available)</span>
                 </span>
               </div>
 
               <div className="pt-2">
-                <button
-                  type="submit"
-                  disabled={savingPrefs}
-                  className="py-2.5 px-5 bg-white/5 hover:bg-white/10 text-white rounded transition-colors flex items-center gap-2 border border-white/10 group font-bold select-none cursor-pointer"
-                >
-                  <span className="text-accent-violet font-bold opacity-50 group-hover:opacity-100 transition-opacity">
-                    {'>'}
-                  </span>
-                  {savingPrefs ? './saving...' : './save_preferences.sh'}
-                </button>
+                <Button variant="terminal" size="sm" type="submit" disabled={savingPrefs}>
+                  {savingPrefs ? 'Saving...' : 'Save Preferences'}
+                </Button>
               </div>
             </form>
           </div>
@@ -436,53 +363,43 @@ export default function SettingsPage() {
         {/* Right Column: Danger Zone */}
         <div>
           <div className="bg-bg-primary/90 backdrop-blur-2xl border border-red-500/20 rounded-xl shadow-2xl overflow-hidden">
-            <div className="px-5 py-4 border-b border-red-500/10 bg-red-950/10 flex items-center gap-2 select-none">
-              <span className="text-red-400 font-sans text-[10px] uppercase font-bold tracking-widest">
-                CRITICAL_ZONE.sh
-              </span>
-            </div>
-
             <div className="p-6 space-y-6">
-              <div className="text-red-400/60 select-none font-bold uppercase tracking-wider text-[11px]">
-                ## destructive_procedures
+              <div className="text-red-400/60 font-semibold uppercase tracking-wider text-xs">
+                Danger Zone
               </div>
 
-              {/* Clear Memory */}
               <div className="space-y-2">
-                <div className="text-white/80 font-bold font-mono">clear_ai_memory</div>
+                <div className="text-white/80 font-medium">Clear AI Memory</div>
                 <div className="text-white/30 text-[11px] leading-relaxed">
-                  Permanently deletes the entire AI-learned database cache profile facts from your
-                  profile. Aliases are untouched.
+                  Permanently deletes all AI-learned facts from your profile. Aliases are untouched.
                 </div>
                 <button
                   type="button"
                   onClick={handleClearMemory}
                   disabled={clearingMemory}
-                  className="w-full py-2 border border-red-500/20 bg-red-500/5 hover:bg-red-500/10 text-red-400 rounded transition-colors text-[11px] font-bold select-none cursor-pointer"
+                  className="w-full py-2 border border-red-500/20 bg-red-500/5 hover:bg-red-500/10 text-red-400 rounded transition-colors text-[11px] font-bold cursor-pointer"
                 >
-                  {clearingMemory ? 'WIPING_MEMORY...' : 'EXECUTE CLEAR_MEM_FACTS'}
+                  {clearingMemory ? 'Clearing...' : 'Clear AI Memory'}
                 </button>
               </div>
 
-              {/* Delete Account */}
               <div className="space-y-2 border-t border-white/5 pt-4">
-                <div className="text-white/40 font-bold font-mono">terminate_account</div>
+                <div className="text-white/40 font-medium">Delete Account</div>
                 <div className="text-white/20 text-[11px] leading-relaxed">
-                  Wipes your database rows and terminates credentials. Disables extension client
-                  sync immediately.
+                  Wipes your data and terminates credentials. Disables extension sync immediately.
                 </div>
                 <button
                   type="button"
-                  className="w-full py-2 border border-white/5 bg-white/2 text-white/20 rounded text-[11px] font-bold select-none cursor-not-allowed"
+                  className="w-full py-2 border border-white/5 bg-white/2 text-white/20 rounded text-[11px] font-bold cursor-not-allowed"
                   disabled
                 >
-                  CONTACT_ADMIN_TO_DELETE
+                  Contact Support to Delete
                 </button>
               </div>
             </div>
           </div>
         </div>
       </div>
-    </div>
+    </ReadmeLayout>
   );
 }

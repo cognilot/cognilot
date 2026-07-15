@@ -5,15 +5,13 @@ import { createBrowserClient } from '@supabase/ssr';
 import { toast } from 'sonner';
 import { MapPin } from 'lucide-react';
 import { useSearchParams } from 'next/navigation';
-import { MemoryForm } from '../../../../components/memory/MemoryForm';
-import { MemorySidebar } from '../../../../components/memory/MemorySidebar';
-import {
-  flattenDataLearned,
-  normalizeDataLearned,
-  promoteLearnedValue,
-} from '../../../../utils/dataLearned';
-import { profileService } from '../../../../services/profile.service';
-import { extensionBridge } from '../../../../utils/extensionBridge';
+import { Button } from '@/components/ui/button';
+import { MemoryForm } from '@/components/memory/MemoryForm';
+import { MemorySidebar } from '@/components/memory/MemorySidebar';
+import { flattenDataLearned, normalizeDataLearned, promoteLearnedValue } from '@/utils/dataLearned';
+import { profileService } from '@/services/profile.service';
+import { extensionBridge } from '@/utils/extensionBridge';
+import { ReadmeLayout } from '@/components/layout/ReadmeLayout';
 
 interface UserInfo {
   id: string;
@@ -388,45 +386,35 @@ export default function MemoryPage() {
 
   if (loading) {
     return (
-      <div className="p-8 max-w-4xl mx-auto font-mono text-[13px] text-white/30 space-y-6">
-        <div className="animate-pulse">// scanning_cognitive_database.sh...</div>
+      <ReadmeLayout
+        filename="memory.md"
+        description="Profile data and context learned by your AI assistant"
+        className="max-w-7xl"
+      >
         <div className="h-64 bg-white/2 rounded-xl animate-pulse" />
-      </div>
+      </ReadmeLayout>
     );
   }
 
   return (
-    <div className="p-8 max-w-7xl mx-auto font-mono text-[13px] animate-fade-in">
-      {/* Page Header (Outside the Window) */}
-      <div className="mb-8 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-xl font-bold text-white mb-2 flex items-center gap-2">
-            <span className="text-accent-violet">#</span> memory.md
-          </h1>
-          <div className="text-white/40">
-            <span>{'// Contexto y datos de perfil aprendidos por tu asistente AI'}</span>
-          </div>
-        </div>
-
-        <button
-          onClick={handleDetectLocation}
-          disabled={isLocating}
-          className="flex items-center gap-2 px-5 py-2.5 bg-white/5 hover:bg-white/10 text-white rounded transition-colors border border-white/10 font-bold select-none cursor-pointer group shrink-0"
-        >
+    <ReadmeLayout
+      filename="memory.md"
+      description="Profile data and context learned by your AI assistant"
+      className="max-w-7xl"
+      action={
+        <Button variant="terminal" size="sm" onClick={handleDetectLocation} disabled={isLocating}>
           <MapPin
             className={`w-3.5 h-3.5 text-accent-cyan ${isLocating ? 'animate-pulse' : 'group-hover:scale-110 transition-transform'}`}
           />
-          <span>{isLocating ? 'Detectando...' : 'Autocompletar Ubicación'}</span>
-        </button>
-      </div>
-
+          <span>{isLocating ? 'Detecting...' : 'Autocomplete Location'}</span>
+        </Button>
+      }
+    >
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2 space-y-6">
           <MemoryForm
             formData={formData}
             onFieldChange={handleFieldChange}
-            isLocating={isLocating}
-            onDetectLocation={handleDetectLocation}
             isSaving={saving}
             showSaveSuccess={showSaveSuccess}
             focusField={focusParam}
@@ -442,6 +430,6 @@ export default function MemoryPage() {
           />
         </div>
       </div>
-    </div>
+    </ReadmeLayout>
   );
 }

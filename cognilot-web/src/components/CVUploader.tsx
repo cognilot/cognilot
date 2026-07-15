@@ -156,7 +156,7 @@ export const CVUploader: React.FC<CVUploaderProps> = ({ onUploadSuccess }) => {
           <p className="text-[10px] text-dim mb-2 leading-tight">
             Arrastra tu CV aquí o haz click para subir (PDF o DOCX)
           </p>
-          <Button variant="secondary" size="sm" className="text-[10px] h-7 px-2.5">
+          <Button variant="terminal" size="sm" className="text-[10px] h-7 px-2.5">
             Subir Archivo
           </Button>
         </div>
