@@ -182,6 +182,18 @@ async function handleLearn(element: HTMLElement): Promise<void> {
     if (!node) return;
     await sdk.suggestion.confirmSuggestion(node, textToLearn);
 
+    // Merge learned value into the current suggestion options
+    const suggestion = element._CognilotSuggestion;
+    if (suggestion) {
+      if (!suggestion.options.includes(textToLearn)) {
+        suggestion.options.unshift(textToLearn);
+      }
+      if (suggestion._allOptions && !suggestion._allOptions.includes(textToLearn)) {
+        suggestion._allOptions.unshift(textToLearn);
+      }
+      suggestion._activeIndex = 0;
+    }
+
     updateUI(element, {
       options: ['Saved to knowledge!'],
       _isFeedback: true,

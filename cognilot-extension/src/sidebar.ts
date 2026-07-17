@@ -970,7 +970,8 @@ class CognilotSidebar {
     this.toggleByokFieldsVisibility(!!this.currentSettings.byok?.enabled);
 
     // AI Model selected in Home
-    const modelValue = this.currentSettings.aiModels?.suggestionsProvider || 'llama-3.1-8b-instant';
+    const modelValue =
+      this.currentSettings.aiModels?.suggestionsProvider || 'llama-3.3-70b-versatile';
     const activeOption = document.querySelector(`.model-option[data-value="${modelValue}"]`);
     if (activeOption) {
       this.updateModelSelectionUI(activeOption);
@@ -1011,7 +1012,7 @@ class CognilotSidebar {
     const getVal = (id) =>
       (document.getElementById(id) as HTMLInputElement | HTMLSelectElement)?.value || '';
     const activeModelEl = document.querySelector('.model-option--active');
-    const getModelVal = () => activeModelEl?.dataset?.value || 'llama-3.1-8b-instant';
+    const getModelVal = () => activeModelEl?.dataset?.value || 'llama-3.3-70b-versatile';
 
     const settingsAdapter = window.Cognilot.SDK.Core.Registry.getAdapter('settings');
     if (settingsAdapter) {
@@ -1550,7 +1551,7 @@ class CognilotSidebar {
 
             // Revert option select in UI
             const currentVal =
-              this.currentSettings.aiModels?.suggestionsProvider || 'llama-3.1-8b-instant';
+              this.currentSettings.aiModels?.suggestionsProvider || 'llama-3.3-70b-versatile';
             const currentOption = document.querySelector(
               `.model-option[data-value="${currentVal}"]`
             );

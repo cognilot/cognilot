@@ -110,49 +110,39 @@ chrome.runtime.onMessageExternal.addListener(
         () => {
           if (user) seedInitialProfile(user);
 
-          // Migrate guest aliases to backend
+          // Fetch resolved aliases from backend and populate local alias cache
           chrome.storage.local.get(['Cognilot_alias_cache'], async (result) => {
-            const aliasCache = result.Cognilot_alias_cache || {};
-            const aliasKeys = Object.keys(aliasCache);
-            if (aliasKeys.length > 0) {
-              console.log(`Background: migrating ${aliasKeys.length} guest aliases to backend...`);
-              const payload = {
-                aliases: aliasKeys
-                  .map((key) => {
-                    const entry = aliasCache[key];
-                    return {
-                      label: key,
-                      value: Array.isArray(entry.options) ? entry.options[0] : entry.value || '',
-                      category: 'general',
-                    };
-                  })
-                  .filter((a) => a.value),
-              };
+            const isUnp = !chrome.runtime.getManifest().update_url;
+            const backUrl = isUnp
+              ? 'http://localhost:8000'
+              : 'https://vague-felita-Cognilot-7f5d4232.koyeb.app';
 
-              if (payload.aliases.length > 0) {
-                try {
-                  const isUnp = !chrome.runtime.getManifest().update_url;
-                  const backUrl = isUnp
-                    ? 'http://localhost:8000'
-                    : 'https://vague-felita-Cognilot-7f5d4232.koyeb.app';
-
-                  const res = await fetch(`${backUrl}/api/aliases/batch`, {
-                    method: 'POST',
-                    headers: {
-                      'Content-Type': 'application/json',
-                      Authorization: `Bearer ${accessToken}`,
-                    },
-                    body: JSON.stringify(payload),
-                  });
-                  if (res.ok) {
-                    console.log('Background: guest aliases migrated successfully.');
-                  } else {
-                    console.warn('Background: guest aliases migration failed:', res.statusText);
+            try {
+              const res = await fetch(`${backUrl}/api/aliases/resolve`, {
+                headers: { Authorization: `Bearer ${accessToken}` },
+              });
+              if (res.ok) {
+                const data = await res.json();
+                const aliasCache: Record<string, { memoryKey: string }> = {};
+                for (const a of data.aliases || []) {
+                  const key = (a.label || '')
+                    .trim()
+                    .toLowerCase()
+                    .replace(/\s+/g, ' ')
+                    .substring(0, 80);
+                  if (key && a.memoryKey) {
+                    aliasCache[key] = { memoryKey: a.memoryKey };
                   }
-                } catch (err) {
-                  console.error('Background: guest aliases migration error:', err);
                 }
+                chrome.storage.local.set({ Cognilot_alias_cache: aliasCache });
+                console.log(
+                  `Background: synced ${Object.keys(aliasCache).length} aliases from backend.`
+                );
+              } else {
+                console.warn('Background: failed to fetch aliases:', res.statusText);
               }
+            } catch (err) {
+              console.error('Background: alias sync error:', err);
             }
           });
 

@@ -2,8 +2,8 @@ import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
 import { z } from 'zod';
 import { db } from '../db/client.js';
-import { aliases } from '../db/schema.js';
-import { and, eq } from 'drizzle-orm';
+import { aliases, userProfiles } from '../db/schema.js';
+import { and, eq, inArray } from 'drizzle-orm';
 import { authMiddleware } from '../middleware/auth.js';
 import type { AuthEnv } from '../types/hono.js';
 
@@ -16,7 +16,7 @@ aliasesRouter.use('*', authMiddleware);
 
 const createAliasSchema = z.object({
   label: z.string().min(1).max(50),
-  value: z.string().min(1).max(1000),
+  memoryKey: z.string().min(1).max(100),
   category: z.string().optional().default('general'),
 });
 
@@ -26,9 +26,36 @@ const updateAliasSchema = createAliasSchema.partial();
 
 /**
  * GET /api/aliases
- * Returns all aliases for the authenticated user.
+ * Returns paginated aliases for the authenticated user.
+ * Query params: offset (default 0), limit (default 50, max 200)
  */
 aliasesRouter.get('/', async (c) => {
+  const userId = c.get('userId');
+
+  const query = c.req.query();
+  const offset = Math.max(0, parseInt(query['offset'] || '0', 10));
+  const limit = Math.min(Math.max(1, parseInt(query['limit'] || '50', 10)), 200);
+
+  const [userAliases, total] = await Promise.all([
+    db
+      .select()
+      .from(aliases)
+      .where(eq(aliases.userId, userId))
+      .orderBy(aliases.createdAt)
+      .limit(limit)
+      .offset(offset),
+    db.$count(aliases, eq(aliases.userId, userId)),
+  ]);
+
+  return c.json({ aliases: userAliases, total, offset, limit });
+});
+
+/**
+ * GET /api/aliases/resolve
+ * Returns aliases with their resolved values from data_learned.
+ * This is what the extension uses to populate the local alias cache.
+ */
+aliasesRouter.get('/resolve', async (c) => {
   const userId = c.get('userId');
 
   const userAliases = await db
@@ -37,7 +64,34 @@ aliasesRouter.get('/', async (c) => {
     .where(eq(aliases.userId, userId))
     .orderBy(aliases.createdAt);
 
-  return c.json({ aliases: userAliases });
+  // Fetch user profile to resolve memoryKey references
+  const [profile] = await db.select().from(userProfiles).where(eq(userProfiles.userId, userId));
+
+  const dataLearned = (profile?.dataLearned as Record<string, unknown>) || {};
+
+  // Resolve each alias: alias → memoryKey → values from data_learned
+  const resolved = userAliases
+    .map((a) => {
+      const key = a.memoryKey;
+      const rawValue = dataLearned[key];
+      const values = Array.isArray(rawValue)
+        ? rawValue.map(String)
+        : rawValue != null
+          ? [String(rawValue)]
+          : [];
+
+      return {
+        id: a.id,
+        label: a.label,
+        memoryKey: a.memoryKey,
+        category: a.category,
+        values,
+        createdAt: a.createdAt,
+      };
+    })
+    .filter((a) => a.values.length > 0);
+
+  return c.json({ aliases: resolved, total: resolved.length });
 });
 
 /**
@@ -81,6 +135,27 @@ aliasesRouter.put('/:id', zValidator('json', updateAliasSchema), async (c) => {
   return c.json({ alias: updated });
 });
 
+const batchDeleteSchema = z.object({
+  ids: z.array(z.string()).min(1).max(1000),
+});
+
+/**
+ * DELETE /api/aliases/batch
+ * Deletes multiple aliases in a single query for the authenticated user.
+ * Must be registered BEFORE /:id to avoid route conflict.
+ */
+aliasesRouter.delete('/batch', zValidator('json', batchDeleteSchema), async (c) => {
+  const userId = c.get('userId');
+  const { ids } = c.req.valid('json');
+
+  const deleted = await db
+    .delete(aliases)
+    .where(and(inArray(aliases.id, ids), eq(aliases.userId, userId)))
+    .returning();
+
+  return c.json({ deleted: deleted.length, ids: deleted.map((d) => d.id) });
+});
+
 /**
  * DELETE /api/aliases/:id
  * Deletes a specific alias (must belong to the authenticated user).
@@ -109,7 +184,7 @@ const batchCreateSchema = z.object({
     .array(
       z.object({
         label: z.string().min(1).max(50),
-        value: z.string().min(1).max(1000),
+        memoryKey: z.string().min(1).max(100),
         category: z.string().optional().default('general'),
       })
     )
@@ -128,7 +203,7 @@ aliasesRouter.post('/batch', zValidator('json', batchCreateSchema), async (c) =>
   const insertData = aliasList.map((a) => ({
     userId,
     label: a.label,
-    value: a.value,
+    memoryKey: a.memoryKey,
     category: a.category || 'general',
   }));
 

@@ -14,8 +14,8 @@ export const SettingsManager = {
       useProfileContext: true,
     },
     aiModels: {
-      suggestionsProvider: 'llama-3.1-8b-instant',
-      actionsProvider: 'llama-3.1-8b-instant',
+      suggestionsProvider: 'llama-3.3-70b-versatile',
+      actionsProvider: 'llama-3.3-70b-versatile',
     },
     byok: {
       enabled: false,

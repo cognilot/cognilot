@@ -32,17 +32,17 @@ export const userProfiles = pgTable('user_profiles', {
 });
 
 /**
- * Aliases — user-defined text shortcuts.
- * e.g. "myemail" → "john.doe@example.com"
- * Used by the extension for fast form autofill.
+ * Aliases — user-defined named references to memory fields.
+ * e.g. "correo" → memoryKey: "email" (resolves to all values from data_learned.email)
+ * The extension resolves aliases by reading the memoryKey from profile_cache.
  */
 export const aliases = pgTable('aliases', {
   id: uuid('id').primaryKey().defaultRandom(),
   userId: uuid('user_id')
     .notNull()
     .references(() => users.id, { onDelete: 'cascade' }),
-  label: text('label').notNull(), // The trigger text (e.g. "myemail")
-  value: text('value').notNull(), // The expanded text (e.g. "john@example.com")
+  label: text('label').notNull(), // The trigger text (e.g. "correo")
+  memoryKey: text('memory_key').notNull(), // Reference to data_learned key (e.g. "email")
   category: text('category').default('general'),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
@@ -52,16 +52,18 @@ export const aliases = pgTable('aliases', {
  * Usage Credits — tracks daily API usage per user.
  * Free plan: 50 credits/day. Pro plan: unlimited (not tracked).
  */
-export const usageCredits = pgTable('usage_credits', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  userId: uuid('user_id')
-    .notNull()
-    .references(() => users.id, { onDelete: 'cascade' }),
-  creditsUsed: integer('credits_used').notNull().default(0),
-  date: text('date').notNull(), // ISO date string: "2026-06-25"
-}, (t) => [
-  unique().on(t.userId, t.date)
-]);
+export const usageCredits = pgTable(
+  'usage_credits',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    creditsUsed: integer('credits_used').notNull().default(0),
+    date: text('date').notNull(), // ISO date string: "2026-06-25"
+  },
+  (t) => [unique().on(t.userId, t.date)]
+);
 
 // ── Type Exports ───────────────────────────────────────────────────────────────
 

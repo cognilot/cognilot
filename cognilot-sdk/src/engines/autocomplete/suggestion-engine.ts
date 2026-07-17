@@ -135,7 +135,7 @@ export class SuggestionEngine {
     const settings = this.sdk.adapters?.settings
       ? await (this.sdk.adapters.settings as any).getSettings()
       : {};
-    const provider = settings.aiModels?.suggestionsProvider || 'llama-3.1-8b-instant';
+    const provider = settings.aiModels?.suggestionsProvider || 'llama-3.3-70b-versatile';
     const useProfileContext = settings.copilotSuggestions?.useProfileContext !== false;
 
     // NEW: Get Local Profile and Sync Queue
@@ -397,7 +397,7 @@ export class SuggestionEngine {
     const settings = this.sdk.adapters?.settings
       ? await (this.sdk.adapters.settings as any).getSettings()
       : {};
-    const provider = settings.aiModels?.suggestionsProvider || 'llama-3.1-8b-instant';
+    const provider = settings.aiModels?.suggestionsProvider || 'llama-3.3-70b-versatile';
     const activeProvider = await this.sdk.inference.getSelectedProviderName();
     if (activeProvider === 'byok' || activeProvider === 'gemini-nano') {
       console.log(`[SuggestionEngine] Prefetch: Local inference route chosen: ${activeProvider}`);
@@ -591,7 +591,7 @@ export class SuggestionEngine {
   /**
    * Confirms a suggestion was accepted by the user and persists it as an alias.
    */
-  async confirmSuggestion(node: CognilotNode, value: string, skipSync = true) {
+  async confirmSuggestion(node: CognilotNode, value: string, skipSync = false) {
     if (!node || !value) return;
 
     // Security Gate: Never learn from password fields
@@ -613,6 +613,16 @@ export class SuggestionEngine {
         `[SuggestionEngine] Learning alias for "${label}" -> "${value}" (skipSync=${skipSync})`
       );
       await this.sdk.alias.persistAlias(label, value, skipSync);
+    }
+
+    // Invalidate registry entry so the next trigger re-consults alias cache
+    const regEntry = this.sdk.registry.findByNode(node.getRawNode());
+    if (regEntry && regEntry.status === 'resolved') {
+      console.log(
+        `[SuggestionEngine] Invalidating registry entry for "${regEntry.text}" after learning`
+      );
+      regEntry.status = 'pending';
+      regEntry.resolution = null;
     }
   }
 }

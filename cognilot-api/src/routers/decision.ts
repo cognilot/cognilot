@@ -1,13 +1,13 @@
 import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
 import { z } from 'zod';
-import { ChatGroq } from '@langchain/groq';
 import { HumanMessage, SystemMessage } from '@langchain/core/messages';
 import { db } from '../db/client.js';
 import { userProfiles } from '../db/schema.js';
 import { eq } from 'drizzle-orm';
 import { authMiddleware } from '../middleware/auth.js';
 import { rateLimiterMiddleware } from '../middleware/rate-limiter.js';
+import { createGroqClient } from '../services/llm.js';
 import type { AuthEnv } from '../types/hono.js';
 
 export const decisionRouter = new Hono<AuthEnv>();
@@ -27,17 +27,6 @@ const batchDecisionSchema = z.object({
   provider: z.string().optional(),
   user_context: z.any().optional(),
 });
-
-const createGroqClient = (modelName?: string) => {
-  const model =
-    modelName === 'llama-3.1-8b-instant' ? 'llama-3.1-8b-instant' : 'llama-3.3-70b-versatile';
-  return new ChatGroq({
-    apiKey: process.env['GROQ_API_KEY']!,
-    model,
-    temperature: 0.1,
-    maxTokens: 512,
-  });
-};
 
 decisionRouter.post('/batch', zValidator('json', batchDecisionSchema), async (c) => {
   const userId = c.get('userId');
@@ -92,10 +81,7 @@ No explanations, no markdown block wrappers. Return raw JSON.`;
     })
     .join('\n\n');
 
-  const model =
-    reqBody.provider === 'llama-3.1-8b-instant'
-      ? 'llama-3.1-8b-instant'
-      : 'llama-3.3-70b-versatile';
+  const model = 'llama-3.3-70b-versatile';
 
   try {
     const llm = createGroqClient(reqBody.provider);
