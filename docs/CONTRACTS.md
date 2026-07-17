@@ -54,7 +54,7 @@ Utilizado para la asistencia en tiempo real cuando un campo recibe un atajo del 
     "results": [
       "Capacidad de adaptación de un ser vivo frente a un agente perturbador o un estado o situación adversos."
     ],
-    "source": "llama-3.1-8b-instant",
+    "source": "llama-3.3-70b-versatile",
     "meta": {
       "processing_time_ms": 240,
       "is_command": false
@@ -76,7 +76,7 @@ Utilizado para pre-escanear y resolver de manera masiva los inputs detectados en
 - **Request Body (JSON):**
   ```json
   {
-    "provider": "llama-3.1-8b-instant",
+    "provider": "llama-3.3-70b-versatile",
     "questions": [
       {
         "key": "input_name_1",
@@ -132,7 +132,7 @@ Utilizado para pre-escanear y resolver de manera masiva los inputs detectados en
     },
     "meta": {
       "processing_time_ms": 420,
-      "model": "llama-3.1-8b-instant"
+      "model": "llama-3.3-70b-versatile"
     }
   }
   ```

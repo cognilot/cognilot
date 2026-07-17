@@ -1,21 +1,27 @@
 ---
-name: Cognilot Terminal
-version: alpha
-description: Developer-centric, IDE/Terminal-inspired design system for Cognilot. Every visual decision derives from the Memory view as the canonical reference.
+name: Cognilot Design System
+version: 1.0
+description: >
+  Dark Minimalist with a subtle terminal signature.
+  The marketing site is the canonical reference and global standard for all product surfaces.
+identity: dark-minimalist-terminal-signature
 colors:
   bg-void: '#050505'
-  bg-primary: '#0a0a0f'
+  bg-background: '#050505'
   bg-surface: 'rgba(255,255,255,0.03)'
   bg-surface-hover: 'rgba(255,255,255,0.05)'
   bg-overlay: 'rgba(5,5,5,0.80)'
+  bg-blob-violet: 'rgba(139,92,246,0.10)'
+  bg-blob-cyan: 'rgba(6,182,212,0.08)'
   accent-violet: '#8b5cf6'
   accent-cyan: '#06b6d4'
   text-white: '#f8f9fa'
   text-dim: 'rgba(255,255,255,0.60)'
   text-ghost: 'rgba(255,255,255,0.30)'
   text-phantom: 'rgba(255,255,255,0.10)'
+  border-strong: 'rgba(255,255,255,0.15)'
   border-soft: 'rgba(255,255,255,0.10)'
-  border-faint: 'rgba(255,255,255,0.05)'
+  border-subtle: 'rgba(255,255,255,0.05)'
   success: '#10b981'
   warning: '#f59e0b'
   error: '#ef4444'
@@ -24,12 +30,21 @@ typography:
     fontFamily: 'JetBrains Mono, ui-monospace, monospace'
     fontSize: '13px'
     lineHeight: '1.6'
+    note: 'Global default — applied at layout root via font-mono'
   sans-label:
     fontFamily: 'Inter, ui-sans-serif, sans-serif'
-    fontSize: '11px'
+    fontSize: '10px–11px'
     textTransform: uppercase
     letterSpacing: '0.2em'
     fontWeight: '700'
+    note: 'Reserved for badge text and system metadata only'
+  billboard:
+    fontFamily: 'JetBrains Mono, ui-monospace, monospace'
+    fontSize: 'clamp(text-[5vw], text-[8vw], 100px)'
+    fontWeight: '700'
+    letterSpacing: 'tighter'
+    lineHeight: '0.9'
+    note: 'Hero H1 only — billboard scale'
 rounded:
   sm: '4px'
   md: '8px'
@@ -37,253 +52,232 @@ rounded:
   xl: '16px'
   full: '9999px'
 spacing:
-  window-padding: '24px 32px'
-  row-padding: '4px 16px'
-  section-gap: '32px'
+  section-x: 'px-6 md:px-12 lg:px-20'
+  section-x-inner: 'px-10 md:px-20'
+  section-y-major: 'py-36'
+  section-y-minor: 'py-16 md:py-24'
+  section-bar: 'py-8'
 components:
-  window:
-    background: 'rgba(5,5,5,0.90)'
-    backdropBlur: '2xl'
-    border: '1px solid rgba(255,255,255,0.10)'
-    borderRadius: '{rounded.xl}'
-    shadow: 'shadow-2xl'
-  window-titlebar:
-    background: 'rgba(255,255,255,0.05)'
-    borderBottom: '1px solid rgba(255,255,255,0.05)'
-    padding: '16px 20px'
-    dotRed: 'rgba(239,68,68,0.80)'
-    dotYellow: 'rgba(234,179,8,0.80)'
-    dotGreen: 'rgba(34,197,94,0.80)'
-    filenameColor: 'rgba(255,255,255,0.30)'
-  kv-row:
-    labelColor: '{colors.accent-violet}'
-    labelWidth: '160px–200px'
-    separatorColor: 'rgba(139,92,246,0.50)'
-    valueColor: '{colors.text-white}'
+  ambient-blob:
+    size: '500px–600px'
+    blur: 'blur-[120px]'
+    opacityViolet: '10%'
+    opacityCyan: '8%'
+    position: fixed
+    animation: animate-blob
+  spine:
+    width: '1px'
+    color: 'rgba(255,255,255,0.10)'
+    position: fixed
+    zIndex: z-0
+    leftPosition: 'left-6 md:left-12 lg:left-20'
+    rightPosition: 'right-6 md:right-12 lg:right-20'
+  diamond-node:
+    size: '6px–8px'
+    border: '1px solid rgba(255,255,255,0.30)'
+    background: '{colors.bg-background}'
+    transform: 'rotate-45'
+  feature-card:
+    background: 'rgba(255,255,255,0.03)'
+    borderTop: '2px solid accent-color'
+    borderOther: '1px solid rgba(255,255,255,0.05)'
+    borderRadius: '{rounded.md}'
     hoverBackground: 'rgba(255,255,255,0.05)'
-  button-sh:
+    padding: '32px'
+  button-terminal:
     background: 'rgba(255,255,255,0.05)'
     backgroundHover: 'rgba(255,255,255,0.10)'
     border: '1px solid rgba(255,255,255,0.10)'
     textColor: '{colors.text-white}'
     prefix: '>'
     prefixColor: '{colors.accent-violet}'
-  section-header:
-    text: '## section_name'
-    color: 'rgba(255,255,255,0.30)'
-    fontSize: '11px'
-    textTransform: uppercase
-    letterSpacing: 'wider'
-    fontWeight: '700'
+    prefixOpacity: '60% default → 100% on hover'
+  button-solid:
+    background: '#ffffff'
+    textColor: '#000000'
+    note: 'High-contrast secondary CTA'
+  button-variable:
+    background: transparent
+    textColor: '{colors.text-dim}'
+    textColorHover: '{colors.text-white}'
+    note: 'Ghost style — nav links, sign in'
+  product-mockup-panel:
+    background: 'rgba(255,255,255,0.02)'
+    border: '1px solid rgba(255,255,255,0.08)'
+    borderRadius: '{rounded.xl}'
+    padding: '24px'
+    font: 'font-mono text-[12px]'
+    note: 'Flat panel for product previews. NO macOS dots here.'
 ---
 
 ## Overview
 
-**Text is UI.** The Cognilot interface treats typography as its primary visual medium. Rather than boxes, cards, and filled backgrounds, structure is conveyed through code-like syntax, monospace rhythm, and deep contrast against a near-black void.
+**Dark Minimalist with a subtle terminal signature.**
 
-The **Memory view** is the canonical reference implementation. Every new page or component must visually derive from it.
+Cognilot is not a pure terminal emulator. The interface is a clean, near-black product that uses _specific_ terminal-inspired details as a differentiator — the `> cognilot_` logotype, `├──` tree footer, `//` comment subtext, git branch SVGs — applied with restraint, not as a blanket system.
+
+The **marketing site (`/home`)** is the canonical reference implementation. Every new surface in the product must feel like it belongs to the same visual world.
 
 ---
 
 ## Core Aesthetic Principles
 
-1. **Terminal / IDE metaphor** — The app looks like a running process inside a developer's terminal or a file open in an IDE, not a SaaS dashboard.
-2. **Text density over visual decoration** — Prefer more information at smaller sizes over spaced-out cards with icons and gradients.
-3. **Code syntax as chrome** — `#`, `##`, `//`, `>`, `[ ]`, `:`, `$`, `./` are not decorative; they carry semantic weight.
-4. **Containment only when necessary** — One top-level `window` container per major content block. Never nest multiple `bg-*` layers.
-5. **Monospace everywhere** — `font-mono` is the application default. `font-sans` is reserved for system labels, badges, and window titles only.
+1. **Dark void foundation** — Root background is near-black `#050505`. Depth comes from the ambient blobs, not from layered gray panels.
+2. **Vertical spines as structure** — Two fixed `1px` lines at the margins define the layout. Diamond nodes mark intersections. This is the most distinctive structural element.
+3. **Monospace default** — `font-mono` at the layout root. Billboard for heroes, 13px for body. `font-sans` only for badge/system metadata.
+4. **Terminal as signature, not system** — `>`, `//`, `$`, `├──`, ASCII art appear selectively (1–2 per section max). They create brand recognition, not an IDE simulation.
+5. **Accent colors as punctuation** — Violet and cyan appear at `/`, `_`, `>`, active dots, and link states. Not on every heading.
+6. **Flat over layered** — Feature cards use `bg-surface border-t-2 accent-color`. Never nest `bg-*` panels inside panels.
 
 ---
 
 ## Colors
 
-The palette lives in extreme contrast — near-black backgrounds with neon accent punctuation.
-
-| Token              | Value                    | Usage                                               |
-| ------------------ | ------------------------ | --------------------------------------------------- |
-| `bg-void`          | `#050505`                | Absolute root background                            |
-| `bg-primary`       | `#0a0a0f`                | Default background for major window containers      |
-| `bg-surface`       | `rgba(255,255,255,0.03)` | Subtle section fill inside a window                 |
-| `bg-surface-hover` | `rgba(255,255,255,0.05)` | Row hover state                                     |
-| `accent-violet`    | `#8b5cf6`                | Labels, `#` headings, `>` prefixes, primary accents |
-| `accent-cyan`      | `#06b6d4`                | Values, active states, brackets `[]`, hyperlinks    |
-| `text-white`       | `#f8f9fa`                | Active / important text                             |
-| `text-dim`         | `rgba(255,255,255,0.60)` | Secondary data values                               |
-| `text-ghost`       | `rgba(255,255,255,0.30)` | Section headers `## …`, metadata                    |
-| `text-phantom`     | `rgba(255,255,255,0.10)` | Placeholders, disabled hints                        |
-| `border-soft`      | `rgba(255,255,255,0.10)` | Window borders                                      |
-| `border-faint`     | `rgba(255,255,255,0.05)` | Internal dividers, row separators                   |
+| Token              | Value                    | Usage                                          |
+| ------------------ | ------------------------ | ---------------------------------------------- |
+| `bg-background`    | `#050505`                | Root background                                |
+| `bg-surface`       | `rgba(255,255,255,0.03)` | Feature cards, subtle fills                    |
+| `bg-surface-hover` | `rgba(255,255,255,0.05)` | Hover states on cards/rows                     |
+| `bg-blob-violet`   | `rgba(139,92,246,0.10)`  | Left ambient blob                              |
+| `bg-blob-cyan`     | `rgba(6,182,212,0.08)`   | Right ambient blob                             |
+| `accent-violet`    | `#8b5cf6`                | Logo `>`, heading `/`, active accents          |
+| `accent-cyan`      | `#06b6d4`                | Cursor `_`, heading `//`, links, active states |
+| `text-white`       | `#f8f9fa`                | Active, important text                         |
+| `text-dim`         | `rgba(255,255,255,0.60)` | Secondary body text, descriptions              |
+| `text-ghost`       | `rgba(255,255,255,0.30)` | Metadata, decorative labels, spines            |
+| `text-phantom`     | `rgba(255,255,255,0.10)` | Placeholders, extreme de-emphasis              |
+| `border-strong`    | `rgba(255,255,255,0.15)` | Nav bottom border                              |
+| `border-soft`      | `rgba(255,255,255,0.10)` | Spines, general borders                        |
+| `border-subtle`    | `rgba(255,255,255,0.05)` | Internal dividers, section `border-y`          |
 
 ### Do not use
 
-- Hard-coded hex colors other than `#050505`
-- Solid bright backgrounds (white, gray-100, etc.)
-- TailwindCSS color utilities like `bg-gray-900` or `text-blue-500`
+- Hardcoded hex values (except `#050505`)
+- `bg-gray-*`, `bg-zinc-*`, `text-blue-500` or similar non-token utilities
+- Solid white/light backgrounds as fills
+- More than 2 ambient blobs
 
 ---
 
 ## Typography
 
-Only **two font roles** exist in the entire application.
+### Scale
 
-| Role               | Font           | Size                                  | Use                                                |
-| ------------------ | -------------- | ------------------------------------- | -------------------------------------------------- |
-| **Mono (default)** | JetBrains Mono | 13px                                  | All data, inputs, values, code blocks, body text   |
-| **Sans label**     | Inter          | 10px–11px, uppercase, tracking-widest | Window titles, system badges, `## section` headers |
+| Level               | Classes                                                                                      | Context                                   |
+| ------------------- | -------------------------------------------------------------------------------------------- | ----------------------------------------- |
+| **Billboard H1**    | `font-mono font-bold leading-[0.9] tracking-tighter text-[8vw] sm:text-[6vw] md:text-[5vw]`  | Hero headline                             |
+| **Section H2**      | `font-mono font-bold leading-none tracking-tighter text-[5vw] sm:text-[4vw] md:text-[3.5vw]` | Content section headings                  |
+| **Body**            | `font-mono text-[13px] leading-relaxed`                                                      | Default readable content                  |
+| **Small/meta**      | `font-mono text-[11px] uppercase tracking-widest`                                            | Coverage bars, labels                     |
+| **Comment subtext** | `font-mono text-[13px] text-dim italic`                                                      | `/** block comment */` style descriptions |
+| **Badge**           | `font-sans text-[10px] uppercase tracking-widest font-bold`                                  | System tags only                          |
 
-### Markdown-Style Heading Pattern
+### Section heading pattern
 
 ```
-# Page Title       → text-xl font-bold text-white  (violet `#` prefix)
-## section_label   → text-[11px] uppercase tracking-wider text-ghost font-sans font-bold
-// inline comment  → text-[13px] text-dim font-mono italic
+SECTION_NAME/ /
+                ↑          ↑
+         text-accent-violet  text-accent-cyan
 ```
 
 ---
 
-## Structural Components
+## Layout Components
 
-### Window Container
+### Vertical Spine System
 
-The fundamental building block. Every major content area lives in exactly one window.
+Two fixed `1px` lines at the margin positions, always present via `MarketingLayout`.
 
-```tsx
-<section className="bg-bg-primary/90 backdrop-blur-2xl border border-white/10 rounded-xl shadow-2xl overflow-hidden relative">
-  {/* Title Bar */}
-  <div className="px-5 py-4 border-b border-white/5 bg-white/5 flex items-center gap-2 select-none">
-    <div className="flex gap-2 mr-4">
-      <div className="w-3 h-3 rounded-full bg-red-500/80 shadow-[0_0_8px_rgba(239,68,68,0.4)]" />
-      <div className="w-3 h-3 rounded-full bg-yellow-500/80 shadow-[0_0_8px_rgba(234,179,8,0.4)]" />
-      <div className="w-3 h-3 rounded-full bg-green-500/80 shadow-[0_0_8px_rgba(34,197,94,0.4)]" />
-    </div>
-    <div className="text-white/30 text-[11px] uppercase tracking-[0.2em] font-sans font-bold flex-1 justify-end flex">
-      FILENAME.MD
-    </div>
+```
+left-6 md:left-12 lg:left-20    right-6 md:right-12 lg:right-20
+       │                                       │
+       │   ◇  ←── Diamond node at border       │
+       │                                       │
+```
+
+### Section structure
+
+```
+<section px-6 md:px-12 lg:px-20 py-36>
+  <div px-10 md:px-20>   ← clears spine area
+    content
   </div>
-  {/* Content */}
-  <div className="p-6 md:p-8 font-mono text-[13px]">{children}</div>
 </section>
 ```
 
-### Section Header (Inside a Window)
+### Ambient Background
 
-```tsx
-<div className="text-white/30 mb-4 select-none font-bold uppercase tracking-wider text-[11px] font-sans">
-  ## section_name
-</div>
 ```
-
-### Key–Value Row (The Core UI Pattern)
-
-The **primary input / display pattern** — used for all data fields. No border boxes, no labels above inputs.
-
-```tsx
-<div className="flex relative items-start hover:bg-white/5 -mx-4 px-4 rounded transition-colors group py-1">
-  {/* Label */}
-  <span className="text-accent-violet font-semibold w-[160px] md:w-[200px] shrink-0 py-1.5">
-    field_name<span className="text-accent-violet/50">:</span>
-  </span>
-  {/* Value / Input */}
-  <input className="bg-transparent text-white flex-1 py-1.5 outline-none placeholder:text-white/10 focus:bg-white/5 rounded px-2 -mx-2 transition-colors" />
-</div>
+Fixed behind all content:
+  ◉ Violet blob: top-left, 600px, blur-[120px], opacity 10%
+  ◉ Cyan blob: bottom-right, 500px, blur-[120px], opacity 8%
 ```
 
 ---
 
-## Interactive Elements
+## Interactive Components
 
-### Primary Action Button (Shell Script Style)
+### Feature Cards
 
 ```tsx
-<button
-  className="py-2.5 px-5 bg-white/5 hover:bg-white/10 text-white rounded transition-colors
-                   flex items-center gap-2 border border-white/10 group font-bold"
+<div className="p-8 bg-surface border-t-2 border-accent-cyan border-x border-b border-white/5 rounded transition-all hover:bg-white/5 duration-300">
+  <div className="mb-6 text-accent-violet">{icon}</div>
+  <h3 className="font-mono text-white font-bold text-base mb-4">{title}</h3>
+  <p className="font-mono text-dim text-[13px] leading-relaxed">{desc}</p>
+</div>
+```
+
+Top border accent options: `border-accent-cyan` / `border-accent-violet` / `border-success`
+
+### Accordion (Animated with CSS grid trick)
+
+```tsx
+// Collapsed → Expanded: no JS height measurement
+<div
+  className={`grid transition-[grid-template-rows] duration-300 ${isOpen ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}
 >
-  <span className="text-accent-violet opacity-50 group-hover:opacity-100 transition-opacity">
-    {'>'}
-  </span>
-  ./action_name.sh
-</button>
+  <div className="overflow-hidden">{/* content */}</div>
+</div>
 ```
 
-### Secondary / Toggle Action (Bracket Style)
+### Product Mockup Panel (flat, no macOS dots)
 
 ```tsx
-<button className="text-accent-cyan/80 hover:text-accent-cyan font-bold transition-colors">
-  [ACTION]
-</button>
-```
-
-### Danger Action
-
-```tsx
-<button
-  className="border border-red-500/20 bg-red-500/5 hover:bg-red-500/10 text-red-400 rounded
-                   py-2 px-4 text-[11px] font-bold transition-colors"
->
-  EXECUTE DANGER_ACTION
-</button>
-```
-
-### Reload / Utility Link
-
-```tsx
-<button className="text-white/30 hover:text-white/70 transition-colors flex items-center gap-1.5">
-  <RefreshCw className="w-3.5 h-3.5" />
-  [RELOAD]
-</button>
-```
-
----
-
-## Empty States
-
-```tsx
-<div className="text-white/20 select-none py-8 border border-dashed border-white/5 rounded-lg text-center">
-  // No entries found. Use the form above to add one.
+<div className="border border-white/8 bg-white/[0.02] rounded-xl p-6 font-mono text-[12px] leading-relaxed">
+  <div className="text-ghost mb-3 text-[11px] uppercase tracking-widest">// preview</div>
+  <pre className="text-dim whitespace-pre-wrap">{mockupContent}</pre>
 </div>
 ```
 
 ---
 
-## Loading States
+## Terminal Signature Catalog
 
-```tsx
-<div className="p-8 max-w-4xl mx-auto font-mono text-[13px] text-white/30 space-y-6 animate-pulse">
-  <div>// scanning_database.sh...</div>
-  <div className="h-64 bg-white/2 rounded-xl animate-pulse" />
-</div>
-```
+Use these elements selectively (max 1–2 per section):
 
----
-
-## Status Badges
-
-Small inline labels using `font-sans uppercase tracking-widest text-[10px]`.
-
-```tsx
-{
-  /* Active */
-}
-<span className="text-[10px] px-2 py-0.5 rounded bg-cyan-500/10 border border-cyan-500/20 text-accent-cyan font-bold">
-  [ACTIVE]
-</span>;
-{
-  /* Category tag */
-}
-<span className="text-[10px] px-2 py-0.5 bg-white/5 rounded-full text-white/40 uppercase tracking-wide">
-  general
-</span>;
-```
+| Element         | Where used                      | Code pattern                                                               |
+| --------------- | ------------------------------- | -------------------------------------------------------------------------- |
+| Logotype        | Nav, anywhere the brand appears | `> cognilot_` with violet `>` and cyan `_`                                 |
+| Status dot      | Hero release badge              | `w-2 h-2 rounded-full bg-accent-violet animate-pulse shadow-[0_0_8px_...]` |
+| Comment subtext | Hero description                | `` `/**\n * description\n */` `` italic dim                                |
+| Coverage bar    | Stats section                   | `font-mono text-[11px] uppercase text-ghost` + pipe separators             |
+| Git branch SVG  | Hero, features sections         | Violet/cyan path + circle nodes, opacity 30%                               |
+| Footer tree     | Footer only                     | `├──`, `└──`, `~/path $ tree` pattern                                      |
+| ASCII art       | Footer only                     | Monospace art, desktop only, `text-[10px]`                                 |
 
 ---
 
 ## Animations
 
-- `animate-fade-in` — Page-level entry for all routes
-- `animate-scale-in` — Window-level entry for modals and primary cards
-- `transition-colors` — All hover/focus state changes
-- **No** translate or slide animations unless simulating terminal output
+| Class                             | Use                                                    |
+| --------------------------------- | ------------------------------------------------------ |
+| `animate-fade-in`                 | Page-level entry (`<div className="animate-fade-in">`) |
+| `animate-blob`                    | Ambient background blobs                               |
+| `animate-pulse`                   | Status dots, loading indicators                        |
+| `transition-colors`               | Button, link, card hover states                        |
+| `transition-opacity`              | Preview fades, button prefix reveal                    |
+| `transition-[grid-template-rows]` | Accordion expand/collapse                              |
+| `duration-300`                    | Standard — use on all transitions                      |
 
 ---
 
@@ -291,16 +285,19 @@ Small inline labels using `font-sans uppercase tracking-widest text-[10px]`.
 
 ### ✅ Do
 
-- **Text is UI**: Let spacing and typography carry the layout.
-- **One window per section**: Never nest multiple dark background containers.
-- **Syntactic Sugar**: Use `#`, `//`, `>`, `[ ]`, `$`, `./` as functional UI elements.
-- **snake_case text**: All labels, field names, and identifiers use `snake_case` or `lowercase`.
-- **Monospace default**: `font-mono` applies globally; only override for system labels.
+- Let **spines + whitespace + typography** create structure
+- Use accent colors as **punctuation** at `>`, `_`, `/`, `//` positions
+- Use `text-dim` for body, `text-ghost` for meta, `text-white` for active
+- Use the `border-t-2 accent-color` pattern for feature differentiation
+- Use the CSS grid trick for smooth accordion animations
+- Wrap client-side interactive sections with `next/dynamic` to preserve Server Components
 
 ### ❌ Don't
 
-- **Overuse containment**: No nested `bg-*` panels inside windows.
-- **Use shadcn inputs with borders**: No solid-border input boxes — use the KV row pattern.
-- **Mix font roles**: Never use `font-sans` for body or data text.
-- **Unnecessary blur**: `backdrop-blur` only on the primary window container, never on rows or sections.
-- **Generic SaaS patterns**: No icon grids, no feature cards, no gradient hero sections.
+- Use macOS window dots outside of explicit product mockup contexts
+- Add more than 2 ambient blobs
+- Use `font-sans` for body or data text
+- Put `text-accent-violet` on every heading — it loses meaning
+- Nest `bg-*` panels inside other `bg-*` panels
+- Add `backdrop-blur` to anything other than the nav
+- Create generic SaaS patterns: icon grids, filled gradient sections, floating label inputs
