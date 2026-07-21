@@ -3,7 +3,7 @@ import { zValidator } from '@hono/zod-validator';
 import { z } from 'zod';
 import { HumanMessage, SystemMessage } from '@langchain/core/messages';
 import { db } from '../db/client.js';
-import { userProfiles, aliases } from '../db/schema.js';
+import { userProfiles } from '../db/schema.js';
 import { eq } from 'drizzle-orm';
 import { authMiddleware } from '../middleware/auth.js';
 import { rateLimiterMiddleware } from '../middleware/rate-limiter.js';
@@ -86,28 +86,6 @@ const batchSuggestionSchema = z.object({
   page_context: z.any().optional(),
 });
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
-/**
- * Resolves alias context: alias → memoryKey → values from profileData.
- * Returns a formatted string for the LLM system prompt.
- */
-async function resolveAliasesContext(
-  userId: string,
-  profileData: Record<string, unknown>
-): Promise<string> {
-  const userAliases = await db.select().from(aliases).where(eq(aliases.userId, userId));
-  if (userAliases.length === 0) return 'No aliases defined.';
-
-  return userAliases
-    .map((a) => {
-      const raw = profileData[a.memoryKey];
-      const values = Array.isArray(raw) ? raw.map(String) : raw != null ? [String(raw)] : [];
-      return `- "${a.label}" (${a.memoryKey}): ${values.length > 0 ? values.join(' or ') : '[not set]'}`;
-    })
-    .join('\n');
-}
-
 // ── Handlers ──────────────────────────────────────────────────────────────────
 
 /**
@@ -130,16 +108,11 @@ suggestionsRouter.post('/', zValidator('json', suggestionRequestSchema), async (
     profileData = (profile?.dataLearned as Record<string, unknown>) ?? {};
   }
 
-  const aliasesContext = await resolveAliasesContext(userId, profileData);
-
   const systemPrompt = `You are an intelligent form autofill assistant.
 Your job is to suggest the most appropriate value for a web form field based on the user's profile data and the page context.
 
 ## User Profile Data:
 ${JSON.stringify(profileData, null, 2)}
-
-## User Aliases (shortcuts):
-${aliasesContext}
 
 ## Instructions:
 - Suggest a value for the field. If you cannot find the exact information in the user profile data, infer a highly plausible example value based on the field label, type, placeholder, and context.
@@ -205,16 +178,11 @@ suggestionsRouter.post('/refine', zValidator('json', refineRequestSchema), async
     profileData = (profile?.dataLearned as Record<string, unknown>) ?? {};
   }
 
-  const aliasesContext = await resolveAliasesContext(userId, profileData);
-
   const systemPrompt = `You are an assistant that refines, enhances, and formats user input text within a form field.
 Your job is to rewrite or complete the user's text to make it fit perfectly in the context of the field.
 
 ## User Profile:
 ${JSON.stringify(profileData, null, 2)}
-
-## User Aliases:
-${aliasesContext}
 
 ## Instructions:
 - Return ONLY the refined, polished, or completed text. No introductions, no conversational filler, no markdown wrappers, no quotes.
@@ -271,16 +239,11 @@ suggestionsRouter.post('/batch', zValidator('json', batchSuggestionSchema), asyn
     profileData = (profile?.dataLearned as Record<string, unknown>) ?? {};
   }
 
-  const aliasesContext = await resolveAliasesContext(userId, profileData);
-
   const systemPrompt = `You are an intelligent form autofill assistant.
 Your job is to suggest the most appropriate values for multiple form fields based on the user's profile data.
 
 ## User Profile:
 ${JSON.stringify(profileData, null, 2)}
-
-## User Aliases:
-${aliasesContext}
 
 ## Instructions:
 For each field in the request, return the best suggestion value. If you cannot find the exact information in the user profile, infer a highly plausible example value.

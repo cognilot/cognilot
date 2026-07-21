@@ -80,15 +80,20 @@ async function handleAutocomplete(element: HTMLElement): Promise<void> {
     }
 
     if (suggestion) {
+      const hasValidOption =
+        suggestion.options &&
+        suggestion.options.length > 0 &&
+        suggestion.options[0].trim().length > 0;
       const state: SuggestionState = {
         ...suggestion,
         _allOptions: [...(suggestion.options || [])],
-        _isHintHidden: true,
+        _isHintHidden: false,
+        isNoMatch: !hasValidOption,
       } as any;
       element._CognilotSuggestion = state;
       updateUI(element, state);
 
-      if (suggestion.options && suggestion.options.length > 0) {
+      if (hasValidOption) {
         try {
           chrome.runtime
             .sendMessage({
@@ -96,7 +101,7 @@ async function handleAutocomplete(element: HTMLElement): Promise<void> {
               data: {
                 fieldId: (element as HTMLInputElement).id,
                 fieldName: (element as HTMLInputElement).name,
-                value: suggestion.options[0],
+                value: suggestion.options![0],
                 source: suggestion.source || 'suggestion',
               },
             })
@@ -108,13 +113,23 @@ async function handleAutocomplete(element: HTMLElement): Promise<void> {
         }
       }
     } else {
-      clearUI(element);
+      const emptyState: SuggestionState = {
+        isNoMatch: true,
+        options: [],
+        _isHintHidden: false,
+      };
+      element._CognilotSuggestion = emptyState;
+      updateUI(element, emptyState);
     }
   } catch (error) {
-    updateUI(element, {
+    const errorState: SuggestionState = {
       isError: true,
       error: (error as Error).message || 'Error de red',
-    });
+      options: [],
+      _isHintHidden: false,
+    };
+    element._CognilotSuggestion = errorState;
+    updateUI(element, errorState);
   }
 }
 
@@ -284,7 +299,7 @@ function handleKeyboard(e: KeyboardEvent): void {
 
   // ACCEPT: Tab
   if (e.key === 'Tab' && !e.shiftKey) {
-    if (suggestion.isLoading || suggestion.isError) {
+    if (suggestion.isLoading || suggestion.isError || suggestion.isNoMatch) {
       clearUI(element);
       return;
     }

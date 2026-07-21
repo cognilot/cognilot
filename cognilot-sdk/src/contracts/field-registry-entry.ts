@@ -25,6 +25,11 @@ export interface FieldResolution {
    * - 'existing_value' → field already had a value when the page was scanned
    */
   source: 'alias_cache' | 'profile_cache' | 'ai' | 'existing_value';
+
+  /**
+   * The underlying memory profile key (e.g. 'country', 'degree', 'given_name')
+   */
+  memoryKey?: string | null;
 }
 
 /**

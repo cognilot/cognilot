@@ -282,6 +282,7 @@
             </div>
 
             <!-- AI Section -->
+            <!-- AI Section -->
             <div
               id="home-chat-section"
               style="display: flex; flex-direction: column; flex: 1; overflow: hidden"
@@ -293,7 +294,7 @@
                   flex: 1;
                   overflow-y: auto;
                   padding-right: 5px;
-                  display: flex;
+                  display: none;
                   flex-direction: column;
                   gap: 8px;
                   margin-bottom: 10px;
@@ -316,7 +317,7 @@
               ></div>
 
               <!-- Status Bar -->
-              <div id="status-card" style="flex-shrink: 0; padding: 10px 2px; margin-top: auto">
+              <div id="status-card" style="flex-shrink: 0; padding: 6px 2px; margin-top: auto">
                 <div
                   class="agent-context-header"
                   style="display: flex; justify-content: space-between; align-items: center"
@@ -380,27 +381,38 @@
               </div>
 
               <!-- Chat Footer: Input Box -->
-              <div class="chat-footer" style="flex-shrink: 0">
+              <div class="chat-footer" id="chat-footer" style="flex-shrink: 0">
                 <div
                   class="chat-input-container"
+                  id="chat-input-container"
                   style="
                     background: var(--bg-sidebar);
                     border: 1px solid var(--border-color);
                     border-radius: 12px;
-                    padding: 10px 12px;
+                    padding: 8px 12px;
                     display: flex;
                     flex-direction: column;
-                    gap: 8px;
+                    gap: 4px;
                   "
                 >
-                  <!-- Context Preview (the "message" the user will send) -->
-                  <div id="chat-context-preview" style="display: none">
+                  <!-- Context Preview (Form Display Container) -->
+                  <div
+                    id="chat-context-preview"
+                    style="
+                      display: none;
+                      flex-direction: column;
+                      overflow: hidden;
+                      margin-bottom: 8px;
+                      flex: 1;
+                    "
+                  >
                     <div
                       style="
                         display: flex;
                         align-items: start;
                         justify-content: space-between;
-                        margin-bottom: 12px;
+                        margin-bottom: 8px;
+                        flex-shrink: 0;
                       "
                     >
                       <div
@@ -470,13 +482,13 @@
                     <div
                       id="chat-context-text"
                       style="
+                        flex: 1;
                         font-size: 11px;
                         color: var(--text-primary);
                         white-space: normal;
                         overflow-y: auto;
                         overflow-x: hidden;
                         transition: all 0.3s ease;
-                        max-height: 400px;
                       "
                     >
                       No context

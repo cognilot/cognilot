@@ -415,6 +415,7 @@ interface SuggestionState {
   _isFeedback?: boolean;
   isLoading?: boolean;
   isError?: boolean;
+  isNoMatch?: boolean;
   isHelp?: boolean;
   error?: string;
   type?: string;
