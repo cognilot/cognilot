@@ -1,16 +1,11 @@
 'use client';
 
 import { useState } from 'react';
+import { Accordion, type AccordionItem } from '@cognilot/ui';
 
-/**
- * Individual feature item shown in the left accordion list.
- */
-interface FeatureItem {
-  id: string;
+interface FeatureItem extends AccordionItem {
   slug: string;
-  title: string;
   desc: string;
-  /** Monospace string rendered verbatim in the right-side preview panel */
   preview: string;
 }
 
@@ -85,85 +80,31 @@ const FEATURES: FeatureItem[] = [
  *   Preview:   opacity fade between items via key-triggered re-render
  */
 export function FeatureShowcase() {
-  const [activeIndex, setActiveIndex] = useState<number>(0);
-
-  const handleToggle = (index: number) => {
-    // Clicking the already-active item collapses it (optional UX choice — keeps one always open here)
-    setActiveIndex(index === activeIndex ? 0 : index);
-  };
+  const [activeId, setActiveId] = useState<string>('learn-profile');
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-20 items-start">
       {/* ── Left: Accordion list ── */}
-      <div className="flex flex-col">
-        {FEATURES.map((feature, index) => {
-          const isOpen = activeIndex === index;
-
-          return (
-            <div key={feature.id} className="border-b border-white/5">
-              {/* Accordion trigger */}
-              <button
-                onClick={() => handleToggle(index)}
-                aria-expanded={isOpen}
-                aria-controls={`preview-${feature.id}`}
-                className="w-full flex items-center justify-between gap-4 py-5 text-left group transition-colors hover:bg-white/[0.02] -mx-2 px-2 rounded"
-              >
-                <span className="flex items-center gap-3 min-w-0">
-                  <span
-                    className={`font-mono font-bold text-[11px] select-none transition-colors ${
-                      isOpen ? 'text-accent-violet' : 'text-white/20 group-hover:text-white/40'
-                    }`}
-                    aria-hidden="true"
-                  >
-                    &gt;
-                  </span>
-                  <span
-                    className={`font-mono font-semibold text-[14px] md:text-[15px] transition-colors ${
-                      isOpen ? 'text-white' : 'text-dim group-hover:text-white/80'
-                    }`}
-                  >
-                    {feature.title}
-                  </span>
-                </span>
-
-                {/* Toggle indicator */}
-                <span
-                  className={`font-mono font-bold text-[13px] shrink-0 transition-colors select-none ${
-                    isOpen ? 'text-accent-cyan' : 'text-white/20 group-hover:text-white/40'
-                  }`}
-                  aria-hidden="true"
-                >
-                  {isOpen ? '[-]' : '[+]'}
-                </span>
-              </button>
-
-              {/* Expandable body — CSS grid trick, no JS height */}
-              <div
-                id={`preview-${feature.id}`}
-                className={`grid transition-[grid-template-rows] duration-300 ease-in-out ${
-                  isOpen ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'
-                }`}
-              >
-                <div className="overflow-hidden">
-                  <p className="font-mono text-dim text-[13px] leading-relaxed pb-5 pr-6">
-                    {feature.desc}
-                  </p>
-                </div>
-              </div>
-            </div>
-          );
-        })}
-      </div>
+      <Accordion
+        items={FEATURES}
+        defaultOpen={['learn-profile']}
+        onOpenChange={(ids) => setActiveId(ids[0] ?? 'learn-profile')}
+        renderContent={(item) => (
+          <p className="font-mono text-dim text-[13px] leading-relaxed pb-5 pr-6">
+            {(item as FeatureItem).desc}
+          </p>
+        )}
+      />
 
       {/* ── Right: Preview panel ── */}
       <div className="lg:sticky lg:top-28">
-        {FEATURES.map((feature, index) => (
+        {FEATURES.map((feature) => (
           <div
             key={feature.id}
             className={`transition-opacity duration-300 ${
-              activeIndex === index ? 'opacity-100' : 'opacity-0 absolute pointer-events-none'
+              activeId === feature.id ? 'opacity-100' : 'opacity-0 absolute pointer-events-none'
             }`}
-            aria-hidden={activeIndex !== index}
+            aria-hidden={activeId !== feature.id}
           >
             <div className="border border-white/[0.07] bg-white/[0.02] rounded-xl overflow-hidden">
               {/* Panel header bar */}

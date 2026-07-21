@@ -11,7 +11,7 @@ import { MemorySidebar } from '@/components/memory/MemorySidebar';
 import { flattenDataLearned, normalizeDataLearned, promoteLearnedValue } from '@/utils/dataLearned';
 import { profileService } from '@/services/profile.service';
 import { extensionBridge } from '@/utils/extensionBridge';
-import { ReadmeLayout } from '@/components/layout/ReadmeLayout';
+import { DocLayout } from '@/components/layout/DocLayout';
 
 interface UserInfo {
   id: string;
@@ -386,18 +386,18 @@ export default function MemoryPage() {
 
   if (loading) {
     return (
-      <ReadmeLayout
+      <DocLayout
         filename="memory.md"
         description="Profile data and context learned by your AI assistant"
         className="max-w-7xl"
       >
         <div className="h-64 bg-white/2 rounded-xl animate-pulse" />
-      </ReadmeLayout>
+      </DocLayout>
     );
   }
 
   return (
-    <ReadmeLayout
+    <DocLayout
       filename="memory.md"
       description="Profile data and context learned by your AI assistant"
       className="max-w-7xl"
@@ -430,6 +430,6 @@ export default function MemoryPage() {
           />
         </div>
       </div>
-    </ReadmeLayout>
+    </DocLayout>
   );
 }

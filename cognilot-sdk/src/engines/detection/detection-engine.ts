@@ -222,57 +222,147 @@ export class DetectionEngine {
     const allRaw = root.querySelectorAll(allSeedsSelector).filter((el) => el.isVisible);
     const seeds = allRaw.slice(0, maxFields);
 
-    // ── 2. Build a FieldRegistryEntry per seed ───────────────────────────────
     const fields: FieldRegistryEntry[] = [];
+    const processedChoiceGroups = new Set<string>();
+    const usedIds = new Set<string>();
 
+    // ── 2. Build a FieldRegistryEntry per seed (preserving DOM order) ────────
     for (const el of seeds) {
-      const metadata = this.extractor.extractFieldMetadata(el);
-      const label = metadata?.label;
-      if (!label?.trim()) continue; // Skip fields with no extractable label
-
       const tagName = el.tagName.toLowerCase();
       const rawType = (el.getAttribute('type') || '').toLowerCase();
-      const isContentEditable = el.getAttribute('contenteditable') === 'true';
-      const isTextbox = el.getAttribute('role') === 'textbox';
-      const cleanType =
-        isContentEditable || isTextbox
-          ? 'text'
-          : el.tagName.toLowerCase() === 'select'
-            ? 'select'
-            : rawType || tagName;
+      const isChoice = tagName === 'input' && (rawType === 'radio' || rawType === 'checkbox');
 
-      // Generate a stable id: prefer DOM id, fall back to a selector-based hash
-      const stableId =
-        el.id ||
-        `Cognilot-field-${this.extractor
-          .buildFallbackSelector(el)
-          .replace(/[^a-z0-9]/gi, '-')
-          .substring(0, 40)}`;
+      if (isChoice) {
+        // ── Choice group handling: one entry per group ─────────────────
+        const name = String(el.name || '').trim();
+        let groupKey: string;
+        if (name) {
+          groupKey = `${rawType}|name:${name}`;
+        } else {
+          const group = el.closest('fieldset, [role="group"]');
+          if (group) {
+            groupKey = `${rawType}|group:${this.extractor.buildFallbackSelector(group)}`;
+          } else {
+            groupKey = `${rawType}|single:${this.extractor.buildFallbackSelector(el)}`;
+          }
+        }
+        if (processedChoiceGroups.has(groupKey)) continue;
+        processedChoiceGroups.add(groupKey);
 
-      const entry: FieldRegistryEntry = {
-        // ── Inherited from FieldDetectionResponse shape ──────────────────────
-        id: stableId,
-        type: cleanType,
-        tagName: el.tagName,
-        name: el.name || '',
-        text: label,
-        placeholder: el.getAttribute('placeholder') || '',
-        required: metadata.required,
-        options: cleanType === 'select' ? (this.extractor.collectChoiceOptions?.(el) ?? []) : [],
-        ref_id: '',
-        section_ref_id: '',
-        metadata,
-        selector: this.extractor.buildFallbackSelector(el),
-        node: el,
-        // ── Registry flags ────────────────────────────────────────────────────
-        belongsToForm: false,
-        formScopeId: null,
-        // ── Initial lifecycle state ───────────────────────────────────────────
-        resolution: null,
-        status: 'pending',
-      };
+        // Collect all elements in this group
+        let groupElements: CognilotNode[];
+        if (name) {
+          groupElements = root.querySelectorAll(`input[type="${rawType}"][name="${name}"]`);
+        } else {
+          groupElements = [el];
+        }
 
-      fields.push(entry);
+        // Extract option labels
+        const groupOptions = groupElements
+          .map((optEl: CognilotNode, idx: number) => {
+            const val = String(optEl.value || optEl.id || '').trim() || `option_${idx + 1}`;
+            const txt = (optEl.getParent()?.getInnerText() || optEl.getInnerText() || val)
+              .split('\n')[0]
+              .trim();
+            return txt ? { text: txt, value: val, index: idx } : null;
+          })
+          .filter((o): o is { text: string; value: string; index: number } => !!o);
+
+        if (groupOptions.length === 0) continue;
+
+        const primaryEl = groupElements[0] || el;
+        const metadata = this.extractor.extractFieldMetadata(primaryEl);
+        const label = metadata?.label;
+        if (!label?.trim()) continue;
+
+        let stableId =
+          primaryEl.id ||
+          `Cognilot-field-${this.extractor
+            .buildFallbackSelector(primaryEl)
+            .replace(/[^a-z0-9]/gi, '-')
+            .substring(0, 40)}`;
+
+        let uniqueId = stableId;
+        let idCounter = 1;
+        while (usedIds.has(uniqueId)) {
+          uniqueId = `${stableId}_${idCounter++}`;
+        }
+        usedIds.add(uniqueId);
+
+        fields.push({
+          id: uniqueId,
+          type: rawType,
+          tagName: primaryEl.tagName,
+          name: primaryEl.name || '',
+          text: label,
+          placeholder: primaryEl.getAttribute('placeholder') || '',
+          required: metadata.required,
+          options: groupOptions,
+          ref_id: '',
+          section_ref_id: '',
+          metadata,
+          selector: this.extractor.buildFallbackSelector(primaryEl),
+          node: primaryEl,
+          belongsToForm: false,
+          formScopeId: null,
+          resolution: null,
+          status: 'pending',
+        });
+      } else {
+        // ── Text-like field: one entry per seed ────────────────────────
+        const metadata = this.extractor.extractFieldMetadata(el);
+        const label = metadata?.label;
+        if (!label?.trim()) continue;
+
+        const isContentEditable = el.getAttribute('contenteditable') === 'true';
+        const isTextbox = el.getAttribute('role') === 'textbox';
+        const isCombobox = el.getAttribute('role') === 'combobox';
+        const cleanType =
+          isContentEditable || isTextbox
+            ? 'text'
+            : tagName === 'select'
+              ? 'select'
+              : isCombobox
+                ? 'autocomplete'
+                : rawType || tagName;
+
+        let stableId =
+          el.id ||
+          `Cognilot-field-${this.extractor
+            .buildFallbackSelector(el)
+            .replace(/[^a-z0-9]/gi, '-')
+            .substring(0, 40)}`;
+
+        let uniqueId = stableId;
+        let idCounter = 1;
+        while (usedIds.has(uniqueId)) {
+          uniqueId = `${stableId}_${idCounter++}`;
+        }
+        usedIds.add(uniqueId);
+
+        fields.push({
+          id: uniqueId,
+          type: cleanType,
+          tagName: el.tagName,
+          name: el.name || '',
+          text: label,
+          placeholder: el.getAttribute('placeholder') || '',
+          required: metadata.required,
+          options:
+            cleanType === 'select' || cleanType === 'autocomplete'
+              ? (this.extractor.collectChoiceOptions?.(el) ?? [])
+              : [],
+          ref_id: '',
+          section_ref_id: '',
+          metadata,
+          selector: this.extractor.buildFallbackSelector(el),
+          node: el,
+          belongsToForm: false,
+          formScopeId: null,
+          resolution: null,
+          status: 'pending',
+        });
+      }
     }
 
     // ── 3. Identify form scopes and assign flags ──────────────────────────────

@@ -70,7 +70,7 @@ export class FieldCollector {
         : element.getAttribute('contenteditable') === 'true'
           ? 'text'
           : isCombobox
-            ? 'select'
+            ? 'autocomplete'
             : element.type || element.tagName.toLowerCase();
 
       // Choice Group Handling (Radio / Checkbox)
@@ -105,10 +105,12 @@ export class FieldCollector {
         return;
       }
 
-      // Select Handling
+      // Select / Autocomplete Handling
       let options: any[] = [];
       if (cleanType.startsWith('select')) {
         cleanType = 'select';
+        options = this.labelExtractor.collectChoiceOptions(element);
+      } else if (cleanType === 'autocomplete') {
         options = this.labelExtractor.collectChoiceOptions(element);
       }
 

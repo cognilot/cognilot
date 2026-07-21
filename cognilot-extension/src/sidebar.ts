@@ -383,6 +383,8 @@ class CognilotSidebar {
                   success: true,
                   source: source,
                   value: typeof val === 'object' ? val.value : val,
+                  options: match?.suggestion?.options || [],
+                  memoryKey: (match as any)?.memoryKey || null,
                 };
               }
             }
@@ -628,49 +630,141 @@ class CognilotSidebar {
             const labelStr = q.text || q.label || q.question || `Field ${i + 1}`;
             const cleanLabel = labelStr.replace(/\n/g, ' ').replace(/\s+/g, ' ').trim();
 
-            const hasResolution = q.resolution?.success;
+            const isChoice = type === 'radio' || type === 'checkbox' || type === 'select';
+            const qOptions = Array.isArray(q.options) ? q.options : [];
+
+            // ── Derived visual state flags ─────────────────────────────────
+            const isApplied = q.applied || this.lastSolvedUrl === this.currentTab?.url;
+            const hasResolution = !!q.resolution?.success;
+            const isPreFilled = q.resolution?.source === 'pre-filled';
+            const isMem = hasResolution && !isPreFilled;
+            const hasAnswer = !hasResolution && !!q.answer;
+            const isPendingIA = !hasResolution && !q.answer;
+            const memKey = q.resolution?.memoryKey || null;
+            const isAlias = q.resolution?.source === 'alias_cache';
+            const memOptions = q.resolution?.options || [];
+            const GRADIENT =
+              'background: var(--main-gradient); -webkit-background-clip: text; -webkit-text-fill-color: transparent;';
+
+            // ── Source badge & resolved value ──────────────────────────────
+            let headerBadge = '';
+            let resolvedValue = null;
+
+            if (q.resolution?.success) {
+              resolvedValue = q.resolution.value;
+              const source = q.resolution.source;
+              if (source === 'pre-filled') {
+                headerBadge = `<span style="font-size: 8px; font-weight: 700; color: var(--text-secondary); background: rgba(0,0,0,0.05); padding: 0 4px; border-radius: 3px; border: 1px solid var(--border-color); white-space: nowrap;">PRE</span>`;
+              } else if (memKey) {
+                headerBadge = `<span style="font-size: 9px; font-weight: 700; color: var(--accent-color); font-family: monospace; background: rgba(14,116,144,0.07); padding: 1px 5px; border-radius: 3px;">[${memKey}]</span>`;
+              } else if (source === 'alias_cache') {
+                headerBadge = `<span style="font-size: 8px; font-weight: 700; color: #8b5cf6; background: rgba(139,92,246,0.08); padding: 0 4px; border-radius: 3px; border: 1px solid rgba(139,92,246,0.2); white-space: nowrap;">ALIAS</span>`;
+              }
+            } else if (q.answer) {
+              resolvedValue = q.answer;
+              headerBadge = `<span style="font-size: 8px; font-weight: 700; color: #8b5cf6; background: rgba(139,92,246,0.08); padding: 0 4px; border-radius: 3px; border: 1px solid rgba(139,92,246,0.2); white-space: nowrap;">IA</span>`;
+            } else {
+              headerBadge = `<span style="font-size: 8px; font-weight: 700; color: #8b5cf6; background: rgba(139,92,246,0.08); padding: 0 4px; border-radius: 3px; border: 1px solid rgba(139,92,246,0.2); white-space: nowrap;">IA</span>`;
+            }
+
+            // ── Match resolved value against option text/value ─────────────
+            let selectedIndex = -1;
+            if (resolvedValue) {
+              const rv = String(resolvedValue).trim().toLowerCase();
+              selectedIndex = qOptions.findIndex(
+                (o) =>
+                  String(o.text || '')
+                    .trim()
+                    .toLowerCase() === rv ||
+                  String(o.value || '')
+                    .trim()
+                    .toLowerCase() === rv
+              );
+            }
 
             let entryHtml = `
                     <div style="margin-bottom: 12px;">
                         <div style="display: flex; align-items: flex-start; gap: 8px;">
                             <div style="font-size: 10px; color: ${themeColor}; font-weight: 700; width: 14px; margin-top: 1px;">${i + 1}.</div>
                             <div style="flex: 1; min-width: 0;">
-                                <div style="display: flex; align-items: center; gap: 4px; flex-wrap: wrap; margin-bottom: 2px;">
-                                    <span style="font-size: 11px; font-weight: 600; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 150px;">${cleanLabel}</span>
+                                <div style="display: flex; align-items: center; gap: 4px; flex-wrap: wrap; margin-bottom: 4px;">
+                                    <span style="font-size: 11px; font-weight: 600; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 120px;">${cleanLabel}</span>
                                     <span style="font-size: 8px; color: var(--text-secondary); text-transform: uppercase; background: rgba(0,0,0,0.03); padding: 0 4px; border-radius: 3px; border: 1px solid var(--border-color);">${type}</span>
+                                    ${headerBadge}
                                 </div>
-                  `;
+              `;
 
-            if (hasResolution) {
-              const isPreFilled = q.resolution.source === 'pre-filled';
-              if (isPreFilled) {
-                entryHtml += `
-                             <div style="font-size: 10px; color: var(--text-secondary); opacity: 0.7;">
-                                 ${q.resolution.value}
-                             </div>
-                          `;
-              } else {
-                entryHtml += `
-                             <div style="display: flex; align-items: center; gap: 4px; font-size: 10px;">
-                                  <span style="font-weight: 800; color: var(--accent-color);">[MEM]</span>
-                                  <span style="color: var(--text-primary); font-weight: 500;">${q.resolution.value}</span>
-                              </div>
-                          `;
-              }
-            } else if (q.answer) {
+            // ── Value rendering (color-coded by state) ────────────────────
+            if (isChoice && qOptions.length > 0) {
+              // Choice fields: render as chips, selected option styled by state
+              const optsHtml = qOptions
+                .map((o, idx) => {
+                  const label = o.text || o.label || String(o.value || o);
+                  if (idx === selectedIndex) {
+                    if (isApplied) {
+                      return `<span style="font-size: 9px; font-weight: 600; color: #fff; background: ${themeColor}; padding: 2px 6px; border-radius: 3px;">${label}</span>`;
+                    } else if (isMem) {
+                      return `<span style="font-size: 9px; font-weight: 600; ${GRADIENT} background: rgba(0,0,0,0.03); padding: 2px 6px; border-radius: 3px; border: 1px solid var(--border-color);">${label}</span>`;
+                    }
+                  }
+                  return `<span style="font-size: 9px; color: var(--text-secondary); background: rgba(0,0,0,0.03); padding: 2px 6px; border-radius: 3px; border: 1px solid var(--border-color);">${label}</span>`;
+                })
+                .join(' ');
               entryHtml += `
-                             <div style="display: flex; align-items: center; gap: 4px; font-size: 10px;">
-                                  <span style="font-weight: 800; color: #8b5cf6;">[IA]</span>
-                                  <span style="color: var(--text-primary); font-weight: 500;">${q.answer}</span>
-                              </div>
-                          `;
+                             <div style="display: flex; flex-wrap: wrap; gap: 3px; padding-left: 2px;">
+                                 ${optsHtml}
+                             </div>
+                           `;
+            } else if (isMem && !isApplied && memOptions.length > 0) {
+              // Mem-matched text fields: show suggestions list INSTEAD of plain value (avoids redundancy)
+              let sHtml = '';
+              if (memOptions.length > 1) {
+                sHtml = memOptions
+                  .map((opt, idx) => {
+                    const label =
+                      typeof opt === 'string' ? opt : opt.text || opt.label || opt.value || '';
+                    if (idx === 0) {
+                      return `<div style="font-size: 10px; ${GRADIENT} font-weight: 600;">${label}</div>`;
+                    }
+                    return `<div style="font-size: 9px; color: var(--text-primary); font-weight: 400;">${label}</div>`;
+                  })
+                  .join('');
+              } else {
+                const label =
+                  typeof memOptions[0] === 'string'
+                    ? memOptions[0]
+                    : memOptions[0].text || memOptions[0].label || memOptions[0].value || '';
+                sHtml = `<div style="font-size: 10px; ${GRADIENT} font-weight: 600;">${label}</div>`;
+              }
+
+              entryHtml += `
+                             <div style="padding-left: 2px;">
+                                 ${sHtml}
+                             </div>
+                           `;
+            } else if (resolvedValue) {
+              // Plain text value (applied, pre-filled, IA, or memKey without options)
+              let valueStyle;
+              if (isApplied) {
+                valueStyle = 'color: var(--text-secondary); font-weight: 500; opacity: 0.8;';
+              } else if (isMem) {
+                valueStyle = `${GRADIENT} font-weight: 600;`;
+              } else if (isPreFilled) {
+                valueStyle = 'color: var(--text-secondary); font-weight: 500; opacity: 0.8;';
+              } else {
+                valueStyle = 'color: var(--text-primary); font-weight: 500;';
+              }
+              entryHtml += `
+                             <div style="font-size: 10px; padding-left: 2px; ${valueStyle}">
+                                 ${resolvedValue}
+                             </div>
+                           `;
             } else {
               entryHtml += `
-                             <div style="display: flex; align-items: center; gap: 4px; font-size: 10px;">
-                                  <span style="font-weight: 800; color: #8b5cf6; opacity: 0.8;">[IA]</span>
-                                  <span style="color: var(--text-secondary); font-style: italic; opacity: 0.5;">...</span>
-                              </div>
-                          `;
+                             <div style="font-size: 10px; color: var(--text-secondary); font-style: italic; opacity: 0.5; padding-left: 2px;">
+                                 ...
+                             </div>
+                           `;
             }
 
             entryHtml += `</div></div></div>`;
@@ -1694,6 +1788,7 @@ class CognilotSidebar {
               source: source || 'suggestion',
               value: value,
             };
+            this.currentChatContext.questions[qIndex].applied = true;
             this.updateContextPreview();
           }
         }
@@ -1849,6 +1944,8 @@ class CognilotSidebar {
       formName: f.formName || f.form_name || null,
       formScore: f.formScore || 0,
       status: f.status,
+      applied: false,
+      options: Array.isArray(f.options) ? f.options : [],
       resolution:
         f.status === 'resolved'
           ? {
@@ -1858,17 +1955,20 @@ class CognilotSidebar {
                   ? 'pre-filled'
                   : f.resolution?.source || 'ai',
               value: f.resolution?.value,
+              options: (f.resolution as any)?.options || [],
+              memoryKey: (f.resolution as any)?.memoryKey || null,
             }
           : null,
     }));
 
-    // Retain previous answer states if any
+    // Retain previous answer/applied states if any
     if (this.currentChatContext && this.currentChatContext.questions) {
       questions.forEach((q) => {
         const oldQ = this.currentChatContext.questions.find((old) => old.id === q.id);
         if (oldQ) {
           q.answer = oldQ.answer;
           q.success = oldQ.success;
+          q.applied = oldQ.applied;
         }
       });
     }
@@ -1904,6 +2004,62 @@ class CognilotSidebar {
     } else {
       this.updateStatus('not-detected', this.getDomain(), pageTitle);
       this.updatePrimarySolveButtonState(false);
+    }
+
+    // Background enrichment: resolve memoryKey for MEM fields (registry path)
+    // This is async and non-blocking — re-renders once complete
+    setTimeout(() => this._enrichWithMemoryKeys(), 80);
+  }
+
+  /**
+   * Post-processes MEM resolution fields that lack `memoryKey` (e.g. from the
+   * Universal Scan registry path). Calls the SDK alias/profile resolvers in the
+   * sidebar context and patches the question objects in-place, then re-renders.
+   */
+  async _enrichWithMemoryKeys() {
+    const sdk = window.Cognilot?.SDK;
+    const alias = sdk?.alias;
+    const profile = sdk?.profile;
+    if (!alias && !profile) return;
+
+    const questions = this.currentChatContext?.questions;
+    if (!questions) return;
+
+    let updated = false;
+    await Promise.all(
+      questions.map(async (q) => {
+        // Only enrich resolved MEM fields that are missing memoryKey
+        if (
+          !q.resolution?.success ||
+          q.resolution.source === 'pre-filled' ||
+          q.resolution.memoryKey
+        )
+          return;
+
+        try {
+          let match = alias ? await alias.resolve(q) : null;
+          let source = 'alias_cache';
+          if (!match && profile) {
+            match = await profile.resolve(q);
+            source = 'profile_cache';
+          }
+          if (match?.memoryKey) {
+            q.resolution.memoryKey = match.memoryKey;
+            q.resolution.source = source;
+            // Prefer the fresh options array from the resolver
+            if (match.suggestion?.options?.length > 0) {
+              q.resolution.options = match.suggestion.options;
+            }
+            updated = true;
+          }
+        } catch (_e) {
+          // silent — never block the UI for enrichment failures
+        }
+      })
+    );
+
+    if (updated) {
+      this.updateContextPreview();
     }
   }
 
@@ -1972,6 +2128,7 @@ class CognilotSidebar {
           this.currentChatContext.questions[qIndex].answer =
             data.answer || (data.success ? 'Listo' : 'Error');
           this.currentChatContext.questions[qIndex].success = data.success;
+          this.currentChatContext.questions[qIndex].applied = true;
         }
       }
       // Update assistant message — accumulate, never erase previous results
@@ -2347,37 +2504,27 @@ class CognilotSidebar {
 
     if (questions.length === 0) return;
 
-    const fieldNames = questions
-      .slice(0, 5)
-      .map((q) => q.text || q.label || q.question || 'campo')
-      .join(', ');
-    const moreCount = questions.length > 5 ? ` +${questions.length - 5} more` : '';
-    const userSummary = `Solve ${questions.length} field${questions.length !== 1 ? 's' : ''}: ${fieldNames}${moreCount}`;
-
-    // 2. Create user bubble (blue, right-aligned)
-    this.appendChatMessage(userSummary, 'user');
-
-    // 3. Hide context preview from input (it's been "sent")
-    const contextPreview = document.getElementById('chat-context-preview');
-    if (contextPreview) contextPreview.style.display = 'none';
-    const placeholder = document.getElementById('chat-input-placeholder');
-    if (placeholder) placeholder.style.display = 'block';
-
-    // 4. Create assistant plain-text message placeholder
-    this._assistantMsgEl = this.appendChatMessage(
-      `
-        <div class="status-message-chip">
-          <span>Iniciando resolución</span>
-          <svg class="arrow-icon" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
-            <polyline points="9 18 15 12 9 6"></polyline>
-          </svg>
+    // 2. Show inline loading overlay inside the existing context-text panel
+    const contextText = document.getElementById('chat-context-text');
+    if (contextText) {
+      contextText.innerHTML = `
+        <div id="solve-inline-container" style="padding: 4px 0;">
+          <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 10px; padding-bottom: 8px; border-bottom: 1px solid var(--border-color);">
+            <svg class="solve-spinner" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--accent-color)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/>
+              <path d="M21 3v5h-5"/>
+            </svg>
+            <span style="font-size: 10px; font-weight: 600; color: var(--accent-color); text-transform: uppercase; letter-spacing: 0.5px;">Resolviendo ${questions.length} campo${questions.length !== 1 ? 's' : ''}...</span>
+          </div>
+          <div id="solve-response"></div>
         </div>
-    `,
-      'assistant',
-      'solve-response'
-    );
+      `;
+    }
 
-    // 5. Disable send button while solving
+    // 3. Wire the progress target to the inline container
+    this._assistantMsgEl = document.getElementById('solve-response');
+
+    // 4. Disable solve button while solving
     this.updatePrimarySolveButtonState(false);
 
     try {

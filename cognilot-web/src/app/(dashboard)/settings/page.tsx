@@ -5,7 +5,7 @@ import { createBrowserClient } from '@supabase/ssr';
 import { toast } from 'sonner';
 import { Shield, Eye, EyeOff, Trash2, Check } from 'lucide-react';
 import { extensionBridge } from '@/utils/extensionBridge';
-import { ReadmeLayout } from '@/components/layout/ReadmeLayout';
+import { DocLayout } from '@/components/layout/DocLayout';
 import { Button } from '@/components/ui/button';
 
 interface ExtSettings {
@@ -183,14 +183,14 @@ export default function SettingsPage() {
 
   if (loading) {
     return (
-      <ReadmeLayout filename="settings.md" description="// loading system configurations...">
+      <DocLayout filename="settings.md" description="// loading system configurations...">
         <div className="h-64 bg-white/2 rounded-xl animate-pulse" />
-      </ReadmeLayout>
+      </DocLayout>
     );
   }
 
   return (
-    <ReadmeLayout
+    <DocLayout
       filename="settings.md"
       description="Configure BYOK LLM models, extension behavior, and database security"
     >
@@ -400,6 +400,6 @@ export default function SettingsPage() {
           </div>
         </div>
       </div>
-    </ReadmeLayout>
+    </DocLayout>
   );
 }

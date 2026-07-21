@@ -14,6 +14,70 @@ export class AliasResolver {
   private sdk: CognilotSDK;
   private _idleTimer: any = null;
 
+  /**
+   * Multilingual seed aliases — bootstraps label→memoryKey mapping without
+   * needing learned aliases. Each entry defines pattern words in multiple
+   * languages. The first matching entry (by textToMatch substring) wins.
+   */
+  private static readonly SEED_ALIASES: Array<{
+    memoryKey: string;
+    patterns: string[];
+  }> = [
+    { memoryKey: 'email', patterns: ['email', 'e-mail', 'mail', 'correo', 'почта'] },
+    { memoryKey: 'username', patterns: ['username', 'user name', 'usuario', 'nick', 'handle'] },
+    {
+      memoryKey: 'phone',
+      patterns: ['phone', 'teléfono', 'telefono', 'celular', 'movil', 'mobile', 'tel', 'телефон'],
+    },
+    {
+      memoryKey: 'given_name',
+      patterns: ['first name', 'given name', 'nombre', 'nombres', 'nome', 'prénom'],
+    },
+    {
+      memoryKey: 'family_name',
+      patterns: ['last name', 'family name', 'apellido', 'apellidos', 'surname', 'sobrenome'],
+    },
+    {
+      memoryKey: 'full_name',
+      patterns: ['full name', 'nombre completo', 'nome completo', 'полное имя'],
+    },
+    { memoryKey: 'country', patterns: ['country', 'país', 'pais', 'nation', 'pays', 'land'] },
+    { memoryKey: 'city', patterns: ['city', 'ciudad', 'cidade', 'stadt', 'ville', 'città'] },
+    {
+      memoryKey: 'address',
+      patterns: ['address', 'dirección', 'direccion', 'calle', 'street', 'endereço', 'adresse'],
+    },
+    {
+      memoryKey: 'postal_code',
+      patterns: ['zip', 'postal', 'código postal', 'codigo postal', 'code postal'],
+    },
+    {
+      memoryKey: 'national_id',
+      patterns: ['dni', 'cedula', 'national id', 'documento', 'id number', 'passport'],
+    },
+    { memoryKey: 'company', patterns: ['company', 'empresa', 'society', 'société'] },
+    {
+      memoryKey: 'job_title',
+      patterns: ['job', 'cargo', 'puesto', 'posición', 'posicion', 'position', 'title', 'titre'],
+    },
+    {
+      memoryKey: 'birth_date',
+      patterns: ['birth', 'nacimiento', 'fecha', 'dob', 'date of birth', 'date naissance'],
+    },
+    {
+      memoryKey: 'university',
+      patterns: [
+        'university',
+        'universidad',
+        'universidade',
+        'université',
+        'institution',
+        'institución',
+      ],
+    },
+    { memoryKey: 'degree', patterns: ['degree', 'carrera', 'título', 'titulo', 'diploma'] },
+  ];
+
   constructor(sdk: CognilotSDK) {
     this.sdk = sdk;
     this.setupCleanupListeners();
@@ -61,13 +125,17 @@ export class AliasResolver {
       normalizedId,
     ].filter((p) => p.length >= 2);
 
-    // 1. Direct label match
+    // 1. Direct label match (learned alias cache)
     const labelKey = this.normalizeAliasKey(normalizedLabel);
     if (labelKey && aliasCache[labelKey]) {
       return this._resolveAlias(aliasCache, labelKey, flatProfile);
     }
 
-    // 2. Fallback: name/placeholder/id match
+    // 2. Seed aliases (multilingual bootstrap dictionary)
+    const seedResult = this._matchSeedAliases(textToMatch, flatProfile);
+    if (seedResult) return seedResult;
+
+    // 3. Fallback: name/placeholder/id match (learned alias cache)
     for (const aliasKey in aliasCache) {
       if (aliasKey === labelKey) continue;
 
@@ -102,6 +170,7 @@ export class AliasResolver {
         type: 'discrete',
         source: 'alias_cache',
       },
+      memoryKey: entry.memoryKey,
       reasoning: `Alias → memoryKey "${entry.memoryKey}" → ${options.length} value(s)`,
     };
   }
@@ -112,6 +181,37 @@ export class AliasResolver {
     }
     const single = String(value || '').trim();
     return single ? [single] : [];
+  }
+
+  /**
+   * Matches field text against the multilingual seed alias dictionary.
+   * Returns the first seed entry whose pattern appears in textToMatch,
+   * resolved against the profile cache.
+   */
+  private _matchSeedAliases(textToMatch: string, flatProfile: Record<string, unknown>) {
+    for (const entry of AliasResolver.SEED_ALIASES) {
+      const matchingPattern = entry.patterns.find((pattern) => {
+        const normPattern = LabelUtil.normalizeText(pattern);
+        return normPattern.length >= 3 && textToMatch.includes(normPattern);
+      });
+      if (!matchingPattern) continue;
+
+      const raw = flatProfile[entry.memoryKey];
+      const options = this._normalizeOptions(raw);
+      if (options.length === 0) continue;
+
+      return {
+        success: true,
+        suggestion: {
+          options: options.slice(0, 5),
+          type: 'discrete',
+          source: 'alias_cache',
+        },
+        memoryKey: entry.memoryKey,
+        reasoning: `Seed alias "${matchingPattern}" → memoryKey "${entry.memoryKey}" → ${options.length} value(s)`,
+      };
+    }
+    return null;
   }
 
   private _learningLock = new Map<string, number>();

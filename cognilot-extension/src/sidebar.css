@@ -1593,3 +1593,32 @@ input:checked + .toggle__slider:before {
 .dark-mode .btn-sh:hover {
   background: rgba(255, 255, 255, 0.08);
 }
+
+/* ===================================
+   SOLVE INLINE SPINNER
+   =================================== */
+@keyframes cognilot-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.solve-spinner {
+  animation: cognilot-spin 0.9s linear infinite;
+  transform-origin: center;
+  flex-shrink: 0;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(2px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

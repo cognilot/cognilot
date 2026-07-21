@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import { LegalLayout, type LegalSection } from '@/components/legal/LegalLayout';
+import { ReadmeLayout, type ReadmeSection } from '@cognilot/ui';
 
 export const metadata: Metadata = {
   title: 'Privacy Policy — Cognilot',
@@ -7,7 +7,7 @@ export const metadata: Metadata = {
     'Privacy Policy for Cognilot. Learn how we collect, use, protect, and store your data on our AI-powered platform.',
 };
 
-const sections: LegalSection[] = [
+const sections: ReadmeSection[] = [
   {
     id: 'overview',
     title: 'overview',
@@ -273,7 +273,7 @@ export default function PrivacyPage() {
   return (
     <div className="relative z-10 px-6 md:px-12 lg:px-20 py-16 md:py-24 flex justify-center">
       <div className="w-full max-w-4xl animate-fade-in">
-        <LegalLayout filename="PRIVACY.MD" sections={sections}>
+        <ReadmeLayout filename="PRIVACY.MD" sections={sections}>
           <h1 className="legal-title">Privacy Policy</h1>
           <p className="legal-subtitle">Last Updated June 1, 2026</p>
 
@@ -463,7 +463,7 @@ export default function PrivacyPage() {
             </a>
             .
           </p>
-        </LegalLayout>
+        </ReadmeLayout>
       </div>
     </div>
   );

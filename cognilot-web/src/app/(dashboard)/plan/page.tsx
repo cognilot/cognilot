@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { createBrowserClient } from '@supabase/ssr';
 import { toast } from 'sonner';
 import { RefreshCw, ArrowUpRight, HelpCircle } from 'lucide-react';
-import { ReadmeLayout } from '@/components/layout/ReadmeLayout';
+import { DocLayout } from '@/components/layout/DocLayout';
 import { Button } from '@/components/ui/button';
 
 interface ProfileResponse {
@@ -66,7 +66,7 @@ export default function PlanPage() {
 
   if (loading) {
     return (
-      <ReadmeLayout
+      <DocLayout
         filename="plan.md"
         description="Manage subscription, usage limits, and billing"
         action={
@@ -80,12 +80,12 @@ export default function PlanPage() {
         }
       >
         <div className="h-64 bg-white/2 rounded-xl animate-pulse" />
-      </ReadmeLayout>
+      </DocLayout>
     );
   }
 
   return (
-    <ReadmeLayout
+    <DocLayout
       filename="plan.md"
       description="Manage subscription, usage limits, and billing"
       action={
@@ -257,6 +257,6 @@ export default function PlanPage() {
           </a>
         </div>
       </div>
-    </ReadmeLayout>
+    </DocLayout>
   );
 }

@@ -166,14 +166,19 @@ export class PageScanner {
    * Returns null if no local match is found (field will be marked 'pending').
    */
   private async _resolveFieldLocally(field: FieldRegistryEntry): Promise<FieldResolution | null> {
-    // ── Priority 1: Existing value ─────────────────────────────────────────
-    const existingValue = (field.node as any).value?.trim?.() ?? '';
-    if (existingValue) {
-      return {
-        value: existingValue,
-        options: [existingValue],
-        source: 'existing_value',
-      };
+    // ── Priority 1: Existing value (skip radio/checkbox — their .value is
+    //    the HTML value attribute, not user input) ──────────────────────────
+    const type = (field.type || '').toLowerCase();
+    const isChoice = type === 'radio' || type === 'checkbox';
+    if (!isChoice) {
+      const existingValue = (field.node as any).value?.trim?.() ?? '';
+      if (existingValue) {
+        return {
+          value: existingValue,
+          options: [existingValue],
+          source: 'existing_value',
+        };
+      }
     }
 
     // ── Priority 2: Alias cache ────────────────────────────────────────────
@@ -203,6 +208,54 @@ export class PageScanner {
       }
     } catch (e) {
       console.warn('[PageScanner] Profile resolution error:', e);
+    }
+
+    // ── Priority 4: Option tanteo for choice fields ────────────────────────
+    // When a radio/checkbox/select has predefined options, check if any
+    // option text matches a stored profile value (e.g. option "Perú" matches
+    // profile.country = ["Perú"]). This guesses the answer without AI.
+    if (isChoice) {
+      const fieldOptions = Array.isArray(field.options) ? field.options : [];
+      if (fieldOptions.length > 0) {
+        try {
+          const storageResult = await this.sdk.adapters?.storage?.get('Cognilot_profile_cache');
+          const rawProfile = storageResult?.Cognilot_profile_cache || storageResult || {};
+          const dataLearned = rawProfile.data_learned || rawProfile;
+
+          // Flatten all profile values into a set for O(1) lookups
+          const knownValues = new Set<string>();
+          for (const val of Object.values(dataLearned)) {
+            if (Array.isArray(val)) {
+              val.forEach((v) => knownValues.add(String(v).toLowerCase().trim()));
+            } else if (val && typeof val === 'string') {
+              knownValues.add(val.toLowerCase().trim());
+            }
+          }
+
+          if (knownValues.size > 0) {
+            for (const opt of fieldOptions) {
+              const optText = String(opt.text || '')
+                .toLowerCase()
+                .trim();
+              const optValue = String(opt.value || '')
+                .toLowerCase()
+                .trim();
+              if (
+                (optText && knownValues.has(optText)) ||
+                (optValue && knownValues.has(optValue))
+              ) {
+                return {
+                  value: String(opt.text || opt.value),
+                  options: [String(opt.text || opt.value)],
+                  source: 'profile_cache',
+                };
+              }
+            }
+          }
+        } catch (e) {
+          console.warn('[PageScanner] Option tanteo error:', e);
+        }
+      }
     }
 
     return null;

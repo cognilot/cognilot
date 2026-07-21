@@ -14,7 +14,7 @@ import {
   CheckSquare,
   SquareMinus,
 } from 'lucide-react';
-import { ReadmeLayout } from '@/components/layout/ReadmeLayout';
+import { DocLayout } from '@/components/layout/DocLayout';
 import { Button } from '@/components/ui/button';
 
 interface Alias {
@@ -353,7 +353,7 @@ export default function AliasesPage() {
 
   if (loading) {
     return (
-      <ReadmeLayout
+      <DocLayout
         filename="aliases.md"
         description="Shortcuts that auto-expand when filling forms"
         action={
@@ -367,12 +367,12 @@ export default function AliasesPage() {
         }
       >
         <div className="h-64 bg-white/2 rounded-xl animate-pulse" />
-      </ReadmeLayout>
+      </DocLayout>
     );
   }
 
   return (
-    <ReadmeLayout
+    <DocLayout
       filename="aliases.md"
       description="Shortcuts that auto-expand when filling forms"
       action={
@@ -645,7 +645,7 @@ export default function AliasesPage() {
           </div>
         </div>
       </div>
-    </ReadmeLayout>
+    </DocLayout>
   );
 }
 

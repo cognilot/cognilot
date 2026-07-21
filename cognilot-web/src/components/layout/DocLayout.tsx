@@ -2,7 +2,7 @@
 
 import type { ReactNode } from 'react';
 
-interface ReadmeLayoutProps {
+interface DocLayoutProps {
   filename: string;
   description?: string;
   action?: ReactNode;
@@ -10,13 +10,13 @@ interface ReadmeLayoutProps {
   className?: string;
 }
 
-export function ReadmeLayout({
+export function DocLayout({
   filename,
   description,
   action,
   children,
   className = '',
-}: ReadmeLayoutProps) {
+}: DocLayoutProps) {
   return (
     <div className={`p-8 max-w-4xl mx-auto animate-fade-in font-mono text-[13px] ${className}`}>
       <div className="mb-8 flex flex-col sm:flex-row sm:items-center justify-between gap-4">

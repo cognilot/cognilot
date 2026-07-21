@@ -767,6 +767,15 @@ function seedInitialProfile(user: Record<string, unknown> | undefined | null): v
       }
     }
 
+    if (user.email) {
+      const emailStr = user.email as string;
+      profile.username = profile.username || [];
+      if (!profile.username.includes(emailStr)) {
+        profile.username.push(emailStr);
+        changed = true;
+      }
+    }
+
     if (user.given_name) {
       profile.given_name = profile.given_name || [];
       if (!profile.given_name.includes(user.given_name as string)) {

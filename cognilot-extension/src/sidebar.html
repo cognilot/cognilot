@@ -270,7 +270,7 @@
             <!-- 1. Filters at the top (As requested) -->
             <div
               id="chat-context-filters"
-              style="display: flex; gap: 4px; margin-bottom: 10px; flex-wrap: wrap; flex-shrink: 0"
+              style="display: flex; gap: 4px; margin-bottom: 0px; flex-wrap: wrap; flex-shrink: 0"
             >
               <!-- Buttons injected by sidebar.ts -->
             </div>
@@ -580,11 +580,7 @@
                           >
                             Anthropic Claude 3 (BYOK)
                           </div>
-                          <div
-                            class="model-option"
-                            data-value="byok-groq"
-                            data-label="Llama 70B"
-                          >
+                          <div class="model-option" data-value="byok-groq" data-label="Llama 70B">
                             Groq Llama 3.3 70B (BYOK)
                           </div>
                         </div>
@@ -874,7 +870,9 @@
                       <div class="settings-row">
                         <div class="settings-info">
                           <span class="settings-label">Enable BYOK</span>
-                          <span class="settings-desc">Override inference with your own API key</span>
+                          <span class="settings-desc"
+                            >Override inference with your own API key</span
+                          >
                         </div>
                         <label class="toggle">
                           <input type="checkbox" id="byok-enabled" />
@@ -883,12 +881,18 @@
                       </div>
                     </div>
 
-                    <div class="settings-card byok-field-group" style="padding: 12px;">
-                      <div style="display: flex; flex-direction: column; gap: 8px; width: 100%;">
-                        <div style="display: flex; justify-content: space-between; align-items: center;">
-                          <span class="settings-label" style="font-weight: 500;">Provider</span>
+                    <div class="settings-card byok-field-group" style="padding: 12px">
+                      <div style="display: flex; flex-direction: column; gap: 8px; width: 100%">
+                        <div
+                          style="display: flex; justify-content: space-between; align-items: center"
+                        >
+                          <span class="settings-label" style="font-weight: 500">Provider</span>
                         </div>
-                        <select id="byok-provider" class="settings-select" style="width: 100%; box-sizing: border-box;">
+                        <select
+                          id="byok-provider"
+                          class="settings-select"
+                          style="width: 100%; box-sizing: border-box"
+                        >
                           <option value="openai">OpenAI (gpt-4o-mini)</option>
                           <option value="anthropic">Anthropic (claude-3-haiku)</option>
                           <option value="groq">Groq (llama-3.3-70b)</option>
@@ -896,26 +900,60 @@
                       </div>
                     </div>
 
-                    <div class="settings-card byok-field-group" style="padding: 12px;">
-                      <div style="display: flex; flex-direction: column; gap: 8px; width: 100%;">
-                        <span class="settings-label" style="font-weight: 500;">API Key</span>
-                        <input type="password" id="byok-api-key" placeholder="Enter your API Key" class="sh-input" style="box-sizing: border-box;" />
+                    <div class="settings-card byok-field-group" style="padding: 12px">
+                      <div style="display: flex; flex-direction: column; gap: 8px; width: 100%">
+                        <span class="settings-label" style="font-weight: 500">API Key</span>
+                        <input
+                          type="password"
+                          id="byok-api-key"
+                          placeholder="Enter your API Key"
+                          class="sh-input"
+                          style="box-sizing: border-box"
+                        />
                       </div>
                     </div>
 
-                    <div class="settings-card byok-field-group" style="padding: 12px;">
-                      <div style="display: flex; flex-direction: column; gap: 8px; width: 100%;">
-                        <span class="settings-label" style="font-weight: 500;">Model (Optional)</span>
-                        <input type="text" id="byok-model" placeholder="Default for selected provider" class="sh-input" style="box-sizing: border-box;" />
+                    <div class="settings-card byok-field-group" style="padding: 12px">
+                      <div style="display: flex; flex-direction: column; gap: 8px; width: 100%">
+                        <span class="settings-label" style="font-weight: 500"
+                          >Model (Optional)</span
+                        >
+                        <input
+                          type="text"
+                          id="byok-model"
+                          placeholder="Default for selected provider"
+                          class="sh-input"
+                          style="box-sizing: border-box"
+                        />
                       </div>
                     </div>
 
-                    <div class="settings-card" style="padding: 12px;">
-                      <div style="display: flex; justify-content: space-between; align-items: center; width: 100%; gap: 12px;">
+                    <div class="settings-card" style="padding: 12px">
+                      <div
+                        style="
+                          display: flex;
+                          justify-content: space-between;
+                          align-items: center;
+                          width: 100%;
+                          gap: 12px;
+                        "
+                      >
                         <button id="byok-test-connection" class="btn-sh">
                           ./test_connection.sh
                         </button>
-                        <span id="byok-test-status" style="font-size: 11px; color: var(--text-secondary); font-family: monospace; text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 150px;"></span>
+                        <span
+                          id="byok-test-status"
+                          style="
+                            font-size: 11px;
+                            color: var(--text-secondary);
+                            font-family: monospace;
+                            text-align: right;
+                            overflow: hidden;
+                            text-overflow: ellipsis;
+                            white-space: nowrap;
+                            max-width: 150px;
+                          "
+                        ></span>
                       </div>
                     </div>
                   </div>

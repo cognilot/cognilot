@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import { LegalLayout, type LegalSection } from '@/components/legal/LegalLayout';
+import { ReadmeLayout, type ReadmeSection } from '@cognilot/ui';
 
 export const metadata: Metadata = {
   title: 'Terms of Service — Cognilot',
@@ -7,7 +7,7 @@ export const metadata: Metadata = {
     'Terms of Service for Cognilot. Read about the rules and guidelines for using our AI-powered profile and autofill platform.',
 };
 
-const sections: LegalSection[] = [
+const sections: ReadmeSection[] = [
   {
     id: 'acceptance',
     title: 'acceptance_of_terms',
@@ -296,7 +296,7 @@ export default function TermsPage() {
   return (
     <div className="relative z-10 px-6 md:px-12 lg:px-20 py-16 md:py-24 flex justify-center">
       <div className="w-full max-w-4xl animate-fade-in">
-        <LegalLayout filename="TERMS.MD" sections={sections}>
+        <ReadmeLayout filename="TERMS.MD" sections={sections}>
           <h1 className="legal-title">Terms of Service</h1>
           <p className="legal-subtitle">Last Updated June 1, 2026</p>
 
@@ -485,7 +485,7 @@ export default function TermsPage() {
             </a>
             .
           </p>
-        </LegalLayout>
+        </ReadmeLayout>
       </div>
     </div>
   );

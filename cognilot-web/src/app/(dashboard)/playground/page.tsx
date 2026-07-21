@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { Trash2, Plus, Play, Sparkles } from 'lucide-react';
-import { ReadmeLayout } from '@/components/layout/ReadmeLayout';
+import { DocLayout } from '@/components/layout/DocLayout';
 import { Button } from '@/components/ui/button';
 
 interface Skill {
@@ -123,17 +123,17 @@ export default function PlaygroundPage() {
 
   if (loading) {
     return (
-      <ReadmeLayout
+      <DocLayout
         filename="playground.md"
         description="Configure custom prompts and instructions for specific domains"
       >
         <div className="h-64 bg-white/2 rounded-xl animate-pulse" />
-      </ReadmeLayout>
+      </DocLayout>
     );
   }
 
   return (
-    <ReadmeLayout
+    <DocLayout
       filename="playground.md"
       description="Configure custom prompts and instructions for specific domains"
     >
@@ -331,6 +331,6 @@ export default function PlaygroundPage() {
           </div>
         </div>
       </div>
-    </ReadmeLayout>
+    </DocLayout>
   );
 }

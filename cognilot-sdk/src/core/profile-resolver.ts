@@ -4,8 +4,12 @@ import { LabelUtil } from './label-util';
 
 /**
  * ProfileResolver
- * Responsible for matching profile data (from chrome.storage.local.Cognilot_profile_cache)
- * with form fields based on heuristic regex and historical patterns.
+ * Resolves form fields against stored profile values.
+ *
+ * Resolution strategy (delegated to AliasResolver for label→memoryKey mapping):
+ * This class now only handles learned-key fallback (fields whose labels match
+ * a key in the profile verbatim). The heuristic regex patterns have been
+ * moved to AliasResolver's seed aliases for cleaner multilingual coverage.
  */
 export class ProfileResolver {
   private sdk: CognilotSDK;
@@ -26,11 +30,8 @@ export class ProfileResolver {
     const storage = this.sdk.adapters?.storage;
     if (!storage) return null;
 
-    // Get the profile cache from storage (this comes from chrome.storage.local)
     const result = await storage.get('Cognilot_profile_cache');
     const profile = result?.Cognilot_profile_cache || result || {};
-
-    // Support both flattened and nested (legacy) data_learned structures
     const flatProfile = profile.data_learned || profile || {};
 
     if (Object.keys(flatProfile).length === 0) return null;
@@ -42,110 +43,11 @@ export class ProfileResolver {
 
     const allParts = [label, name, placeholder, id];
     const textToMatch = allParts.join(' ').trim();
-    const exactParts = allParts.filter((p) => (p as string).length >= 2);
 
-    const match = (patterns: RegExp[], value: any) => {
-      if (!value) return null;
-      for (const p of patterns) {
-        // Check if pattern is anchored
-        if (p.source.startsWith('^') || p.source.endsWith('$')) {
-          if (exactParts.some((part) => p.test(part as string))) {
-            const options = this.normalizeOptions(value);
-            if (options.length > 0)
-              return {
-                success: true,
-                suggestion: {
-                  options,
-                  type: 'discrete',
-                  source: 'profile_cache',
-                },
-                reasoning: `Profile Match: ${p.source}`,
-              };
-          }
-        } else {
-          if (p.test(textToMatch)) {
-            const options = this.normalizeOptions(value);
-            if (options.length > 0)
-              return {
-                success: true,
-                suggestion: {
-                  options,
-                  type: 'discrete',
-                  source: 'profile_cache',
-                },
-                reasoning: `Profile Match: ${p.source}`,
-              };
-          }
-        }
-      }
-      return null;
-    };
-
-    // 1. Core Heuristics (Regex)
-    let res = match(
-      [/^(name|nombre|nombres)$/i, /full\s?name|nombre\s?completo/i],
-      flatProfile.full_name || flatProfile.names
-    );
-    if (res) return res;
-
-    res = match(
-      [/^(first\s?name|given\s?name|nombre|nombres)$/i, /first_name|given_name/i],
-      flatProfile.first_name || flatProfile.names
-    );
-    if (res) return res;
-
-    res = match(
-      [
-        /^(last\s?name|family\s?name|apellido|apellidos|surnames)$/i,
-        /last_name|family_name/i,
-        /surname/i,
-      ],
-      flatProfile.last_name || flatProfile.surnames
-    );
-    if (res) return res;
-
-    res = match([/e-?mail|correo|email/i], flatProfile.email);
-    if (res) return res;
-
-    res = match([/phone|telefono|celular|movil/i], flatProfile.phone_number || flatProfile.phone);
-    if (res) return res;
-
-    res = match([/dni|cedula|national\s?id|documento/i], flatProfile.national_id);
-    if (res) return res;
-
-    res = match([/address|direccion|calle/i], flatProfile.address);
-    if (res) return res;
-
-    res = match([/city|ciudad/i], flatProfile.city);
-    if (res) return res;
-
-    res = match([/zip|postal|codigo\s?postal/i], flatProfile.postal_code || flatProfile.zip);
-    if (res) return res;
-
-    res = match([/country|pais/i], flatProfile.country);
-    if (res) return res;
-
-    res = match([/company|empresa/i], flatProfile.company);
-    if (res) return res;
-
-    res = match(
-      [/job|cargo|puesto|posicion|position/i],
-      flatProfile.job_title || flatProfile.position
-    );
-    if (res) return res;
-
-    res = match([/birth|nacimiento|fecha|dob/i], flatProfile.birth_date);
-    if (res) return res;
-
-    res = match([/university|universidad/i], flatProfile.university || flatProfile.institution);
-    if (res) return res;
-
-    res = match([/degree|carrera|titulo/i], flatProfile.degree);
-    if (res) return res;
-
-    // 2. Fallback to learned keys (exact match or include)
+    // Fallback to learned keys (exact match or include)
     const dataKeys = Object.keys(flatProfile).sort((a, b) => b.length - a.length);
     const matchedValues: string[] = [];
+    let firstMatchedKey: string | undefined;
 
     for (const key of dataKeys) {
       if (['data_learned'].includes(key)) continue;
@@ -157,6 +59,7 @@ export class ProfileResolver {
         (textToMatch.includes(normalizedKey) || textToMatch.includes(baseKey)) &&
         normalizedKey.length >= 3
       ) {
+        if (!firstMatchedKey) firstMatchedKey = key;
         const value = flatProfile[key];
         const options = this.normalizeOptions(value);
         for (const option of options) {
@@ -175,6 +78,7 @@ export class ProfileResolver {
           type: 'discrete',
           source: 'profile_cache',
         },
+        memoryKey: firstMatchedKey,
         reasoning: `Learned Data Match`,
       };
     }

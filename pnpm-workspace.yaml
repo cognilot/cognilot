@@ -3,3 +3,4 @@ packages:
   - 'cognilot-sdk'
   - 'cognilot-extension'
   - 'cognilot-web'
+  - 'packages/*'
