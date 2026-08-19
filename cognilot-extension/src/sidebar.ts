@@ -342,10 +342,49 @@ class CognilotSidebar {
 
     // Minimum form score threshold (below this score, forms are degraded to isolated fields)
     const FORM_SCORE_THRESHOLD = 30;
+    const existingQuestions = (this.currentChatContext?.questions || []) as any[];
+
+    // Pre-pass: enrich questions with existing context metadata to preserve form association
+    const enrichedQuestions = validQuestions.map((q: any) => {
+      const qId = q.id || q.key || q.selector;
+      const existing = existingQuestions.find(
+        (eq: any) =>
+          (eq.id && eq.id === qId) ||
+          (eq.key && eq.key === qId) ||
+          (eq.selector && eq.selector === q.selector)
+      );
+
+      const formId =
+        q.formId ||
+        q.form_id ||
+        q.formScopeId ||
+        (existing ? existing.formId || existing.form_id || existing.formScopeId : null);
+
+      let belongsToForm = q.belongsToForm;
+      if (belongsToForm === undefined || belongsToForm === null) {
+        belongsToForm = existing ? existing.belongsToForm : !!formId;
+      }
+
+      let formScore = Number(
+        q.formScore || q.form_score || (existing ? existing.formScore || existing.form_score : 0)
+      );
+      if (belongsToForm && (!formScore || formScore === 0)) {
+        formScore = 80;
+      }
+
+      return {
+        ...q,
+        belongsToForm,
+        formId,
+        form_id: formId,
+        formScore,
+        form_score: formScore,
+      };
+    });
 
     // Calculate maximum score per form ID to evaluate validity
     const formScoresMap: Record<string, number> = {};
-    validQuestions.forEach((q) => {
+    enrichedQuestions.forEach((q: any) => {
       if (q.belongsToForm) {
         const id = String(q.formId || q.form_id || '');
         const score = Number(q.formScore || q.form_score || 0);
@@ -355,20 +394,11 @@ class CognilotSidebar {
       }
     });
 
-    const sanitizedQuestions = validQuestions.map((q) => {
-      if (q.belongsToForm) {
-        const id = String(q.formId || q.form_id || '');
-        const maxScore = formScoresMap[id] ?? Number(q.formScore || q.form_score || 0);
-        if (maxScore < FORM_SCORE_THRESHOLD) {
-          return {
-            ...q,
-            belongsToForm: false,
-            formId: null,
-            form_id: null,
-          };
-        }
-      }
-      return q;
+    const sanitizedQuestions = enrichedQuestions.filter((q: any) => {
+      if (!q.belongsToForm) return false;
+      const id = String(q.formId || q.form_id || '');
+      const maxScore = formScoresMap[id] ?? Number(q.formScore || q.form_score || 0);
+      return maxScore >= FORM_SCORE_THRESHOLD;
     });
 
     const sdk = window.Cognilot?.SDK;
@@ -511,51 +541,8 @@ class CognilotSidebar {
   renderFilterButtons() {
     const container = document.getElementById('chat-context-filters');
     if (!container) return;
-
-    const sortedForms = this.getSortedForms();
-    const formsCount = sortedForms.length;
-    const isolatedQuestions = (this.currentChatContext?.questions || []).filter(
-      (q) => !q.belongsToForm
-    );
-    const isolatedCount = isolatedQuestions.length;
-
-    if (this.activeScope !== 'forms' && this.activeScope !== 'isolated') {
-      this.activeScope = formsCount > 0 ? 'forms' : isolatedCount > 0 ? 'isolated' : 'forms';
-    }
-
-    let html = '';
-
-    if (formsCount > 0) {
-      const isActive = this.activeScope === 'forms';
-      html += `
-        <button class="filter-btn" 
-                style="font-size: 10px; padding: 4px 10px; border-radius: 6px; border: 1px solid ${isActive ? 'var(--accent-color)' : 'var(--border-color)'}; background: ${isActive ? 'var(--accent-color)' : 'rgba(255,255,255,0.03)'}; color: ${isActive ? 'white' : 'var(--text-secondary)'}; cursor: pointer; font-weight: 600; display: flex; align-items: center; gap: 4px;"
-                data-filter="forms">
-          Formularios <span style="opacity: 0.8; font-size: 9px;">(${formsCount})</span>
-        </button>
-      `;
-    }
-
-    if (isolatedCount > 0) {
-      const isActive = this.activeScope === 'isolated';
-      html += `
-        <button class="filter-btn" 
-                style="font-size: 10px; padding: 4px 10px; border-radius: 6px; border: 1px solid ${isActive ? 'var(--accent-color)' : 'var(--border-color)'}; background: ${isActive ? 'var(--accent-color)' : 'rgba(255,255,255,0.03)'}; color: ${isActive ? 'white' : 'var(--text-secondary)'}; cursor: pointer; font-weight: 600; display: flex; align-items: center; gap: 4px;"
-                data-filter="isolated">
-          Aislados <span style="opacity: 0.8; font-size: 9px;">(${isolatedCount})</span>
-        </button>
-      `;
-    }
-
-    container.innerHTML = html;
-
-    container.querySelectorAll('.filter-btn').forEach((btn) => {
-      btn.addEventListener('click', () => {
-        this.activeScope = btn.getAttribute('data-filter');
-        this.renderFilterButtons();
-        this.updateContextPreview();
-      });
-    });
+    this.activeScope = 'forms';
+    container.innerHTML = '';
   }
 
   renderStatusFilters() {
@@ -603,18 +590,14 @@ class CognilotSidebar {
     const allQuestions = this.currentChatContext?.questions || [];
     let targetQuestions: any[] = [];
 
-    if (this.activeScope === 'isolated') {
-      targetQuestions = allQuestions.filter((q) => !q.belongsToForm);
-    } else {
-      const sortedForms = this.getSortedForms();
-      if (sortedForms.length > 0) {
-        if (this.carouselIndex < 0 || this.carouselIndex >= sortedForms.length) {
-          this.carouselIndex = 0;
-        }
-        targetQuestions = sortedForms[this.carouselIndex].questions;
-      } else {
-        targetQuestions = allQuestions.filter((q) => !q.belongsToForm);
+    const sortedForms = this.getSortedForms();
+    if (sortedForms.length > 0) {
+      if (this.carouselIndex < 0 || this.carouselIndex >= sortedForms.length) {
+        this.carouselIndex = 0;
       }
+      targetQuestions = sortedForms[this.carouselIndex].questions;
+    } else {
+      targetQuestions = allQuestions.filter((q) => q.belongsToForm);
     }
 
     // 2. Apply Status Filter (Internal Level)
@@ -736,7 +719,7 @@ class CognilotSidebar {
             }
 
             let entryHtml = `
-                    <div style="margin-bottom: 12px;">
+                    <div class="cognilot-field-card" data-selector="${q.selector || ''}" style="margin-bottom: 12px; transition: background-color 0.2s ease; border-radius: 4px; padding: 2px;">
                         <div style="display: flex; align-items: flex-start; gap: 8px;">
                             <div style="font-size: 10px; color: ${themeColor}; font-weight: 700; width: 14px; margin-top: 1px;">${i + 1}.</div>
                             <div style="flex: 1; min-width: 0;">
@@ -840,7 +823,7 @@ class CognilotSidebar {
             finalHtml = `
               <div style="background: rgba(0,0,0,0.02); border: 1px solid var(--border-color); border-radius: 8px; padding: 12px; height: 100%; display: flex; flex-direction: column;">
                 <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; padding-bottom: 8px; border-bottom: 1px solid var(--divider-color); flex-shrink: 0;">
-                  <div style="display: flex; align-items: center; gap: 8px;">
+                  <div id="active-form-header" data-selector="${activeForm.formSelector || ''}" style="display: flex; align-items: center; gap: 8px; cursor: pointer; transition: opacity 0.2s ease;">
                     <span style="font-size: 12px; font-weight: 700; color: var(--text-primary);">${activeForm.formLabel}</span>
                     <span style="font-size: 9px; font-weight: 700; color: var(--accent-color); background: rgba(var(--accent-rgb), 0.1); padding: 1px 6px; border-radius: 4px; border: 1px solid rgba(var(--accent-rgb), 0.2);">[ ${this.carouselIndex + 1} / ${sortedForms.length} ]</span>
                   </div>
@@ -859,6 +842,37 @@ class CognilotSidebar {
           }
 
           text.innerHTML = finalHtml;
+
+          // Wire hover highlights for fields
+          text.querySelectorAll('.cognilot-field-card').forEach((card: any) => {
+            const selector = card.getAttribute('data-selector');
+            if (selector) {
+              card.addEventListener('mouseenter', () => {
+                card.style.backgroundColor = 'var(--divider-color)';
+                this.safeSendMessage('sidebarHoverField', { selector });
+              });
+              card.addEventListener('mouseleave', () => {
+                card.style.backgroundColor = 'transparent';
+                this.safeSendMessage('sidebarUnhoverField', { selector });
+              });
+            }
+          });
+
+          // Wire hover highlights for form header
+          const formHeader = document.getElementById('active-form-header');
+          if (formHeader) {
+            const selector = formHeader.getAttribute('data-selector');
+            if (selector) {
+              formHeader.addEventListener('mouseenter', () => {
+                formHeader.style.opacity = '0.7';
+                this.safeSendMessage('sidebarHoverField', { selector });
+              });
+              formHeader.addEventListener('mouseleave', () => {
+                formHeader.style.opacity = '1';
+                this.safeSendMessage('sidebarUnhoverField', { selector });
+              });
+            }
+          }
 
           // Wire Carousel Arrow Click Listeners
           document.getElementById('carousel-prev-btn')?.addEventListener('click', (e) => {
@@ -1456,6 +1470,7 @@ class CognilotSidebar {
     });
 
     this.updateStatus('detected', this.getDomain());
+    this.updatePrimarySolveButtonState(this.detectedFieldCount > 0);
 
     if (window.Cognilot?.Logger) {
       window.Cognilot.Logger.info(`✅ Detection accepted: ${sourceName} (score: ${score})`);
@@ -2121,7 +2136,7 @@ class CognilotSidebar {
     } else if (fields.length > 0) {
       this.formDetection = { found: true, isForm: false };
       this.updateStatus('detected', this.getDomain(), `${fields.length} fields found`);
-      this.updatePrimarySolveButtonState(false);
+      this.updatePrimarySolveButtonState(true);
     } else {
       this.updateStatus('not-detected', this.getDomain(), pageTitle);
       this.updatePrimarySolveButtonState(false);
@@ -2667,6 +2682,14 @@ class CognilotSidebar {
       }
     } finally {
       this.solveActive = false;
+      this.updatePrimarySolveButtonState(
+        !!(
+          this.formDetection &&
+          (this.formDetection.isForm ||
+            this.formDetection.found ||
+            this.formDetection.result?.esFormulario)
+        )
+      );
     }
   }
 
@@ -2732,10 +2755,9 @@ class CognilotSidebar {
 
     const newActive = !this.inspectorActive;
     const action = newActive ? 'sidebarEnableInspector' : 'sidebarDisableInspector';
-    const activeFormId =
-      this.activeScope && this.activeScope.startsWith('form_')
-        ? this.activeScope.replace('form_', '')
-        : null;
+    const sortedForms = this.getSortedForms();
+    const activeForm = sortedForms[this.carouselIndex] || sortedForms[0];
+    const activeFormId = activeForm ? String(activeForm.formId) : null;
     const data = newActive ? { activeFormId } : {};
 
     console.log('[Sidebar] handleManualSelection triggered', {

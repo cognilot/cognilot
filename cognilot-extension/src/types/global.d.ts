@@ -456,7 +456,7 @@ interface Window {
   };
   CognilotAPI: {
     solveAll(questions?: SDKQuestionDTO[] | null): unknown;
-    enableInspector(): void;
+    enableInspector(activeFormId?: string): void;
     disableInspector(): void;
     detect(
       scopeElement?: HTMLElement | null,

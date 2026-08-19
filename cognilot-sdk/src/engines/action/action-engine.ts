@@ -479,22 +479,159 @@ export class ActionEngine {
   }
 
   private async _applyDecision(node: CognilotNode, decision: any) {
-    console.log(
-      `[ActionEngine] Applying decision indices: ${decision.selected_indices} to ${node.tagName}`
-    );
-    try {
-      // Handle Radios/Checkboxes/Selects
-      const type = node.type || '';
-      const tagName = node.tagName.toLowerCase();
+    const type = node.type || '';
+    const tagName = node.tagName.toLowerCase();
 
+    console.log(`[ActionEngine] Applying decision to ${tagName}[type="${type}"]:`, decision);
+
+    try {
       if (type === 'radio' || type === 'checkbox') {
-        await node.click(); // Simple click for the element itself
+        const resolvedVals: string[] =
+          Array.isArray(decision.selected_values) && decision.selected_values.length > 0
+            ? decision.selected_values.map(String)
+            : Array.isArray(decision.options) && decision.options.length > 0
+              ? decision.options.map(String)
+              : [String(decision.value)];
+
+        const rawEl = node.getRawNode<HTMLInputElement>();
+        const inputName = rawEl.name;
+        const inputType = rawEl.type;
+        const doc = rawEl.ownerDocument || document;
+
+        let groupInputs: HTMLInputElement[] = [];
+        if (inputName) {
+          groupInputs = Array.from(
+            doc.querySelectorAll<HTMLInputElement>(
+              `input[type="${inputType}"][name="${CSS.escape(inputName)}"]`
+            )
+          );
+        }
+
+        if (groupInputs.length <= 1) {
+          const parentGroup = rawEl.closest(
+            'fieldset, [role="group"], .group, [data-controller*="choice"]'
+          );
+          if (parentGroup) {
+            groupInputs = Array.from(
+              parentGroup.querySelectorAll<HTMLInputElement>(`input[type="${inputType}"]`)
+            );
+          }
+        }
+
+        if (groupInputs.length === 0) {
+          groupInputs = [rawEl];
+        }
+
+        let clickedAny = false;
+        groupInputs.forEach((input, index) => {
+          const inputVal = (input.value || '').toLowerCase().trim();
+          const inputId = (input.id || '').toLowerCase().trim();
+
+          let isMatch = resolvedVals.some((v) => String(v).toLowerCase().trim() === inputVal);
+
+          const entry = this.sdk.registry.findByNode(rawEl);
+          if (!isMatch && entry && entry.options && Array.isArray(entry.options)) {
+            const opt = entry.options.find(
+              (o: any) =>
+                String(o.value || '')
+                  .toLowerCase()
+                  .trim() === inputVal ||
+                (inputId &&
+                  String(o.value || '')
+                    .toLowerCase()
+                    .trim() === inputId) ||
+                o.index === index
+            );
+            if (opt) {
+              isMatch = resolvedVals.some((v) => {
+                const valStr = String(v).toLowerCase().trim();
+                const optText = String(opt.text || '')
+                  .toLowerCase()
+                  .trim();
+                const optVal = String(opt.value || '')
+                  .toLowerCase()
+                  .trim();
+                return (
+                  valStr === optText ||
+                  valStr === optVal ||
+                  valStr.normalize('NFD').replace(/[\u0300-\u036f]/g, '') ===
+                    optText.normalize('NFD').replace(/[\u0300-\u036f]/g, '') ||
+                  valStr.normalize('NFD').replace(/[\u0300-\u036f]/g, '') ===
+                    optVal.normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+                );
+              });
+            }
+          }
+
+          if (!isMatch) {
+            const labelEl =
+              (input.closest('label') as HTMLElement) ??
+              (input.id ? doc.querySelector(`label[for="${CSS.escape(input.id)}"]`) : null) ??
+              input.parentElement;
+            if (labelEl) {
+              const labelText = (labelEl.textContent || '').toLowerCase().trim();
+              isMatch = resolvedVals.some((v) => {
+                const valStr = String(v).toLowerCase().trim();
+                return (
+                  valStr === labelText ||
+                  valStr.normalize('NFD').replace(/[\u0300-\u036f]/g, '') ===
+                    labelText.normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+                );
+              });
+            }
+          }
+
+          const shouldClick =
+            inputType === 'checkbox' ? isMatch !== input.checked : isMatch && !input.checked;
+
+          if (shouldClick) {
+            input.click();
+            input.dispatchEvent(new Event('change', { bubbles: true }));
+            input.dispatchEvent(new Event('input', { bubbles: true }));
+            clickedAny = true;
+          }
+        });
+
+        return clickedAny;
       } else if (tagName === 'select') {
-        await node.setValue(decision.selected_values?.[0] || '');
-      } else if (decision.selected_indices && decision.selected_indices.length > 0) {
-        // Complex case: find the actual option nodes (not implemented in metadata but available via DOM)
-        // For now, if the node is the field itself, we just click it as a fallback
-        await node.click();
+        const selectEl = node.getRawNode<HTMLSelectElement>();
+        const resolvedVals: string[] =
+          Array.isArray(decision.selected_values) && decision.selected_values.length > 0
+            ? decision.selected_values.map(String)
+            : Array.isArray(decision.options) && decision.options.length > 0
+              ? decision.options.map(String)
+              : [String(decision.value)];
+
+        let matchVal = '';
+        for (const option of Array.from(selectEl.options)) {
+          const optVal = option.value.toLowerCase().trim();
+          const optText = option.text.toLowerCase().trim();
+          const matched = resolvedVals.some((v) => {
+            const valStr = String(v).toLowerCase().trim();
+            return (
+              valStr === optVal ||
+              valStr === optText ||
+              valStr.normalize('NFD').replace(/[\u0300-\u036f]/g, '') ===
+                optVal.normalize('NFD').replace(/[\u0300-\u036f]/g, '') ||
+              valStr.normalize('NFD').replace(/[\u0300-\u036f]/g, '') ===
+                optText.normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+            );
+          });
+          if (matched) {
+            matchVal = option.value;
+            break;
+          }
+        }
+
+        if (matchVal) {
+          selectEl.value = matchVal;
+          selectEl.dispatchEvent(new Event('change', { bubbles: true }));
+          return true;
+        } else if (resolvedVals[0]) {
+          selectEl.value = resolvedVals[0];
+          selectEl.dispatchEvent(new Event('change', { bubbles: true }));
+          return true;
+        }
       }
       return true;
     } catch (e) {

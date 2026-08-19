@@ -61,17 +61,19 @@ export function findLabelElement(
 ): HTMLElement | null {
   if (!el) return null;
   if (expectedText) {
-    const cleanExpected = expectedText
-      .trim()
-      .toLowerCase()
-      .replace(/\*|:|\s/g, '');
+    const normalize = (str: string) =>
+      str
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase()
+        .replace(/[^a-z0-9]/g, '');
+
+    const cleanExpected = normalize(expectedText);
     if (cleanExpected.length >= 2) {
       let current: HTMLElement | null = el.parentElement;
       let depth = 0;
       while (current && depth < 5 && current.tagName !== 'FORM' && current !== document.body) {
-        const containerText = (current.innerText || current.textContent || '')
-          .toLowerCase()
-          .replace(/\*|:|\s/g, '');
+        const containerText = normalize(current.innerText || current.textContent || '');
         if (containerText.includes(cleanExpected)) {
           const candidates = Array.from(
             current.querySelectorAll(
@@ -80,15 +82,12 @@ export function findLabelElement(
           ) as HTMLElement[];
           const match = candidates.find((c) => {
             if (c.contains(el)) return false;
-            const cText = (c.innerText || c.textContent || '')
-              .trim()
-              .toLowerCase()
-              .replace(/\*|:|\s/g, '');
+            const cText = normalize(c.innerText || c.textContent || '');
             return (
               cText &&
               (cText === cleanExpected ||
                 cText.includes(cleanExpected) ||
-                cleanExpected.includes(cText))
+                (cleanExpected.includes(cText) && cText.length >= 10))
             );
           });
           if (match) return match;

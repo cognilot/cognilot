@@ -152,12 +152,20 @@ export class DetectionEngine {
 
     // 4. Significance Check & Deduplication
     const seenKeys = new Set<string>();
+    const seenLabels = new Set<string>();
     const uniqueFields = filteredQuestions.filter((q: any) => {
-      const key = q.ref_id
-        ? `ref:${q.ref_id}`
-        : `label:${(q.text || q.metadata?.label || '').toLowerCase().trim()}`;
-      if (!key || seenKeys.has(key)) return false;
-      seenKeys.add(key);
+      const normLabel = (q.text || q.metadata?.label || '').toLowerCase().trim();
+      const normName = (q.name || q.id || '').toLowerCase().trim();
+      const labelKey = normLabel || normName;
+
+      // If a field with identical label/name exists in this form container, skip duplicates
+      if (labelKey && seenLabels.has(labelKey)) return false;
+
+      const refKey = q.ref_id ? `ref:${q.ref_id}` : `label:${labelKey}`;
+      if (!refKey || seenKeys.has(refKey)) return false;
+
+      if (labelKey) seenLabels.add(labelKey);
+      seenKeys.add(refKey);
       return true;
     });
 
