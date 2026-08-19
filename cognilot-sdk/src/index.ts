@@ -148,7 +148,7 @@ export class CognilotSDK {
         if (!settings) return null;
         const suggestionsProvider = await settings.getSetting(
           'aiModels.suggestionsProvider',
-          'llama-3.1-8b-instant'
+          'llama-3.3-70b-versatile'
         );
         if (!suggestionsProvider || !suggestionsProvider.startsWith('byok-')) return null;
         const provider = suggestionsProvider.replace('byok-', '');

@@ -166,26 +166,95 @@ export class PageScanner {
    * Returns null if no local match is found (field will be marked 'pending').
    */
   private async _resolveFieldLocally(field: FieldRegistryEntry): Promise<FieldResolution | null> {
-    // ── Priority 1: Existing value ─────────────────────────────────────────
-    const existingValue = (field.node as any).value?.trim?.() ?? '';
-    if (existingValue) {
-      return {
-        value: existingValue,
-        options: [existingValue],
-        source: 'existing_value',
-      };
+    // ── Priority 1: Existing value (skip radio/checkbox — their .value is
+    //    the HTML value attribute, not user input) ──────────────────────────
+    const type = (field.type || '').toLowerCase();
+    const isChoice = type === 'radio' || type === 'checkbox';
+    if (!isChoice) {
+      const existingValue = (field.node as any).value?.trim?.() ?? '';
+      if (existingValue) {
+        return {
+          value: existingValue,
+          options: [existingValue],
+          source: 'existing_value',
+        };
+      }
     }
+
+    // Helper to verify if any choice field option matches a memory suggestion (Tanteo)
+    const matchChoiceValue = (fieldOpts: any[], memOpts: string[]) => {
+      if (
+        !Array.isArray(fieldOpts) ||
+        fieldOpts.length === 0 ||
+        !Array.isArray(memOpts) ||
+        memOpts.length === 0
+      ) {
+        return null;
+      }
+      const normalize = (str: string) => str.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+
+      for (const opt of fieldOpts) {
+        const optText = String(opt.text || '')
+          .trim()
+          .toLowerCase();
+        const optVal = String(opt.value || '')
+          .trim()
+          .toLowerCase();
+        const nOptText = normalize(optText);
+        const nOptVal = normalize(optVal);
+
+        if (!optText && !optVal) continue;
+
+        for (const mem of memOpts) {
+          const mStr = String(mem).trim().toLowerCase();
+          const nMem = normalize(mStr);
+          if (!mStr) continue;
+
+          // 1. Exact match
+          if (optText === mStr || optVal === mStr || nOptText === nMem || nOptVal === nMem) {
+            return { value: String(opt.text || opt.value || mem), mem: mStr };
+          }
+
+          // 2. Substring match for longer texts (minimum 3 chars)
+          if (nMem.length >= 3 && nOptText.length >= 3) {
+            if (nOptText.includes(nMem) || nMem.includes(nOptText)) {
+              return { value: String(opt.text || opt.value || mem), mem: mStr };
+            }
+          }
+          if (nMem.length >= 3 && nOptVal.length >= 3) {
+            if (nOptVal.includes(nMem) || nMem.includes(nOptVal)) {
+              return { value: String(opt.text || opt.value || mem), mem: mStr };
+            }
+          }
+        }
+      }
+      return null;
+    };
 
     // ── Priority 2: Alias cache ────────────────────────────────────────────
     try {
       // FieldDetectionResponse shape is a subset of FieldRegistryEntry, safe to cast
       const aliasResult = await this.sdk.alias.resolve(field as any);
       if (aliasResult?.success && aliasResult.suggestion?.options?.length) {
-        return {
-          value: String(aliasResult.suggestion.options[0]),
-          options: aliasResult.suggestion.options.map(String),
-          source: 'alias_cache',
-        };
+        const memOpts = aliasResult.suggestion.options.map(String);
+        if (isChoice) {
+          const matched = matchChoiceValue(field.options, memOpts);
+          if (matched) {
+            return {
+              value: matched.value,
+              options: [matched.value],
+              source: 'alias_cache',
+              memoryKey: aliasResult.memoryKey || null,
+            };
+          }
+        } else {
+          return {
+            value: memOpts[0],
+            options: memOpts,
+            source: 'alias_cache',
+            memoryKey: aliasResult.memoryKey || null,
+          };
+        }
       }
     } catch (e) {
       console.warn('[PageScanner] Alias resolution error:', e);
@@ -195,14 +264,71 @@ export class PageScanner {
     try {
       const profileResult = await this.sdk.profile.resolve(field as any);
       if (profileResult?.success && profileResult.suggestion?.options?.length) {
-        return {
-          value: String(profileResult.suggestion.options[0]),
-          options: profileResult.suggestion.options.map(String),
-          source: 'profile_cache',
-        };
+        const memOpts = profileResult.suggestion.options.map(String);
+        if (isChoice) {
+          const matched = matchChoiceValue(field.options, memOpts);
+          if (matched) {
+            return {
+              value: matched.value,
+              options: [matched.value],
+              source: 'profile_cache',
+              memoryKey: profileResult.memoryKey || null,
+            };
+          }
+        } else {
+          return {
+            value: memOpts[0],
+            options: memOpts,
+            source: 'profile_cache',
+            memoryKey: profileResult.memoryKey || null,
+          };
+        }
       }
     } catch (e) {
       console.warn('[PageScanner] Profile resolution error:', e);
+    }
+
+    // ── Priority 4: Option tanteo for choice fields ────────────────────────
+    // When a radio/checkbox/select has predefined options, check if any
+    // option text matches a stored profile value (e.g. option "Perú" matches
+    // profile.country = ["Perú"]). This guesses the answer without AI.
+    if (isChoice) {
+      const fieldOptions = Array.isArray(field.options) ? field.options : [];
+      if (fieldOptions.length > 0) {
+        try {
+          const storageResult = await this.sdk.adapters?.storage?.get('Cognilot_profile_cache');
+          const rawProfile = storageResult?.Cognilot_profile_cache || storageResult || {};
+          const dataLearned = rawProfile.data_learned || rawProfile;
+
+          // Map from memory string -> memoryKey
+          const memToKey = new Map<string, string>();
+          for (const [key, val] of Object.entries(dataLearned)) {
+            if (Array.isArray(val)) {
+              val.forEach((v) => {
+                if (v !== undefined && v !== null && v !== '') {
+                  memToKey.set(String(v).toLowerCase().trim(), key);
+                }
+              });
+            } else if (val !== undefined && val !== null && val !== '') {
+              memToKey.set(String(val).toLowerCase().trim(), key);
+            }
+          }
+
+          const memOpts = Array.from(memToKey.keys());
+          const matched = matchChoiceValue(fieldOptions, memOpts);
+
+          if (matched) {
+            return {
+              value: matched.value,
+              options: [matched.value],
+              source: 'profile_cache',
+              memoryKey: memToKey.get(matched.mem) || null,
+            };
+          }
+        } catch (e) {
+          console.warn('[PageScanner] Option tanteo error:', e);
+        }
+      }
     }
 
     return null;

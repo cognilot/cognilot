@@ -1,340 +1,404 @@
 ---
 name: Cognilot Terminal Design System
-description: Comprehensive guidelines and strict rules for creating new React components and pages using the Cognilot Text-based / IDE / Terminal aesthetic.
+description: Comprehensive guidelines for creating UI in Cognilot. Identity = Dark Minimalist with a subtle terminal signature. The marketing site is the canonical reference and global standard for all surfaces.
 ---
 
-# Cognilot Terminal Design System
+# Cognilot Design System
 
-> **Canonical Reference:** The **Memory view** (`/dashboard/memory`) is the gold standard. Every new page must look like it belongs in the same application. Before writing any UI, visualize how it would render next to the Memory view.
-
-This skill must be invoked whenever you create a new page, component, or modify existing UI elements within the Cognilot web application. The application strictly follows a **"Developer-centric, IDE, and Console/Terminal"** design language.
-
-**Strictly forbidden:**
-
-- Standard shadcn/ui cards with thick borders
-- Any solid non-black backgrounds
-- Generic rounded buttons with filled colors
-- Labels floating above inputs (use the KV-row pattern instead)
-- Glassmorphism without a dark base
-- Nested multiple `bg-*` containers inside a window
+> **Canonical Reference:** The **Home marketing page** (`/home`) and **MarketingFooter** are the gold standard. Every new page, section, and component must feel like it belongs in the same product.
 
 ---
 
-## 1. Core Principles
+## 1. Core Identity
 
-- **Text is UI**: The interface relies on typography rather than shapes. Whitespace and text rhythm create visual structure.
-- **Monospace First**: `font-mono` is the default font family for the entire application.
-- **Dark Mode Only**: Root background is flat `#050505`. Floating elements use `bg-bg-primary/90` + `backdrop-blur-2xl`.
-- **One Window Per Section**: Each distinct content block is wrapped in exactly one window container. Never nest dark panels.
-- **Syntactic Sugar**: Use code syntax as visual embellishments — not icons or decorative shapes.
-  - Page headings: `# title.md`
-  - Section labels: `## section_id`
-  - Comments/hints: `// this is a hint`
-  - Primary actions: `./save.sh`, `./submit.sh`
-  - Secondary actions: `[RELOAD]`, `[ADD]`, `[ACTIVE]`
-  - Field separator: `field_name: value`
-  - Prompt prefix: `> _`, `$ command`
+**Dark Minimalist with a subtle terminal signature.**
 
----
+Cognilot is not a pure IDE/terminal emulator. The interface is a clean, near-black minimal product that uses _specific_ terminal-inspired details as a differentiator — not as the entire design language.
 
-## 2. Typography & Colors
+### What this means
 
-### Font Roles
+- **Structure is created with whitespace and typography**, not with boxes, cards, or filled backgrounds.
+- **Terminal elements appear as a signature**: the `> cognilot_` logotype, `//` comments in copy, `├──` tree structures in the footer, `$` prompt references, ASCII art. These are curated details, not a blanket rule.
+- **Monospace is the default font**, but it's used in a clean, modern way — not to simulate a terminal output stream.
+- **Accent colors (violet + cyan) are used sparingly** — for logotype punctuation, active states, links, and key interactive elements. Not on every heading.
 
-| Role               | Classes                                                     | Use                                              |
-| ------------------ | ----------------------------------------------------------- | ------------------------------------------------ |
-| **Mono (default)** | `font-mono text-[13px]`                                     | All data, inputs, values, body text              |
-| **Sans label**     | `font-sans text-[10px] uppercase tracking-widest font-bold` | Window titles, badges, `## section` headers only |
+### Strictly forbidden
 
-### Color Reference
-
-Always use predefined Tailwind variables. Avoid hard-coded hex (except `#050505` for the void background).
-
-| Meaning             | Class                | Notes                                  |
-| ------------------- | -------------------- | -------------------------------------- |
-| Primary accent      | `text-accent-violet` | `#` headings, field labels, `>` prefix |
-| Active/value accent | `text-accent-cyan`   | Values, active states, `[]` brackets   |
-| Active text         | `text-white`         | Important/active data                  |
-| Secondary text      | `text-white/60`      | Normal data                            |
-| Ghost text          | `text-white/30`      | Section headers, metadata              |
-| Phantom text        | `text-white/10`      | Placeholders, disabled hints           |
-| Success             | `text-green-400`     | Enabled states, done indicators        |
-| Error/danger        | `text-red-400`       | Destructive actions, required fields   |
-| Warning             | `text-yellow-500`    | Alerts, rate-limit warnings            |
+- Solid bright backgrounds (white, gray-100, etc.) as section fills
+- Icon grids or feature cards with thick borders and header icons
+- Generic SaaS gradient hero sections
+- Nested `bg-*` panels inside panels
+- Overusing `text-accent-violet` — it's a punctuation tool, not a heading color
+- Adding macOS window dots to every component — reserve for product mockup previews only
 
 ---
 
-## 3. Window Container (The Only Allowed Card Pattern)
+## 2. Background & Layout System
 
-Every major content area **must** use this structure — no exceptions.
+### Root Background
 
 ```tsx
-<section className="bg-bg-primary/90 backdrop-blur-2xl border border-white/10 rounded-xl shadow-2xl overflow-hidden relative">
-  {/* macOS Title Bar */}
-  <div className="px-5 py-4 border-b border-white/5 bg-white/5 flex items-center gap-2 select-none">
-    <div className="flex gap-2 mr-4">
-      <div className="w-3 h-3 rounded-full bg-red-500/80 shadow-[0_0_8px_rgba(239,68,68,0.4)]" />
-      <div className="w-3 h-3 rounded-full bg-yellow-500/80 shadow-[0_0_8px_rgba(234,179,8,0.4)]" />
-      <div className="w-3 h-3 rounded-full bg-green-500/80 shadow-[0_0_8px_rgba(34,197,94,0.4)]" />
-    </div>
-    <div className="text-white/30 text-[11px] uppercase tracking-[0.2em] font-sans font-bold flex-1 justify-end flex">
-      FILENAME.MD
-    </div>
-  </div>
-  {/* Body */}
-  <div className="p-6 md:p-8 font-mono text-[13px]">{/* content */}</div>
+// In MarketingLayout
+<main className="min-h-screen bg-background text-foreground overflow-hidden relative font-mono">
+```
+
+- Root: `bg-background` → maps to `#050505` (near-black void)
+- `font-mono` applied globally at the layout root
+
+### Ambient Blobs (Fixed, Decorative)
+
+Two large blurred radial lights sit fixed behind all content, providing depth without visual noise.
+
+```tsx
+<div aria-hidden="true" className="fixed inset-0 overflow-hidden pointer-events-none select-none">
+  <div className="absolute -top-48 -left-48 w-[600px] h-[600px] rounded-full bg-violet-500/10 blur-[120px] animate-blob" />
+  <div
+    className="absolute -bottom-32 right-0 w-[500px] h-[500px] rounded-full bg-cyan-500/8 blur-[120px] animate-blob"
+    style={{ animationDelay: '3s' }}
+  />
+</div>
+```
+
+**Rules:**
+
+- Max opacity: `/10` for violet, `/8` for cyan
+- Always `blur-[120px]` or higher — never sharp
+- Always `fixed`, `pointer-events-none`, `aria-hidden`
+- Only two blobs — never add more
+
+### Vertical Spines (The Primary Structural Element)
+
+The most distinctive structural element of the layout. Two fixed vertical lines define the content margins.
+
+```tsx
+// In MarketingLayout — always present
+<div className="fixed inset-y-0 left-6 md:left-12 lg:left-20 w-px bg-white/10 pointer-events-none select-none z-0" aria-hidden="true" />
+<div className="fixed inset-y-0 right-6 md:right-12 lg:right-20 w-px bg-white/10 pointer-events-none select-none z-0" aria-hidden="true" />
+```
+
+### Diamond Nodes
+
+Where content intersects the spine (section borders, nav bottom), add a rotated square node.
+
+```tsx
+// At a border intersection
+<div className="absolute left-6 md:left-12 lg:left-20 -bottom-[4.5px] w-2 h-2 bg-background border border-white/30 rotate-45 z-30 -translate-x-1/2" />
+<div className="absolute right-6 md:right-12 lg:right-20 -bottom-[4.5px] w-2 h-2 bg-background border border-white/30 rotate-45 z-30 translate-x-1/2" />
+```
+
+Also used inside sections as decorative cross-margin accents:
+
+```tsx
+<div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 w-1.5 h-1.5 bg-background border border-white/30 rotate-45" />
+```
+
+### Section Padding Convention
+
+All sections use consistent horizontal padding aligned to the spines, and vertical padding for breathing room:
+
+```tsx
+<section className="relative z-10 w-full px-6 md:px-12 lg:px-20 py-36">
+  {/* Inner content pad: compensates for spine width */}
+  <div className="relative px-10 md:px-20">{/* content */}</div>
 </section>
 ```
 
-### Window Rules
+- Outer: `px-6 md:px-12 lg:px-20` — aligns with spine positions
+- Inner: `px-10 md:px-20` — clears the spine area
+- Vertical: `py-36` for major sections, `py-16 md:py-24` for secondary pages
 
-- Use `bg-white/5` (not `bg-white/3` or `bg-white/[0.03]`) for the title bar background.
-- macOS dots have glowing shadows — **always** include the `shadow-[...]` values.
-- Filename in the title bar uses `tracking-[0.2em]`, not `tracking-widest`.
+### Flat Section Dividers
+
+Use `border-y border-border-subtle` for sections that need a horizontal boundary:
+
+```tsx
+<section className="relative z-10 border-y border-border-subtle py-8 px-6 md:px-12 lg:px-20 w-full">
+```
 
 ---
 
-## 4. Page Header (Outside the Window)
+## 3. Typography
 
-Every route renders a header outside the main window, before the window container.
+### Font Roles
+
+| Role               | Classes                                                     | Use                                                      |
+| ------------------ | ----------------------------------------------------------- | -------------------------------------------------------- |
+| **Mono (default)** | `font-mono`                                                 | Entire app default. Body text, labels, code, nav, footer |
+| **Sans label**     | `font-sans text-[10px] uppercase tracking-widest font-bold` | Badge text, system metadata only                         |
+
+### Scale
+
+| Context             | Classes                                                                                      | Use                                  |
+| ------------------- | -------------------------------------------------------------------------------------------- | ------------------------------------ |
+| **Billboard hero**  | `font-mono font-bold leading-[0.9] tracking-tighter text-[8vw] sm:text-[6vw] md:text-[5vw]`  | Primary H1 on hero sections          |
+| **Section heading** | `font-mono font-bold leading-none tracking-tighter text-[5vw] sm:text-[4vw] md:text-[3.5vw]` | H2 inside content sections           |
+| **Body text**       | `font-mono text-[13px] leading-relaxed`                                                      | Default readable text                |
+| **Small / meta**    | `font-mono text-[11px] uppercase tracking-widest`                                            | Labels, badges, coverage bars        |
+| **Comment style**   | `font-mono text-[13px] text-dim italic`                                                      | Subtext rendered as `/** comment */` |
+
+### Section heading pattern (with accent punctuation)
 
 ```tsx
-<div className="mb-8">
-  <h1 className="text-xl font-bold text-white mb-2 flex items-center gap-2">
-    <span className="text-accent-violet">#</span> page_name.md
-  </h1>
-  <div className="text-white/40 flex items-center justify-between">
-    <span>{'// Page description as a comment'}</span>
-    <button className="text-white/30 hover:text-white/70 transition-colors flex items-center gap-1.5">
-      <RefreshCw className="w-3.5 h-3.5" />
-      [RELOAD]
-    </button>
-  </div>
+<h2 className="font-mono font-bold leading-none tracking-tighter text-white mb-20 text-[5vw] sm:text-[4vw] md:text-[3.5vw]">
+  SECTION_NAME
+  <span className="text-accent-violet">/</span>
+  <span className="text-accent-cyan">/</span>
+</h2>
+```
+
+### Terminal comment subtext
+
+```tsx
+<div className="font-mono text-[13px] leading-relaxed text-dim italic whitespace-pre-wrap">
+  {`/**\n * Cognilot learns your data and fills forms with AI precision.\n */`}
 </div>
 ```
 
 ---
 
-## 5. Section Headers (Inside a Window)
+## 4. Colors
 
-```tsx
-<div className="text-white/30 mb-4 select-none font-bold uppercase tracking-wider text-[11px] font-sans">
-  ## section_identifier
-</div>
-```
+Always use predefined Tailwind tokens — no hardcoded hex values (except `#050505` for the void if needed).
 
----
-
-## 6. Key–Value Row (Primary Input & Display Pattern)
-
-**This is the most important pattern in the design system.** All data fields — both editable inputs and read-only values — use this pattern. No floating labels, no border boxes around individual inputs.
-
-```tsx
-{
-  /* Editable field */
-}
-<div className="flex relative items-start hover:bg-white/5 -mx-4 px-4 rounded transition-colors group py-1">
-  <span className="text-accent-violet font-semibold w-[160px] md:w-[200px] shrink-0 py-1.5">
-    field_name<span className="text-accent-violet/50">:</span>
-  </span>
-  <input
-    type="text"
-    className="bg-transparent text-white flex-1 py-1.5 outline-none placeholder:text-white/10 focus:bg-white/5 rounded px-2 -mx-2 transition-colors"
-    placeholder="value..."
-  />
-</div>;
-
-{
-  /* Read-only value */
-}
-<div className="flex relative items-start -mx-4 px-4 py-1">
-  <span className="text-accent-violet font-semibold w-[160px] md:w-[200px] shrink-0 py-1.5">
-    field_name<span className="text-accent-violet/50">:</span>
-  </span>
-  <span className="text-white py-1.5 flex-1">{value}</span>
-</div>;
-```
-
-### KV Row Rules
-
-- Label is always `text-accent-violet font-semibold` — never `text-white` or `text-white/40`.
-- The colon `:` is a separate `span` with `text-accent-violet/50` opacity.
-- Label fixed width: `w-[160px] md:w-[200px]` — consistent across the entire page.
-- Hover state: `hover:bg-white/5 -mx-4 px-4` — the negative margin creates a full-bleed hover effect.
-- Input: no border, `bg-transparent`, `outline-none`. The hover background of the row is the only focus affordance.
+| Token                  | Value                    | Use                                                |
+| ---------------------- | ------------------------ | -------------------------------------------------- |
+| `text-white`           | `#f8f9fa`                | Active, important text                             |
+| `text-dim`             | `rgba(255,255,255,0.60)` | Secondary body text                                |
+| `text-ghost`           | `rgba(255,255,255,0.30)` | Metadata, hints, decorative labels                 |
+| `text-accent-violet`   | `#8b5cf6`                | Logo `>` prefix, `/` in headings, active accent    |
+| `text-accent-cyan`     | `#06b6d4`                | `_` cursor, `//` in headings, links, active states |
+| `bg-background`        | `#050505`                | Root background                                    |
+| `bg-surface`           | `rgba(255,255,255,0.03)` | Subtle section fills, feature cards                |
+| `border-white/5`       | —                        | Internal dividers                                  |
+| `border-white/10`      | —                        | Spine lines, nav borders                           |
+| `border-white/30`      | —                        | Diamond nodes, visible accents                     |
+| `border-border-subtle` | —                        | Flat section `border-y` dividers                   |
+| `border-border-strong` | —                        | Nav bottom border                                  |
 
 ---
 
-## 7. Buttons
-
-### Primary Action (Shell Script)
+## 5. Navigation
 
 ```tsx
-<button
-  className="py-2.5 px-5 bg-white/5 hover:bg-white/10 text-white rounded transition-colors
-                   flex items-center gap-2 border border-white/10 group font-bold select-none"
->
-  <span className="text-accent-violet opacity-50 group-hover:opacity-100 transition-opacity">
-    {'>'}
-  </span>
-  ./action_name.sh
-</button>
-```
+<div className="relative z-20 w-full border-b border-border-strong bg-background/50 backdrop-blur-md">
+  <nav className="flex items-center justify-between px-6 md:px-12 lg:px-20 py-6 w-full relative">
+    {/* Logo */}
+    <Link
+      href="/home"
+      className="font-mono text-white font-bold text-lg hover:opacity-80 transition-opacity"
+    >
+      <span className="text-accent-violet">&gt;</span> <span>cognilot</span>
+      <span className="text-accent-cyan">_</span>
+    </Link>
 
-### Secondary / Bracket Action
-
-```tsx
-<button className="text-accent-cyan/80 hover:text-accent-cyan font-bold transition-colors">
-  [ACTION]
-</button>
-```
-
-### Destructive Action
-
-```tsx
-<button
-  className="w-full py-2 border border-red-500/20 bg-red-500/5 hover:bg-red-500/10
-                   text-red-400 rounded text-[11px] font-bold transition-colors"
->
-  EXECUTE CLEAR_MEMORY
-</button>
-```
-
-### Toggle Badge Button
-
-```tsx
-<button
-  className={`text-[10px] font-bold px-2 py-0.5 rounded transition-colors cursor-pointer ${
-    isActive
-      ? 'bg-cyan-500/10 border border-cyan-500/20 text-accent-cyan hover:bg-cyan-500/20'
-      : 'bg-white/5 border border-white/10 text-white/30 hover:bg-white/10'
-  }`}
->
-  {isActive ? '[ACTIVE]' : '[INACTIVE]'}
-</button>
-```
-
----
-
-## 8. Lists / Data Tables
-
-List items follow the KV row hover pattern without the label/value split.
-
-```tsx
-<div className="border border-white/5 rounded-lg overflow-hidden divide-y divide-white/5 bg-white/[0.01]">
-  {items.map((item) => (
-    <div className="p-3.5 flex items-center justify-between hover:bg-white/5 transition-colors group">
-      <div className="flex items-center gap-4 min-w-0">
-        <span className="text-white/20 select-none text-[12px] shrink-0">{'>'}</span>
-        <span className="text-accent-violet font-semibold">{item.key}</span>
-        <span className="text-white/30 select-none">=</span>
-        <span className="text-accent-cyan font-mono truncate">"{item.value}"</span>
-      </div>
-      {/* Actions: opacity-0 group-hover:opacity-100 */}
+    {/* Actions */}
+    <div className="flex items-center gap-6">
+      <Button variant="variable" asChild>
+        <Link href="/auth">sign_in</Link>
+      </Button>
+      <Button variant="solid" asChild>
+        <Link href="/auth?mode=signup">Get Started</Link>
+      </Button>
     </div>
-  ))}
+
+    {/* Diamond nodes on spine intersection */}
+    <div className="absolute left-6 md:left-12 lg:left-20 -bottom-[4.5px] w-2 h-2 bg-background border border-white/30 rotate-45 z-30 -translate-x-1/2" />
+    <div className="absolute right-6 md:right-12 lg:right-20 -bottom-[4.5px] w-2 h-2 bg-background border border-white/30 rotate-45 z-30 translate-x-1/2" />
+  </nav>
 </div>
 ```
 
 ---
 
-## 9. Status Badges
+## 6. Buttons
+
+Three variants in use — use the right one by context:
+
+### `variant="terminal"` — Primary action (CTA)
+
+Shell script style. Used for signup / main conversion actions.
 
 ```tsx
-{
-  /* Category/tag badge */
-}
-<span className="text-[10px] px-2 py-0.5 bg-white/5 rounded-full text-white/40 uppercase tracking-wide font-sans">
-  category
-</span>;
+<Button variant="terminal" size="lg" asChild>
+  <Link href="/auth?mode=signup">
+    <span className="text-accent-violet opacity-60 group-hover:opacity-100 transition-opacity font-bold">
+      &gt;
+    </span>
+    ./get_started.sh
+  </Link>
+</Button>
+```
 
-{
-  /* Active state badge */
-}
-<span className="text-[10px] px-2 py-0.5 rounded bg-cyan-500/10 border border-cyan-500/20 text-accent-cyan font-bold font-sans">
-  [ACTIVE]
-</span>;
+### `variant="solid"` — Solid white button
 
-{
-  /* Pro/plan badge */
-}
-<span className="text-[10px] px-2 py-0.5 rounded bg-violet-500/20 border border-violet-500/30 text-accent-violet font-bold font-sans">
-  PRO
-</span>;
+High contrast. Used for secondary CTA alongside the terminal button.
+
+```tsx
+<Button variant="solid" asChild>
+  <Link href="/auth?mode=signup">Get Started</Link>
+</Button>
+```
+
+### `variant="variable"` — Ghost / text action
+
+Low-prominence. Used for sign-in, nav links.
+
+```tsx
+<Button variant="variable" asChild>
+  <Link href="/auth">sign_in</Link>
+</Button>
 ```
 
 ---
 
-## 10. Empty State
+## 7. Feature Cards (Flat style)
+
+Used in grid sections like `CORE_CAPABILITIES`. No macOS dots, no window containers — flat card with a colored top border as the only accent.
 
 ```tsx
-<div className="text-white/20 select-none py-8 border border-dashed border-white/5 rounded-lg text-center font-mono">
-  // No entries found. Use the form above to add one.
+<div className="p-8 bg-surface border-t-2 border-accent-cyan border-x border-b border-white/5 rounded transition-all hover:bg-white/5 duration-300 group">
+  <div className="mb-6 text-accent-violet">{icon}</div>
+  <h3 className="font-mono text-white font-bold text-base mb-4">{title}</h3>
+  <p className="font-mono text-dim text-[13px] leading-relaxed">{desc}</p>
+</div>
+```
+
+**Variants for `border-t-2`:**
+
+- `border-accent-cyan` — default feature
+- `border-accent-violet` — secondary feature
+- `border-success` (green) — third feature / privacy/security themes
+
+---
+
+## 8. Terminal Signature Elements
+
+These are the curated terminal details that make Cognilot feel distinctive. Use them in the right contexts — do not spray them everywhere.
+
+### Logotype
+
+```tsx
+<span className="text-accent-violet">&gt;</span> cognilot<span className="text-accent-cyan">_</span>
+```
+
+### Release / status badge
+
+```tsx
+<div className="inline-flex items-center gap-2 text-ghost text-xs font-mono mb-12 select-none">
+  <span className="w-2 h-2 rounded-full bg-accent-violet animate-pulse shadow-[0_0_8px_var(--color-accent-violet)]" />
+  <span>Beta abierta v0.6.5</span>
+</div>
+```
+
+### Comment-style subtext
+
+```tsx
+<div className="font-mono text-[13px] text-dim italic">
+  {`/**\n * Description as a block comment.\n */`}
+</div>
+```
+
+### Coverage / metadata bar
+
+```tsx
+<div className="font-mono text-[11px] uppercase tracking-widest text-ghost">coverage</div>
+<div className="flex gap-8 font-mono text-[12px] text-dim">
+  <span>12+ field types</span>
+  <span className="text-white/10">|</span>
+  <span>30+ form patterns</span>
+</div>
+```
+
+### Footer tree structure
+
+```tsx
+~/cognilot/footer <span className="text-accent-violet">$</span> <span className="text-ghost">tree</span>
+
+├── privacy.md
+├── terms.md
+└── contact.md
+```
+
+### Git graph / circuit SVG (decorative)
+
+Used in the hero and features sections — a subtle SVG overlaid near the right spine showing git-like branch paths.
+
+```tsx
+<div
+  className="absolute inset-y-0 right-6 md:right-12 lg:right-20 w-32 pointer-events-none select-none opacity-30"
+  aria-hidden="true"
+>
+  <svg className="w-full h-full overflow-visible">
+    <path
+      d="M 128,96 L 108,116 L 108,320 L 128,340"
+      fill="none"
+      stroke="var(--color-accent-violet)"
+      strokeWidth="1.5"
+    />
+    <circle
+      cx="108"
+      cy="180"
+      r="3"
+      className="fill-background stroke-accent-violet"
+      strokeWidth="1.5"
+    />
+    <circle cx="128" cy="96" r="3.5" className="fill-accent-violet" />
+  </svg>
 </div>
 ```
 
 ---
 
-## 11. Loading State
+## 9. Product Mockup Preview (Optional Pattern)
+
+When showing a product feature preview (e.g., in a feature accordion), use a **flat dark panel** — not a full window container with macOS dots.
 
 ```tsx
-<div className="p-8 max-w-4xl mx-auto font-mono text-[13px] text-white/30 space-y-6 animate-pulse">
-  <div>// reading_data.sh...</div>
-  <div className="h-64 bg-white/2 rounded-xl animate-pulse" />
+<div className="border border-white/8 bg-white/[0.02] rounded-xl p-6 font-mono text-[12px] leading-relaxed">
+  <div className="text-ghost mb-3 text-[11px] uppercase tracking-widest">// preview</div>
+  <pre className="text-dim whitespace-pre-wrap">
+    {`// scanning form fields...\n> detected: 7 fields\n\nprofile.name  = "Jack Pérez"\nprofile.email = "jack@domain.com"`}
+  </pre>
 </div>
 ```
 
+**When to use macOS window dots (rare):** Only when explicitly simulating a desktop app window inside a preview for marketing purposes. Never as a general card pattern.
+
 ---
 
-## 12. Footer / Info Bar (Inside Window)
+## 10. Animations
 
-```tsx
-<div className="px-6 py-4 border-t border-white/5 bg-white/[0.01] flex items-center justify-between text-[11px] text-white/20 font-mono">
-  <div>// Total loaded: {count} entries</div>
-  <div>// scope: context_name</div>
-</div>
+| Token                | Use                                                        |
+| -------------------- | ---------------------------------------------------------- |
+| `animate-fade-in`    | Page-level entry for all routes                            |
+| `animate-blob`       | Ambient background blobs (slow, large)                     |
+| `animate-pulse`      | Pulsing dot on status badge / loading states               |
+| `transition-colors`  | All hover/focus state changes on buttons, links, rows      |
+| `transition-opacity` | Fade between states (prefix `>` on buttons, preview swaps) |
+| `duration-300`       | Standard transition duration                               |
+
+**CSS grid trick for accordion animation (no JS height measurement):**
+
+```css
+/* Collapsed */
+grid-rows-[0fr] overflow-hidden transition-[grid-template-rows] duration-300
+
+/* Expanded */
+grid-rows-[1fr]
 ```
 
 ---
 
-## 13. Animation Rules
+## 11. Execution Protocol
 
-| Token               | Use                                           |
-| ------------------- | --------------------------------------------- |
-| `animate-fade-in`   | Applied to the page root `div` on every route |
-| `animate-scale-in`  | Applied to window containers on mount         |
-| `transition-colors` | All hover/focus state changes (buttons, rows) |
-| `animate-pulse`     | Loading skeleton states                       |
-| `animate-spin`      | Saving spinner overlays                       |
+When generating a new page or section:
 
----
-
-## 14. Layout Structure
-
-```
-Page Root (p-8 max-w-4xl mx-auto animate-fade-in font-mono text-[13px])
-  ├── Page Header (mb-8)
-  │     ├── h1: # page_name.md
-  │     └── comment + [RELOAD]
-  └── Main Content Grid
-        └── Window Container(s) (bg-bg-primary/90 rounded-xl border ...)
-              ├── Title Bar
-              └── Body (p-6 md:p-8)
-                    ├── ## section_header
-                    ├── KV Rows / List Items
-                    └── Action Buttons
-```
-
----
-
-## 15. Execution Protocol
-
-When generating code:
-
-1. Start with the page root structure — `animate-fade-in`, `font-mono`, `text-[13px]`.
-2. Render the page header outside any window container.
-3. Wrap content in exactly **one** window container per logical section.
-4. Use KV rows for **all** form inputs — zero exceptions.
-5. Use `.sh` buttons for all primary save/submit actions.
-6. Verify labels are `snake_case` and `text-accent-violet`.
-7. Verify the filename in the title bar reflects the route (e.g., `ALIASES.ENV`, `SETTINGS.SH`).
+1. Place it inside the `MarketingLayout` — spines and blobs are inherited.
+2. Use `px-6 md:px-12 lg:px-20 py-36` outer padding on the `<section>`.
+3. Use `px-10 md:px-20` inner content container to clear the spine.
+4. Use `font-mono` as default — never override with `font-sans` for body text.
+5. Use `text-dim` for secondary text, `text-ghost` for decorative / meta text.
+6. Use `text-accent-violet` and `text-accent-cyan` sparingly — punctuation and active states only.
+7. Add diamond nodes only where content borders visually intersect the spines.
+8. Use the terminal signature elements (comment subtext, `tree` footer, `$` prompt, etc.) as _flavor_ — maximum 1–2 per section.
+9. For interactive client components: use `next/dynamic` to preserve the Server Component parent.

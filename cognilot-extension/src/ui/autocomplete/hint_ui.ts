@@ -9,11 +9,8 @@ export function paint(element: HTMLElement, suggestion: SuggestionState): void {
   if (!document.body) return;
 
   const hasOptions = suggestion.options && suggestion.options.length > 0;
-  if (suggestion.isError || (!hasOptions && !suggestion.isHelp)) {
+  if (!hasOptions && !suggestion.isHelp && !suggestion.isError && !suggestion.isNoMatch) {
     clear(element);
-    if (suggestion.isError) {
-      console.error('Cognilot Hint Error:', suggestion.error);
-    }
     return;
   }
 
@@ -48,7 +45,7 @@ export function paint(element: HTMLElement, suggestion: SuggestionState): void {
 
   container.innerHTML = '';
 
-  // Suggestion list section
+  // Suggestion list or status message section
   const listWrapper = document.createElement('div');
   listWrapper.style.padding = '4px 0';
 
@@ -56,7 +53,29 @@ export function paint(element: HTMLElement, suggestion: SuggestionState): void {
   const activeIdx = suggestion._activeIndex || 0;
   const isExample = suggestion.type === 'example';
 
-  if (options.length > 0 && !isExample) {
+  if (suggestion.isError) {
+    const errorItem = document.createElement('div');
+    Object.assign(errorItem.style, {
+      padding: '6px 12px',
+      display: 'flex',
+      alignItems: 'center',
+      gap: '8px',
+      color: '#ef4444',
+    });
+    errorItem.innerHTML = `<span>></span><span>${suggestion.error || 'Connection error'}</span>`;
+    listWrapper.appendChild(errorItem);
+  } else if (suggestion.isNoMatch) {
+    const noMatchItem = document.createElement('div');
+    Object.assign(noMatchItem.style, {
+      padding: '6px 12px',
+      display: 'flex',
+      alignItems: 'center',
+      gap: '8px',
+      color: 'rgba(255, 255, 255, 0.45)',
+    });
+    noMatchItem.innerHTML = `<span>></span><span>No match in memory</span>`;
+    listWrapper.appendChild(noMatchItem);
+  } else if (options.length > 0 && !isExample) {
     options.forEach((opt, index) => {
       const item = document.createElement('div');
       item.className = 'Cognilot-suggestion-item';
@@ -119,7 +138,11 @@ export function paint(element: HTMLElement, suggestion: SuggestionState): void {
   });
 
   const leftFooter = document.createElement('div');
-  if (isExample) {
+  if (suggestion.isError) {
+    leftFooter.innerHTML = `// <span style="color:#ef4444">[error]</span>`;
+  } else if (suggestion.isNoMatch) {
+    leftFooter.innerHTML = `// <span style="color:rgba(255,255,255,0.6)">[no matches]</span>`;
+  } else if (isExample) {
     const msg = options[0] || 'Example';
     leftFooter.innerHTML = `// <span style="color:rgba(255,255,255,0.6)">${msg}</span>`;
   } else {
@@ -129,9 +152,13 @@ export function paint(element: HTMLElement, suggestion: SuggestionState): void {
   footer.appendChild(leftFooter);
 
   const rightFooter = document.createElement('div');
-  rightFooter.innerHTML = `
-    <span>Help <span style="color:rgba(255,255,255,0.6)">[--]</span></span>
-  `;
+  if (suggestion.isError) {
+    rightFooter.innerHTML = `<span>Retry <span style="color:rgba(255,255,255,0.6)">[Ctrl+Space]</span></span>`;
+  } else if (suggestion.isNoMatch) {
+    rightFooter.innerHTML = `<span>Save <span style="color:rgba(255,255,255,0.6)">[Ctrl+Ins]</span></span>`;
+  } else {
+    rightFooter.innerHTML = `<span>Help <span style="color:rgba(255,255,255,0.6)">[--]</span></span>`;
+  }
   footer.appendChild(rightFooter);
 
   container.appendChild(footer);

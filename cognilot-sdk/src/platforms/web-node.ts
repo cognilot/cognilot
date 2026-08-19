@@ -118,6 +118,9 @@ export class WebNode implements CognilotNode {
       this.element.value = value;
       this.triggerEvent('input');
       this.triggerEvent('change');
+    } else if (this.element instanceof HTMLSelectElement) {
+      this.element.value = value;
+      this.triggerEvent('change');
     } else if (this.element.getAttribute('contenteditable') === 'true') {
       this.element.textContent = value;
       this.triggerEvent('input');

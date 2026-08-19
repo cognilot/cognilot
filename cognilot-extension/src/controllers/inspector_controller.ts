@@ -24,6 +24,7 @@ import {
   highlight,
   removeHighlight,
   processDetection,
+  paintResolvedFieldsFromRegistry,
   clear as uiClear,
   showToolbar,
   showToast,
@@ -80,6 +81,47 @@ function loadManualSelector(): string | null {
 
 // ─── INTERNAL HELPERS ─────────────────────────────────────────
 
+/**
+ * Updates the inspector toolbar UI (field count, buttons) from a detection result.
+ * Does NOT publish to sidebar — sidebar context is preserved as-is.
+ * Use this during inspector activation and mode switches to avoid overwriting
+ * the sidebar's existing form context (with belongsToForm, formScore, formId).
+ */
+function updateToolbarFromDetection(
+  container: HTMLElement | null,
+  existingDetection: DetectionPayload | SDKDetectionResult | null = null
+): void {
+  if (!container) return;
+
+  const detection =
+    existingDetection ||
+    (window.CognilotAPI?.detect
+      ? window.CognilotAPI.detect(container, false)
+      : ({ questions: [], count: 0 } as any));
+
+  processDetection(detection, false, false, true);
+
+  _detectedFieldCount = (detection as any).count || (detection as any).questions?.length || 0;
+
+  const handlers: ToolbarHandlers = {
+    onManualSelectClick: () => handleManualSelectClick(),
+    onSolveClick: () => handleSolveClick(),
+    onCaptureClick: () => handleCaptureClick(),
+    onMarkdownClick: () => handleMarkdownClick(),
+  };
+
+  updateActionButtons(_detectedFieldCount, handlers);
+
+  // Second pass: enrich with resolution data from the registry so ghost text
+  // and radio mem-highlights are applied correctly.
+  paintResolvedFieldsFromRegistry(container);
+}
+
+/**
+ * Full preview publish to sidebar AND toolbar update.
+ * Only call this when the user has explicitly changed the active container
+ * (e.g., manual click selection), so the sidebar context is intentionally replaced.
+ */
 function publishScopedPreview(
   container: HTMLElement | null,
   source = 'manual_selection',
@@ -153,7 +195,8 @@ async function activateDefaultFormScopePreview(): Promise<void> {
     const isSameContainer =
       cachedSelector && document.querySelector(cachedSelector as string) === container;
 
-    publishScopedPreview(container, 'manual_selection', isSameContainer ? cachedResult : null);
+    // Only update toolbar — sidebar already has correct form context from initial scan
+    updateToolbarFromDetection(container, isSameContainer ? cachedResult : null);
   } else {
     handleManualSelectClick();
   }
@@ -180,25 +223,30 @@ function handleSolveClick(): void {
       : facade?.detect(
           (_selectedContainer ? (sdk?.wrap(_selectedContainer) ?? null) : null) as any
         );
-  const finalQuestions = (detection as any)?.questions || [];
-  const messaging = sdk?.adapters?.messaging as
-    | { sendMessage(msg: Record<string, unknown>): Promise<void> }
-    | undefined;
+  const rawQuestions = (detection as any)?.questions || [];
+  const enrichedQuestions = (rawQuestions as any[])
+    .map((q) => ({
+      ...q,
+      belongsToForm: q.belongsToForm ?? true,
+      formScore: q.formScore || q.form_score || 80,
+    }))
+    .filter((q) => q.belongsToForm);
+  const payload = { questions: enrichedQuestions };
 
   console.log('[InspectorController] Sending solve request...', {
-    count: (finalQuestions as unknown[]).length,
+    count: enrichedQuestions.length,
     hasMessaging: !!messaging,
   });
 
   if (_selectedContainer) {
-    PreviewPublisher.publish(detection as Record<string, unknown>, 'manual_selection', 'inspect');
+    PreviewPublisher.publish(payload as Record<string, unknown>, 'manual_selection', 'inspect');
   }
 
   if (messaging) {
     messaging
       .sendMessage({
         action: 'inspectorSolveRequest',
-        data: { questions },
+        data: { questions: enrichedQuestions },
       })
       .catch((e: any) => {
         console.error('[InspectorController] Failed to send message:', e);
@@ -358,6 +406,9 @@ export function enable(activeFormId?: string): void {
 
   Logger.info('🕵️ Inspector Enabled');
 
+  // Clear the deduplication hash so future manual-selection publishes are not blocked
+  PreviewPublisher.dispose();
+
   try {
     chrome.runtime.sendMessage(
       {
@@ -415,15 +466,21 @@ export function enable(activeFormId?: string): void {
     try {
       const registry = window.Cognilot?.SDK?.registry;
       if (registry) {
-        const entries = registry.getAll().filter(
-          (e: any) => String(e.formScopeId || e.formId || e.form_id) === String(activeFormId)
-        );
+        const entries = registry
+          .getAll()
+          .filter(
+            (e: any) =>
+              String(e.formScopeId || e.formId || e.form_id || e.formIndex || '') ===
+                String(activeFormId) || String(activeFormId) === String(e.formIndex || '')
+          );
         if (entries.length > 0) {
           const firstEntry = entries[0];
-          const rawNode = firstEntry.node && typeof firstEntry.node.getRawNode === 'function'
-            ? firstEntry.node.getRawNode()
-            : firstEntry.node;
-          const firstEl = rawNode || (firstEntry.selector ? document.querySelector(firstEntry.selector) : null);
+          const rawNode =
+            firstEntry.node && typeof firstEntry.node.getRawNode === 'function'
+              ? firstEntry.node.getRawNode()
+              : firstEntry.node;
+          const firstEl =
+            rawNode || (firstEntry.selector ? document.querySelector(firstEntry.selector) : null);
           if (firstEl) {
             container = InspectorLib.resolveContainerFromElement(firstEl as HTMLElement);
           }
@@ -438,11 +495,13 @@ export function enable(activeFormId?: string): void {
     _selectedContainer = container;
     _activeSource = 'auto_scan';
     uiSetSelectedContainer(container);
-    // Find fields for this container
+    // Update toolbar field count only — sidebar already has the correct form context
+    // from the initial registry scan. Publishing here would overwrite it with raw
+    // detection data that lacks belongsToForm/formId/formScore metadata.
     const detection = window.CognilotAPI?.detect
       ? window.CognilotAPI.detect(container, false)
       : ({ questions: [], count: 0 } as any);
-    publishScopedPreview(container, 'auto_detection', detection);
+    updateToolbarFromDetection(container, detection);
     _isManualSelecting = false;
     setCursor(false);
     bindEvents();
@@ -462,7 +521,8 @@ export function enable(activeFormId?: string): void {
       _selectedContainer = container;
       _activeSource = 'manual_scan';
       uiSetSelectedContainer(container);
-      publishScopedPreview(container, 'manual_selection');
+      // Toolbar only — preserve sidebar context
+      updateToolbarFromDetection(container);
       _isManualSelecting = false;
       setCursor(false);
       bindEvents();
@@ -490,21 +550,40 @@ export function enable(activeFormId?: string): void {
     _selectedContainer = cacheContainer;
     _activeSource = 'auto_scan';
     uiSetSelectedContainer(cacheContainer);
-    publishScopedPreview(cacheContainer, 'auto_detection', cachedResult);
+    // Toolbar only — preserve sidebar context
+    updateToolbarFromDetection(cacheContainer, cachedResult);
     _isManualSelecting = false;
     setCursor(false);
   } else {
-    // PRIORITY 3: No detection — manual selection mode
-    _activeSource = null;
-    _isManualSelecting = true;
-    setCursor(true);
-    setManualSelectMode(true);
-    updateActionButtons(0, {
-      onManualSelectClick,
-      onSolveClick,
-      onCaptureClick,
-      onMarkdownClick,
-    });
+    // Check if best form container exists on page before empty manual mode
+    const ScopeResolver = window.Cognilot?.SDK?.Engines?.Detection?.FormScopeResolver;
+    const best = ScopeResolver?._findBestFormContainerInPage?.();
+    const fallbackContainer = best?.formContainer?.getRawNode() ?? null;
+
+    if (fallbackContainer) {
+      _selectedContainer = fallbackContainer;
+      _activeSource = 'auto_scan';
+      uiSetSelectedContainer(fallbackContainer);
+      const detection = window.CognilotAPI?.detect
+        ? window.CognilotAPI.detect(fallbackContainer, false)
+        : ({ questions: [], count: 0 } as any);
+      // Toolbar only — preserve sidebar context
+      updateToolbarFromDetection(fallbackContainer, detection);
+      _isManualSelecting = false;
+      setCursor(false);
+    } else {
+      // PRIORITY 3: No detection — manual selection mode
+      _activeSource = null;
+      _isManualSelecting = true;
+      setCursor(true);
+      setManualSelectMode(true);
+      updateActionButtons(0, {
+        onManualSelectClick,
+        onSolveClick,
+        onCaptureClick,
+        onMarkdownClick,
+      });
+    }
   }
 
   bindEvents();

@@ -32,9 +32,10 @@ class CognilotSidebar {
     this.solveActive = false;
     this.inspectorActive = false;
     this._resetThrottle = false;
-    this.activeScope = 'all'; // Top filters (Forms, Isolated, All)
+    this.activeScope = 'forms'; // Top filters ('forms', 'isolated')
     this.activeStatus = 'all'; // Internal filters (Todo, Mem, IA)
     this.activeMode = 'all'; // Mode filters (Escritura, Opciones)
+    this.carouselIndex = 0; // Active form index in carousel
   }
 
   async init() {
@@ -339,12 +340,73 @@ class CognilotSidebar {
     const validQuestions = questions.filter((q) => q && typeof q === 'object');
     if (validQuestions.length === 0) return;
 
+    // Minimum form score threshold (below this score, forms are degraded to isolated fields)
+    const FORM_SCORE_THRESHOLD = 30;
+    const existingQuestions = (this.currentChatContext?.questions || []) as any[];
+
+    // Pre-pass: enrich questions with existing context metadata to preserve form association
+    const enrichedQuestions = validQuestions.map((q: any) => {
+      const qId = q.id || q.key || q.selector;
+      const existing = existingQuestions.find(
+        (eq: any) =>
+          (eq.id && eq.id === qId) ||
+          (eq.key && eq.key === qId) ||
+          (eq.selector && eq.selector === q.selector)
+      );
+
+      const formId =
+        q.formId ||
+        q.form_id ||
+        q.formScopeId ||
+        (existing ? existing.formId || existing.form_id || existing.formScopeId : null);
+
+      let belongsToForm = q.belongsToForm;
+      if (belongsToForm === undefined || belongsToForm === null) {
+        belongsToForm = existing ? existing.belongsToForm : !!formId;
+      }
+
+      let formScore = Number(
+        q.formScore || q.form_score || (existing ? existing.formScore || existing.form_score : 0)
+      );
+      if (belongsToForm && (!formScore || formScore === 0)) {
+        formScore = 80;
+      }
+
+      return {
+        ...q,
+        belongsToForm,
+        formId,
+        form_id: formId,
+        formScore,
+        form_score: formScore,
+      };
+    });
+
+    // Calculate maximum score per form ID to evaluate validity
+    const formScoresMap: Record<string, number> = {};
+    enrichedQuestions.forEach((q: any) => {
+      if (q.belongsToForm) {
+        const id = String(q.formId || q.form_id || '');
+        const score = Number(q.formScore || q.form_score || 0);
+        if (id && (!formScoresMap[id] || score > formScoresMap[id])) {
+          formScoresMap[id] = score;
+        }
+      }
+    });
+
+    const sanitizedQuestions = enrichedQuestions.filter((q: any) => {
+      if (!q.belongsToForm) return false;
+      const id = String(q.formId || q.form_id || '');
+      const maxScore = formScoresMap[id] ?? Number(q.formScore || q.form_score || 0);
+      return maxScore >= FORM_SCORE_THRESHOLD;
+    });
+
     const sdk = window.Cognilot?.SDK;
     const alias = sdk?.alias;
     const profile = sdk?.profile;
 
     const processedQuestions = await Promise.all(
-      validQuestions.map(async (q, i) => {
+      sanitizedQuestions.map(async (q, i) => {
         const qData = { ...q, index: i + 1, answer: null, success: false };
 
         // Pre-populate if field already has a value on the page
@@ -379,17 +441,45 @@ class CognilotSidebar {
               }
 
               if (val !== undefined) {
-                qData.resolution = {
-                  success: true,
-                  source: source,
-                  value: typeof val === 'object' ? val.value : val,
-                };
+                const isChoice = q.type === 'radio' || q.type === 'checkbox' || q.type === 'select';
+                let hasMatch = true;
+
+                if (isChoice) {
+                  const qOptions = Array.isArray(q.options) ? q.options : [];
+                  const memOptions =
+                    match?.suggestion?.options || (typeof val === 'string' ? [val] : []);
+
+                  hasMatch = qOptions.some((opt) => {
+                    const optVal = String(opt.value || opt.text || opt)
+                      .trim()
+                      .toLowerCase();
+                    return memOptions.some((memOpt) => {
+                      const memVal = String(
+                        typeof memOpt === 'object' ? memOpt.value || memOpt.text : memOpt
+                      )
+                        .trim()
+                        .toLowerCase();
+                      return optVal === memVal;
+                    });
+                  });
+                }
+
+                if (hasMatch) {
+                  qData.resolution = {
+                    success: true,
+                    source: source,
+                    value: typeof val === 'object' ? val.value : val,
+                    options: match?.suggestion?.options || [],
+                    memoryKey: (match as any)?.memoryKey || null,
+                  };
+                }
               }
             }
           } catch (e) {
             console.warn('[Sidebar] Error pre-resolving local cache:', e);
           }
         }
+
         return qData;
       })
     );
@@ -409,97 +499,55 @@ class CognilotSidebar {
     this.updatePrimarySolveButtonState(true);
   }
 
-  renderFilterButtons(formIds) {
-    const container = document.getElementById('chat-context-filters');
-    if (!container) return;
+  getSortedForms() {
+    const allQuestions = this.currentChatContext?.questions || [];
+    const formQuestions = allQuestions.filter((q) => q.belongsToForm);
 
-    // Check if we have isolated fields
-    const hasIsolated = this.currentChatContext?.questions?.some((q) => !q.belongsToForm);
+    const grouped: Record<string, { formId: string; formName?: string; questions: any[] }> = {};
+    formQuestions.forEach((q) => {
+      const formId = String(q.formId || q.form_id || 'unknown');
+      if (!grouped[formId]) {
+        grouped[formId] = { formId, formName: q.formName, questions: [] };
+      }
+      grouped[formId].questions.push(q);
+    });
 
-    let html = `
-      <button class="filter-btn" 
-              style="font-size: 9px; padding: 2px 6px; border-radius: 4px; border: 1px solid ${this.activeScope === 'all' ? 'var(--accent-color)' : 'var(--border-color)'}; background: ${this.activeScope === 'all' ? 'var(--accent-color)' : 'transparent'}; color: ${this.activeScope === 'all' ? 'white' : 'var(--text-secondary)'}; cursor: pointer; font-weight: 600;"
-              data-filter="all">
-        Todos los formularios
-      </button>
-    `;
-
-    if (hasIsolated) {
-      html += `
-        <button class="filter-btn" 
-                style="font-size: 9px; padding: 2px 6px; border-radius: 4px; border: 1px solid ${this.activeScope === 'isolated' ? 'var(--accent-color)' : 'var(--border-color)'}; background: ${this.activeScope === 'isolated' ? 'var(--accent-color)' : 'transparent'}; color: ${this.activeScope === 'isolated' ? 'white' : 'var(--text-secondary)'}; cursor: pointer; font-weight: 600;"
-                data-filter="isolated">
-          Aislados
-        </button>
-      `;
-    }
-
-    // Helper to calculate UI Priority for a form ID
-    const getFormPriority = (formId: string) => {
-      const fields =
-        this.currentChatContext?.questions?.filter(
-          (q) => String(q.formId || q.form_id) === String(formId)
-        ) || [];
-
+    const getFormPriority = (formGroup: { formId: string; questions: any[] }) => {
       let iaCount = 0;
       let memCount = 0;
-
-      fields.forEach((f) => {
-        if (f.resolution?.success) memCount++;
+      formGroup.questions.forEach((q) => {
+        if (q.resolution?.success) memCount++;
         else iaCount++;
       });
-
-      const sdkScore = fields[0]?.formScore || 0;
+      const sdkScore = Number(
+        formGroup.questions[0]?.formScore || formGroup.questions[0]?.form_score || 0
+      );
       return sdkScore + iaCount * 50 + memCount * 10;
     };
 
-    // Sort form IDs by combined UI Priority
-    const sortedFormIds = [...formIds].sort((a, b) => {
-      return getFormPriority(b) - getFormPriority(a);
+    const sortedList = Object.values(grouped).sort(
+      (a, b) => getFormPriority(b) - getFormPriority(a)
+    );
+
+    return sortedList.map((formGroup, index) => {
+      return {
+        ...formGroup,
+        displayIndex: index + 1,
+        formLabel: `Formulario ${index + 1}`,
+      };
     });
+  }
 
-    sortedFormIds.forEach((id) => {
-      const filterKey = `form_${id}`;
-      // Calculate original index to keep "Formulario N" consistent with detection order
-      const originalIndex = formIds.indexOf(id);
-      const fieldWithFormName = this.currentChatContext?.questions?.find(
-        (q) => String(q.formId) === String(id) || String(q.form_id) === String(id)
-      );
-      const formLabel = fieldWithFormName?.formName || `Formulario ${originalIndex + 1}`;
-
-      html += `
-        <button class="filter-btn" 
-                style="font-size: 9px; padding: 2px 6px; border-radius: 4px; border: 1px solid ${this.activeScope === filterKey ? 'var(--accent-color)' : 'var(--border-color)'}; background: ${this.activeScope === filterKey ? 'var(--accent-color)' : 'transparent'}; color: ${this.activeScope === filterKey ? 'white' : 'var(--text-secondary)'}; cursor: pointer; font-weight: 600;"
-                data-filter="${filterKey}">
-          ${formLabel}
-        </button>
-      `;
-    });
-
-    container.innerHTML = html;
-
-    // Re-bind listeners
-    container.querySelectorAll('.filter-btn').forEach((btn) => {
-      btn.addEventListener('click', (e) => {
-        this.activeScope = btn.getAttribute('data-filter');
-        this.renderFilterButtons(formIds);
-        this.updateContextPreview();
-      });
-    });
+  renderFilterButtons() {
+    const container = document.getElementById('chat-context-filters');
+    if (!container) return;
+    this.activeScope = 'forms';
+    container.innerHTML = '';
   }
 
   renderStatusFilters() {
     const container = document.getElementById('chat-status-filters');
     if (!container) return;
-
-    // 1. Status Cycling Button (Estado, Memoria, IA)
-    const statusOptions = [
-      { id: 'all', label: 'Estado' },
-      { id: 'mem', label: 'Memoria' },
-      { id: 'ia', label: 'IA' },
-    ];
-    const currentStatusOpt =
-      statusOptions.find((o) => o.id === this.activeStatus) || statusOptions[0];
 
     // 2. Mode Cycling Button (Modo, Escritura, Opciones)
     const modeOptions = [
@@ -525,32 +573,7 @@ class CognilotSidebar {
               ">
         ${currentModeOpt.label}
       </button>
-      <button id="cycle-status-btn" class="status-pill" 
-              style="
-                font-size: 8px; 
-                padding: 2px 8px; 
-                border-radius: 10px; 
-                border: 1px solid ${this.activeStatus !== 'all' ? 'var(--accent-color)' : 'var(--border-color)'}; 
-                background: ${this.activeStatus !== 'all' ? 'var(--accent-color)' : 'rgba(0,0,0,0.02)'}; 
-                color: ${this.activeStatus !== 'all' ? 'white' : 'var(--text-secondary)'}; 
-                cursor: pointer; 
-                font-weight: 700;
-                text-transform: uppercase;
-                transition: all 0.2s ease;
-              ">
-        ${currentStatusOpt.label}
-      </button>
     `;
-
-    // Listeners for Status Button
-    document.getElementById('cycle-status-btn')?.addEventListener('click', (e) => {
-      e.stopPropagation();
-      const currentIndex = statusOptions.findIndex((o) => o.id === this.activeStatus);
-      const nextIndex = (currentIndex + 1) % statusOptions.length;
-      this.activeStatus = statusOptions[nextIndex].id;
-      this.renderStatusFilters();
-      this.updateContextPreview();
-    });
 
     // Listeners for Mode Button
     document.getElementById('cycle-mode-btn')?.addEventListener('click', (e) => {
@@ -564,39 +587,38 @@ class CognilotSidebar {
   }
 
   getFilteredQuestions() {
-    let questions = this.currentChatContext?.questions || [];
+    const allQuestions = this.currentChatContext?.questions || [];
+    let targetQuestions: any[] = [];
 
-    // 1. Apply Scope Filter (Top Level)
-    if (!this.activeScope || this.activeScope === 'all') {
-      questions = questions.filter((q) => q.belongsToForm);
-    } else if (this.activeScope === 'isolated') {
-      questions = questions.filter((q) => !q.belongsToForm);
-    } else if (this.activeScope && this.activeScope.startsWith('form_')) {
-      const targetFormId = this.activeScope.replace('form_', '');
-      questions = questions.filter(
-        (q) => String(q.formId) === targetFormId || String(q.form_id) === targetFormId
-      );
+    const sortedForms = this.getSortedForms();
+    if (sortedForms.length > 0) {
+      if (this.carouselIndex < 0 || this.carouselIndex >= sortedForms.length) {
+        this.carouselIndex = 0;
+      }
+      targetQuestions = sortedForms[this.carouselIndex].questions;
+    } else {
+      targetQuestions = allQuestions.filter((q) => q.belongsToForm);
     }
 
     // 2. Apply Status Filter (Internal Level)
     if (this.activeStatus === 'mem') {
-      questions = questions.filter(
+      targetQuestions = targetQuestions.filter(
         (q) => q.resolution?.success && q.resolution.source !== 'pre-filled'
       );
     } else if (this.activeStatus === 'ia') {
-      questions = questions.filter((q) => !q.resolution?.success || q.answer);
+      targetQuestions = targetQuestions.filter((q) => !q.resolution?.success || q.answer);
     }
 
     // 3. Apply Mode Filter (Internal Level)
     if (this.activeMode === 'escritura') {
       const textTypes = ['text', 'textarea', 'email', 'tel', 'url', 'number', 'search', 'password'];
-      questions = questions.filter((q) => textTypes.includes(q.type || 'text'));
+      targetQuestions = targetQuestions.filter((q) => textTypes.includes(q.type || 'text'));
     } else if (this.activeMode === 'opciones') {
       const choiceTypes = ['radio', 'checkbox', 'select', 'file', 'date', 'time', 'color', 'range'];
-      questions = questions.filter((q) => choiceTypes.includes(q.type));
+      targetQuestions = targetQuestions.filter((q) => choiceTypes.includes(q.type));
     }
 
-    return questions;
+    return targetQuestions;
   }
 
   updateContextPreview() {
@@ -609,12 +631,28 @@ class CognilotSidebar {
         this.currentChatContext?.questions && this.currentChatContext.questions.length > 0;
 
       if (hasQuestions) {
-        pre.style.display = 'block';
+        pre.style.display = 'flex';
         if (placeholder) placeholder.style.display = 'none';
 
-        // 1. Render internal status filters
+        // Expand footer and input container to fill vertical space when forms are active
+        const footer = document.getElementById('chat-footer');
+        const inputContainer = document.getElementById('chat-input-container');
+        if (footer) {
+          footer.style.flex = '1';
+          footer.style.overflow = 'hidden';
+          footer.style.display = 'flex';
+          footer.style.flexDirection = 'column';
+        }
+        if (inputContainer) {
+          inputContainer.style.flex = '1';
+          inputContainer.style.overflow = 'hidden';
+        }
+
+        // 1. Render filter buttons (Formularios / Aislados) and internal status filters
+        this.renderFilterButtons();
         this.renderStatusFilters();
 
+        const sortedForms = this.getSortedForms();
         const filteredQuestions = this.getFilteredQuestions();
         const themeColor = 'var(--accent-color, #0e7490)';
 
@@ -628,49 +666,139 @@ class CognilotSidebar {
             const labelStr = q.text || q.label || q.question || `Field ${i + 1}`;
             const cleanLabel = labelStr.replace(/\n/g, ' ').replace(/\s+/g, ' ').trim();
 
-            const hasResolution = q.resolution?.success;
+            const isChoice = type === 'radio' || type === 'checkbox' || type === 'select';
+            const qOptions = Array.isArray(q.options) ? q.options : [];
+
+            // ── Derived visual state flags ─────────────────────────────────
+            const isApplied = q.applied || this.lastSolvedUrl === this.currentTab?.url;
+            const hasResolution = !!q.resolution?.success;
+            const isPreFilled = q.resolution?.source === 'pre-filled';
+            const isMem = hasResolution && !isPreFilled;
+            const hasAnswer = !hasResolution && !!q.answer;
+            const isPendingIA = !hasResolution && !q.answer;
+            const memKey = q.resolution?.memoryKey || null;
+            const isAlias = q.resolution?.source === 'alias_cache';
+            const memOptions = q.resolution?.options || [];
+            const GRADIENT =
+              'background: var(--main-gradient); -webkit-background-clip: text; -webkit-text-fill-color: transparent;';
+
+            // ── Source badge & resolved value ──────────────────────────────
+            let headerBadge = '';
+            let resolvedValue = null;
+
+            if (q.resolution?.success) {
+              resolvedValue = q.resolution.value;
+              const source = q.resolution.source;
+              if (source === 'pre-filled') {
+                headerBadge = `<span style="font-size: 8px; font-weight: 700; color: var(--text-secondary); background: rgba(0,0,0,0.05); padding: 0 4px; border-radius: 3px; border: 1px solid var(--border-color); white-space: nowrap;">PRE</span>`;
+              } else if (memKey) {
+                headerBadge = `<span style="font-size: 9px; font-weight: 700; color: var(--accent-color); font-family: monospace; background: rgba(14,116,144,0.07); padding: 1px 5px; border-radius: 3px;">[${memKey}]</span>`;
+              } else if (source === 'alias_cache') {
+                headerBadge = `<span style="font-size: 8px; font-weight: 700; color: #8b5cf6; background: rgba(139,92,246,0.08); padding: 0 4px; border-radius: 3px; border: 1px solid rgba(139,92,246,0.2); white-space: nowrap;">ALIAS</span>`;
+              }
+            } else if (q.answer) {
+              resolvedValue = q.answer;
+              headerBadge = `<span style="font-size: 8px; font-weight: 700; color: #8b5cf6; background: rgba(139,92,246,0.08); padding: 0 4px; border-radius: 3px; border: 1px solid rgba(139,92,246,0.2); white-space: nowrap;">IA</span>`;
+            } else {
+              headerBadge = `<span style="font-size: 8px; font-weight: 700; color: #8b5cf6; background: rgba(139,92,246,0.08); padding: 0 4px; border-radius: 3px; border: 1px solid rgba(139,92,246,0.2); white-space: nowrap;">IA</span>`;
+            }
+
+            // ── Match resolved value against option text/value ─────────────
+            let selectedIndex = -1;
+            if (resolvedValue) {
+              const rv = String(resolvedValue).trim().toLowerCase();
+              selectedIndex = qOptions.findIndex(
+                (o) =>
+                  String(o.text || '')
+                    .trim()
+                    .toLowerCase() === rv ||
+                  String(o.value || '')
+                    .trim()
+                    .toLowerCase() === rv
+              );
+            }
 
             let entryHtml = `
-                    <div style="margin-bottom: 12px;">
+                    <div class="cognilot-field-card" data-selector="${q.selector || ''}" style="margin-bottom: 12px; transition: background-color 0.2s ease; border-radius: 4px; padding: 2px;">
                         <div style="display: flex; align-items: flex-start; gap: 8px;">
                             <div style="font-size: 10px; color: ${themeColor}; font-weight: 700; width: 14px; margin-top: 1px;">${i + 1}.</div>
                             <div style="flex: 1; min-width: 0;">
-                                <div style="display: flex; align-items: center; gap: 4px; flex-wrap: wrap; margin-bottom: 2px;">
-                                    <span style="font-size: 11px; font-weight: 600; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 150px;">${cleanLabel}</span>
+                                <div style="display: flex; align-items: center; gap: 4px; flex-wrap: wrap; margin-bottom: 4px;">
+                                    <span style="font-size: 11px; font-weight: 600; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 120px;">${cleanLabel}</span>
                                     <span style="font-size: 8px; color: var(--text-secondary); text-transform: uppercase; background: rgba(0,0,0,0.03); padding: 0 4px; border-radius: 3px; border: 1px solid var(--border-color);">${type}</span>
+                                    ${headerBadge}
                                 </div>
-                  `;
+              `;
 
-            if (hasResolution) {
-              const isPreFilled = q.resolution.source === 'pre-filled';
-              if (isPreFilled) {
-                entryHtml += `
-                             <div style="font-size: 10px; color: var(--text-secondary); opacity: 0.7;">
-                                 ${q.resolution.value}
-                             </div>
-                          `;
-              } else {
-                entryHtml += `
-                             <div style="display: flex; align-items: center; gap: 4px; font-size: 10px;">
-                                  <span style="font-weight: 800; color: var(--accent-color);">[MEM]</span>
-                                  <span style="color: var(--text-primary); font-weight: 500;">${q.resolution.value}</span>
-                              </div>
-                          `;
-              }
-            } else if (q.answer) {
+            // ── Value rendering (color-coded by state) ────────────────────
+            if (isChoice && qOptions.length > 0) {
+              const optsHtml = qOptions
+                .map((o, idx) => {
+                  const label = o.text || o.label || String(o.value || o);
+                  if (idx === selectedIndex) {
+                    if (isApplied) {
+                      return `<span style="font-size: 9px; font-weight: 600; color: #fff; background: ${themeColor}; padding: 2px 6px; border-radius: 3px;">${label}</span>`;
+                    } else if (isMem) {
+                      // Wrap label text inside a inner span with GRADIENT style to avoid shorthand background overrides clipping it to invisible
+                      return `<span style="font-size: 9px; font-weight: 600; background: rgba(0,0,0,0.03); padding: 2px 6px; border-radius: 3px; border: 1px solid var(--border-color);"><span style="${GRADIENT}">${label}</span></span>`;
+                    }
+                  }
+                  return `<span style="font-size: 9px; color: var(--text-secondary); background: rgba(0,0,0,0.03); padding: 2px 6px; border-radius: 3px; border: 1px solid var(--border-color);">${label}</span>`;
+                })
+                .join(' ');
               entryHtml += `
-                             <div style="display: flex; align-items: center; gap: 4px; font-size: 10px;">
-                                  <span style="font-weight: 800; color: #8b5cf6;">[IA]</span>
-                                  <span style="color: var(--text-primary); font-weight: 500;">${q.answer}</span>
-                              </div>
-                          `;
+                             <div style="display: flex; flex-wrap: wrap; gap: 3px; padding-left: 2px;">
+                                 ${optsHtml}
+                             </div>
+                           `;
+            } else if (isMem && !isApplied && memOptions.length > 0) {
+              let sHtml = '';
+              if (memOptions.length > 1) {
+                sHtml = memOptions
+                  .map((opt, idx) => {
+                    const label =
+                      typeof opt === 'string' ? opt : opt.text || opt.label || opt.value || '';
+                    if (idx === 0) {
+                      return `<div style="font-size: 10px; ${GRADIENT} font-weight: 600;">${label}</div>`;
+                    }
+                    return `<div style="font-size: 9px; color: var(--text-primary); font-weight: 400;">${label}</div>`;
+                  })
+                  .join('');
+              } else {
+                const label =
+                  typeof memOptions[0] === 'string'
+                    ? memOptions[0]
+                    : memOptions[0].text || memOptions[0].label || memOptions[0].value || '';
+                sHtml = `<div style="font-size: 10px; ${GRADIENT} font-weight: 600;">${label}</div>`;
+              }
+
+              entryHtml += `
+                             <div style="padding-left: 2px;">
+                                 ${sHtml}
+                             </div>
+                           `;
+            } else if (resolvedValue) {
+              let valueStyle;
+              if (isApplied) {
+                valueStyle = 'color: var(--text-secondary); font-weight: 500; opacity: 0.8;';
+              } else if (isMem) {
+                valueStyle = `${GRADIENT} font-weight: 600;`;
+              } else if (isPreFilled) {
+                valueStyle = 'color: var(--text-secondary); font-weight: 500; opacity: 0.8;';
+              } else {
+                valueStyle = 'color: var(--text-primary); font-weight: 500;';
+              }
+              entryHtml += `
+                             <div style="font-size: 10px; padding-left: 2px; ${valueStyle}">
+                                 ${resolvedValue}
+                             </div>
+                           `;
             } else {
               entryHtml += `
-                             <div style="display: flex; align-items: center; gap: 4px; font-size: 10px;">
-                                  <span style="font-weight: 800; color: #8b5cf6; opacity: 0.8;">[IA]</span>
-                                  <span style="color: var(--text-secondary); font-style: italic; opacity: 0.5;">...</span>
-                              </div>
-                          `;
+                             <div style="font-size: 10px; color: var(--text-secondary); font-style: italic; opacity: 0.5; padding-left: 2px;">
+                                 ...
+                             </div>
+                           `;
             }
 
             entryHtml += `</div></div></div>`;
@@ -680,68 +808,109 @@ class CognilotSidebar {
           let finalHtml = '';
 
           if (this.activeScope === 'isolated') {
-            // Render as simple list for isolated fields
-            finalHtml = filteredQuestions.map((q, i) => renderField(q, i)).join('');
-          } else {
-            // Group by formId
-            const grouped = {};
-            filteredQuestions.forEach((q) => {
-              const formId = q.formId || q.form_id || 'unknown';
-              if (!grouped[formId]) {
-                grouped[formId] = { formName: q.formName, questions: [] };
-              }
-              grouped[formId].questions.push(q);
-            });
+            finalHtml = `
+              <div style="font-size: 11px; font-weight: 700; color: var(--text-primary); margin-bottom: 10px; padding-bottom: 6px; border-bottom: 1px solid var(--divider-color);">
+                Campos Aislados
+              </div>
+            `;
+            finalHtml += filteredQuestions.map((q, i) => renderField(q, i)).join('');
+          } else if (sortedForms.length > 0) {
+            if (this.carouselIndex >= sortedForms.length) {
+              this.carouselIndex = 0;
+            }
+            const activeForm = sortedForms[this.carouselIndex];
 
-            // Get all unique form IDs in original order to determine correct index
-            const allFormIds = [
-              ...new Set(
-                (this.currentChatContext?.questions || [])
-                  .filter((q) => q.belongsToForm)
-                  .map((q) => String(q.formId || q.form_id || 'unknown'))
-              ),
-            ];
+            finalHtml = `
+              <div style="background: rgba(0,0,0,0.02); border: 1px solid var(--border-color); border-radius: 8px; padding: 12px; height: 100%; display: flex; flex-direction: column;">
+                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; padding-bottom: 8px; border-bottom: 1px solid var(--divider-color); flex-shrink: 0;">
+                  <div id="active-form-header" data-selector="${activeForm.formSelector || ''}" style="display: flex; align-items: center; gap: 8px; cursor: pointer; transition: opacity 0.2s ease;">
+                    <span style="font-size: 12px; font-weight: 700; color: var(--text-primary);">${activeForm.formLabel}</span>
+                    <span style="font-size: 9px; font-weight: 700; color: var(--accent-color); background: rgba(var(--accent-rgb), 0.1); padding: 1px 6px; border-radius: 4px; border: 1px solid rgba(var(--accent-rgb), 0.2);">[ ${this.carouselIndex + 1} / ${sortedForms.length} ]</span>
+                  </div>
 
-            Object.entries(grouped)
-              .sort((a, b) => {
-                const getPriority = (data: any) => {
-                  let iaCount = 0;
-                  let memCount = 0;
-                  data.questions.forEach((q) => {
-                    if (q.resolution?.success) memCount++;
-                    else iaCount++;
-                  });
-                  const sdkScore = data.questions[0]?.formScore || 0;
-                  return sdkScore + iaCount * 50 + memCount * 10;
-                };
-                return getPriority(b[1]) - getPriority(a[1]);
-              })
-              .forEach(([formId, data]) => {
-                const realIndex = allFormIds.indexOf(String(formId));
-                const displayIndex = realIndex >= 0 ? realIndex + 1 : 1;
-                const formLabel = data.formName || `Formulario ${displayIndex}`;
+                  <div style="display: flex; gap: 4px; align-items: center;">
+                    <button id="carousel-prev-btn" title="Formulario anterior" style="padding: 2px 8px; font-size: 12px; border: 1px solid var(--border-color); border-radius: 4px; background: var(--bg-surface); cursor: pointer; color: var(--text-primary); font-weight: bold; transition: all 0.2s ease;">‹</button>
+                    <button id="carousel-next-btn" title="Siguiente formulario" style="padding: 2px 8px; font-size: 12px; border: 1px solid var(--border-color); border-radius: 4px; background: var(--bg-surface); cursor: pointer; color: var(--text-primary); font-weight: bold; transition: all 0.2s ease;">›</button>
+                  </div>
+                </div>
 
-                finalHtml += `
-                <div style="background: rgba(0,0,0,0.02); border: 1px solid var(--border-color); border-radius: 8px; padding: 10px; margin-bottom: 12px;">
-                   <div style="font-size: 11px; font-weight: 700; color: var(--text-primary); margin-bottom: 10px; padding-bottom: 6px; border-bottom: 1px solid var(--divider-color);">
-                      ${formLabel}
-                   </div>
-              `;
-
-                finalHtml += data.questions.map((q, i) => renderField(q, i)).join('');
-
-                finalHtml += `</div>`;
-              });
+                <div style="flex: 1; overflow-y: auto; padding-right: 2px;">
+                  ${filteredQuestions.map((q, i) => renderField(q, i)).join('')}
+                </div>
+              </div>
+            `;
           }
 
           text.innerHTML = finalHtml;
+
+          // Wire hover highlights for fields
+          text.querySelectorAll('.cognilot-field-card').forEach((card: any) => {
+            const selector = card.getAttribute('data-selector');
+            if (selector) {
+              card.addEventListener('mouseenter', () => {
+                card.style.backgroundColor = 'var(--divider-color)';
+                this.safeSendMessage('sidebarHoverField', { selector });
+              });
+              card.addEventListener('mouseleave', () => {
+                card.style.backgroundColor = 'transparent';
+                this.safeSendMessage('sidebarUnhoverField', { selector });
+              });
+            }
+          });
+
+          // Wire hover highlights for form header
+          const formHeader = document.getElementById('active-form-header');
+          if (formHeader) {
+            const selector = formHeader.getAttribute('data-selector');
+            if (selector) {
+              formHeader.addEventListener('mouseenter', () => {
+                formHeader.style.opacity = '0.7';
+                this.safeSendMessage('sidebarHoverField', { selector });
+              });
+              formHeader.addEventListener('mouseleave', () => {
+                formHeader.style.opacity = '1';
+                this.safeSendMessage('sidebarUnhoverField', { selector });
+              });
+            }
+          }
+
+          // Wire Carousel Arrow Click Listeners
+          document.getElementById('carousel-prev-btn')?.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (sortedForms.length > 0) {
+              this.carouselIndex =
+                (this.carouselIndex - 1 + sortedForms.length) % sortedForms.length;
+              this.updateContextPreview();
+            }
+          });
+
+          document.getElementById('carousel-next-btn')?.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (sortedForms.length > 0) {
+              this.carouselIndex = (this.carouselIndex + 1) % sortedForms.length;
+              this.updateContextPreview();
+            }
+          });
         }
       } else {
         pre.style.display = 'none';
         if (placeholder) placeholder.style.display = 'block';
+
+        // Revert footer expansion when no forms are loaded
+        const footer = document.getElementById('chat-footer');
+        const inputContainer = document.getElementById('chat-input-container');
+        if (footer) {
+          footer.style.flex = '';
+          footer.style.overflow = '';
+          footer.style.display = '';
+          footer.style.flexDirection = '';
+        }
+        if (inputContainer) {
+          inputContainer.style.flex = '';
+          inputContainer.style.overflow = '';
+        }
       }
 
-      // Sync button state immediately after setting the preview display style
       const isDetected = !!(
         this.formDetection &&
         (this.formDetection.found ||
@@ -970,7 +1139,8 @@ class CognilotSidebar {
     this.toggleByokFieldsVisibility(!!this.currentSettings.byok?.enabled);
 
     // AI Model selected in Home
-    const modelValue = this.currentSettings.aiModels?.suggestionsProvider || 'llama-3.1-8b-instant';
+    const modelValue =
+      this.currentSettings.aiModels?.suggestionsProvider || 'llama-3.3-70b-versatile';
     const activeOption = document.querySelector(`.model-option[data-value="${modelValue}"]`);
     if (activeOption) {
       this.updateModelSelectionUI(activeOption);
@@ -1011,7 +1181,7 @@ class CognilotSidebar {
     const getVal = (id) =>
       (document.getElementById(id) as HTMLInputElement | HTMLSelectElement)?.value || '';
     const activeModelEl = document.querySelector('.model-option--active');
-    const getModelVal = () => activeModelEl?.dataset?.value || 'llama-3.1-8b-instant';
+    const getModelVal = () => activeModelEl?.dataset?.value || 'llama-3.3-70b-versatile';
 
     const settingsAdapter = window.Cognilot.SDK.Core.Registry.getAdapter('settings');
     if (settingsAdapter) {
@@ -1300,6 +1470,7 @@ class CognilotSidebar {
     });
 
     this.updateStatus('detected', this.getDomain());
+    this.updatePrimarySolveButtonState(this.detectedFieldCount > 0);
 
     if (window.Cognilot?.Logger) {
       window.Cognilot.Logger.info(`✅ Detection accepted: ${sourceName} (score: ${score})`);
@@ -1550,7 +1721,7 @@ class CognilotSidebar {
 
             // Revert option select in UI
             const currentVal =
-              this.currentSettings.aiModels?.suggestionsProvider || 'llama-3.1-8b-instant';
+              this.currentSettings.aiModels?.suggestionsProvider || 'llama-3.3-70b-versatile';
             const currentOption = document.querySelector(
               `.model-option[data-value="${currentVal}"]`
             );
@@ -1693,6 +1864,7 @@ class CognilotSidebar {
               source: source || 'suggestion',
               value: value,
             };
+            this.currentChatContext.questions[qIndex].applied = true;
             this.updateContextPreview();
           }
         }
@@ -1837,6 +2009,56 @@ class CognilotSidebar {
     });
   }
 
+  // Helper to verify if any choice field option matches a memory suggestion (Tanteo)
+  matchChoiceValue(fieldOpts: any[], memOpts: string[]) {
+    if (
+      !Array.isArray(fieldOpts) ||
+      fieldOpts.length === 0 ||
+      !Array.isArray(memOpts) ||
+      memOpts.length === 0
+    ) {
+      return null;
+    }
+    const normalize = (str: string) => str.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+
+    for (const opt of fieldOpts) {
+      const optText = String(opt.text || '')
+        .trim()
+        .toLowerCase();
+      const optVal = String(opt.value || '')
+        .trim()
+        .toLowerCase();
+      const nOptText = normalize(optText);
+      const nOptVal = normalize(optVal);
+
+      if (!optText && !optVal) continue;
+
+      for (const mem of memOpts) {
+        const mStr = String(mem).trim().toLowerCase();
+        const nMem = normalize(mStr);
+        if (!mStr) continue;
+
+        // 1. Exact match
+        if (optText === mStr || optVal === mStr || nOptText === nMem || nOptVal === nMem) {
+          return { value: String(opt.text || opt.value || mem), mem: mStr };
+        }
+
+        // 2. Substring match for longer texts (minimum 3 chars)
+        if (nMem.length >= 3 && nOptText.length >= 3) {
+          if (nOptText.includes(nMem) || nMem.includes(nOptText)) {
+            return { value: String(opt.text || opt.value || mem), mem: mStr };
+          }
+        }
+        if (nMem.length >= 3 && nOptVal.length >= 3) {
+          if (nOptVal.includes(nMem) || nMem.includes(nOptVal)) {
+            return { value: String(opt.text || opt.value || mem), mem: mStr };
+          }
+        }
+      }
+    }
+    return null;
+  }
+
   handleRegistryData(fields) {
     const questions = fields.map((f) => ({
       id: f.id,
@@ -1848,26 +2070,41 @@ class CognilotSidebar {
       formName: f.formName || f.form_name || null,
       formScore: f.formScore || 0,
       status: f.status,
-      resolution:
-        f.status === 'resolved'
-          ? {
-              success: true,
-              source:
-                f.resolution?.source === 'existing_value'
-                  ? 'pre-filled'
-                  : f.resolution?.source || 'ai',
-              value: f.resolution?.value,
-            }
-          : null,
+      applied: false,
+      options: Array.isArray(f.options) ? f.options : [],
+      resolution: (() => {
+        if (f.status !== 'resolved') return null;
+        const isChoice = f.type === 'radio' || f.type === 'checkbox' || f.type === 'select';
+        if (isChoice) {
+          const fieldOpts = Array.isArray(f.options) ? f.options : [];
+          const resOpts = ((f.resolution as any)?.options || []).map(String);
+          if (f.resolution?.value) {
+            resOpts.push(String(f.resolution.value));
+          }
+          const matched = this.matchChoiceValue(fieldOpts, resOpts);
+          if (!matched && f.resolution?.source !== 'existing_value') {
+            return null; // Choice options don't match memory value — degrade to IA
+          }
+        }
+        return {
+          success: true,
+          source:
+            f.resolution?.source === 'existing_value' ? 'pre-filled' : f.resolution?.source || 'ai',
+          value: f.resolution?.value,
+          options: (f.resolution as any)?.options || [],
+          memoryKey: (f.resolution as any)?.memoryKey || null,
+        };
+      })(),
     }));
 
-    // Retain previous answer states if any
+    // Retain previous answer/applied states if any
     if (this.currentChatContext && this.currentChatContext.questions) {
       questions.forEach((q) => {
         const oldQ = this.currentChatContext.questions.find((old) => old.id === q.id);
         if (oldQ) {
           q.answer = oldQ.answer;
           q.success = oldQ.success;
+          q.applied = oldQ.applied;
         }
       });
     }
@@ -1899,10 +2136,75 @@ class CognilotSidebar {
     } else if (fields.length > 0) {
       this.formDetection = { found: true, isForm: false };
       this.updateStatus('detected', this.getDomain(), `${fields.length} fields found`);
-      this.updatePrimarySolveButtonState(false);
+      this.updatePrimarySolveButtonState(true);
     } else {
       this.updateStatus('not-detected', this.getDomain(), pageTitle);
       this.updatePrimarySolveButtonState(false);
+    }
+
+    // Background enrichment: resolve memoryKey for MEM fields (registry path)
+    // This is async and non-blocking — re-renders once complete
+    setTimeout(() => this._enrichWithMemoryKeys(), 80);
+  }
+
+  /**
+   * Post-processes MEM resolution fields that lack `memoryKey` (e.g. from the
+   * Universal Scan registry path). Calls the SDK alias/profile resolvers in the
+   * sidebar context and patches the question objects in-place, then re-renders.
+   */
+  async _enrichWithMemoryKeys() {
+    const sdk = window.Cognilot?.SDK;
+    const alias = sdk?.alias;
+    const profile = sdk?.profile;
+    if (!alias && !profile) return;
+
+    const questions = this.currentChatContext?.questions;
+    if (!questions) return;
+
+    let updated = false;
+    await Promise.all(
+      questions.map(async (q) => {
+        // Only enrich resolved MEM fields that are missing memoryKey
+        if (
+          !q.resolution?.success ||
+          q.resolution.source === 'pre-filled' ||
+          q.resolution.memoryKey
+        )
+          return;
+
+        try {
+          let match = alias ? await alias.resolve(q) : null;
+          let source = 'alias_cache';
+          if (!match && profile) {
+            match = await profile.resolve(q);
+            source = 'profile_cache';
+          }
+          if (match?.memoryKey) {
+            const isChoice = q.type === 'radio' || q.type === 'checkbox' || q.type === 'select';
+            let hasMatch = true;
+            if (isChoice) {
+              const qOptions = Array.isArray(q.options) ? q.options : [];
+              const memOptions = match.suggestion?.options || [];
+              const matched = this.matchChoiceValue(qOptions, memOptions);
+              hasMatch = !!matched;
+            }
+            if (hasMatch) {
+              q.resolution.memoryKey = match.memoryKey;
+              q.resolution.source = source;
+              if (match.suggestion?.options?.length > 0) {
+                q.resolution.options = match.suggestion.options;
+              }
+              updated = true;
+            }
+          }
+        } catch (_e) {
+          // silent — never block the UI for enrichment failures
+        }
+      })
+    );
+
+    if (updated) {
+      this.updateContextPreview();
     }
   }
 
@@ -1971,6 +2273,7 @@ class CognilotSidebar {
           this.currentChatContext.questions[qIndex].answer =
             data.answer || (data.success ? 'Listo' : 'Error');
           this.currentChatContext.questions[qIndex].success = data.success;
+          this.currentChatContext.questions[qIndex].applied = true;
         }
       }
       // Update assistant message — accumulate, never erase previous results
@@ -2346,37 +2649,27 @@ class CognilotSidebar {
 
     if (questions.length === 0) return;
 
-    const fieldNames = questions
-      .slice(0, 5)
-      .map((q) => q.text || q.label || q.question || 'campo')
-      .join(', ');
-    const moreCount = questions.length > 5 ? ` +${questions.length - 5} more` : '';
-    const userSummary = `Solve ${questions.length} field${questions.length !== 1 ? 's' : ''}: ${fieldNames}${moreCount}`;
-
-    // 2. Create user bubble (blue, right-aligned)
-    this.appendChatMessage(userSummary, 'user');
-
-    // 3. Hide context preview from input (it's been "sent")
-    const contextPreview = document.getElementById('chat-context-preview');
-    if (contextPreview) contextPreview.style.display = 'none';
-    const placeholder = document.getElementById('chat-input-placeholder');
-    if (placeholder) placeholder.style.display = 'block';
-
-    // 4. Create assistant plain-text message placeholder
-    this._assistantMsgEl = this.appendChatMessage(
-      `
-        <div class="status-message-chip">
-          <span>Iniciando resolución</span>
-          <svg class="arrow-icon" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
-            <polyline points="9 18 15 12 9 6"></polyline>
-          </svg>
+    // 2. Show inline loading overlay inside the existing context-text panel
+    const contextText = document.getElementById('chat-context-text');
+    if (contextText) {
+      contextText.innerHTML = `
+        <div id="solve-inline-container" style="padding: 4px 0;">
+          <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 10px; padding-bottom: 8px; border-bottom: 1px solid var(--border-color);">
+            <svg class="solve-spinner" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--accent-color)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/>
+              <path d="M21 3v5h-5"/>
+            </svg>
+            <span style="font-size: 10px; font-weight: 600; color: var(--accent-color); text-transform: uppercase; letter-spacing: 0.5px;">Resolviendo ${questions.length} campo${questions.length !== 1 ? 's' : ''}...</span>
+          </div>
+          <div id="solve-response"></div>
         </div>
-    `,
-      'assistant',
-      'solve-response'
-    );
+      `;
+    }
 
-    // 5. Disable send button while solving
+    // 3. Wire the progress target to the inline container
+    this._assistantMsgEl = document.getElementById('solve-response');
+
+    // 4. Disable solve button while solving
     this.updatePrimarySolveButtonState(false);
 
     try {
@@ -2389,6 +2682,14 @@ class CognilotSidebar {
       }
     } finally {
       this.solveActive = false;
+      this.updatePrimarySolveButtonState(
+        !!(
+          this.formDetection &&
+          (this.formDetection.isForm ||
+            this.formDetection.found ||
+            this.formDetection.result?.esFormulario)
+        )
+      );
     }
   }
 
@@ -2454,10 +2755,9 @@ class CognilotSidebar {
 
     const newActive = !this.inspectorActive;
     const action = newActive ? 'sidebarEnableInspector' : 'sidebarDisableInspector';
-    const activeFormId =
-      this.activeScope && this.activeScope.startsWith('form_')
-        ? this.activeScope.replace('form_', '')
-        : null;
+    const sortedForms = this.getSortedForms();
+    const activeForm = sortedForms[this.carouselIndex] || sortedForms[0];
+    const activeFormId = activeForm ? String(activeForm.formId) : null;
     const data = newActive ? { activeFormId } : {};
 
     console.log('[Sidebar] handleManualSelection triggered', {

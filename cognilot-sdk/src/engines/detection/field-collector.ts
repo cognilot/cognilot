@@ -70,7 +70,7 @@ export class FieldCollector {
         : element.getAttribute('contenteditable') === 'true'
           ? 'text'
           : isCombobox
-            ? 'select'
+            ? 'autocomplete'
             : element.type || element.tagName.toLowerCase();
 
       // Choice Group Handling (Radio / Checkbox)
@@ -105,10 +105,12 @@ export class FieldCollector {
         return;
       }
 
-      // Select Handling
+      // Select / Autocomplete Handling
       let options: any[] = [];
       if (cleanType.startsWith('select')) {
         cleanType = 'select';
+        options = this.labelExtractor.collectChoiceOptions(element);
+      } else if (cleanType === 'autocomplete') {
         options = this.labelExtractor.collectChoiceOptions(element);
       }
 
@@ -117,7 +119,55 @@ export class FieldCollector {
       );
     });
 
-    return detectedFields;
+    // Deduplicate fields in the same container with matching label/name/id,
+    // prioritizing rich-text / ProseMirror elements over fallback textareas/inputs.
+    const deduplicatedFields: FieldDetectionResponse[] = [];
+    const seenByKey = new Map<string, FieldDetectionResponse>();
+
+    detectedFields.forEach((field) => {
+      const normLabel = (field.text || '').toLowerCase().trim();
+      const normName = (field.name || field.id || '').toLowerCase().trim();
+      const key = normLabel || normName;
+
+      if (!key) {
+        deduplicatedFields.push(field);
+        return;
+      }
+
+      if (!seenByKey.has(key)) {
+        seenByKey.set(key, field);
+        deduplicatedFields.push(field);
+      } else {
+        const existing = seenByKey.get(key)!;
+        const fieldNode = (field as any).node;
+        const existingNode = (existing as any).node;
+
+        const isFieldRichText =
+          fieldNode?.getAttribute?.('contenteditable') === 'true' ||
+          fieldNode?.getAttribute?.('role') === 'textbox';
+        const isExistingRichText =
+          existingNode?.getAttribute?.('contenteditable') === 'true' ||
+          existingNode?.getAttribute?.('role') === 'textbox';
+
+        const isFieldFallback =
+          (fieldNode?.className || '').includes('fallback') ||
+          (fieldNode?.getAttribute?.('class') || '').includes('fallback');
+        const isExistingFallback =
+          (existingNode?.className || '').includes('fallback') ||
+          (existingNode?.getAttribute?.('class') || '').includes('fallback');
+
+        // Prefer rich-text over non-rich-text, and non-fallback over fallback
+        if ((isFieldRichText && !isExistingRichText) || isExistingFallback) {
+          seenByKey.set(key, field);
+          const idx = deduplicatedFields.indexOf(existing);
+          if (idx !== -1) {
+            deduplicatedFields[idx] = field;
+          }
+        }
+      }
+    });
+
+    return deduplicatedFields;
   }
 
   /**

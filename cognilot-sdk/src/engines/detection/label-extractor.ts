@@ -324,6 +324,42 @@ export class LabelExtractor {
         })
         .filter((o) => o.text && !/selecciona|elige|choose|select|n\/a|-|--/i.test(o.text));
     }
+
+    // Autocomplete / combobox: try to extract options from live DOM (MUI, etc.)
+    const role = element.getAttribute('role');
+    if (role === 'combobox') {
+      const doc = this.adapter.getGlobalContext().document;
+      const inputId = element.id;
+      let listboxEl: Element | null = null;
+
+      // Strategy 1: aria-controls points directly to the listbox
+      const controlsId = element.getAttribute('aria-controls');
+      if (controlsId) {
+        listboxEl = doc.getElementById(controlsId);
+      }
+
+      // Strategy 2: MUI pattern — listbox id = input.id + "-listbox"
+      if (!listboxEl && inputId) {
+        listboxEl = doc.getElementById(`${inputId}-listbox`);
+      }
+
+      // Strategy 3: scan all listboxes in the document for MUI Autocomplete popper
+      if (!listboxEl) {
+        listboxEl = doc.querySelector('.MuiAutocomplete-popper [role="listbox"]');
+      }
+
+      if (listboxEl) {
+        const items = Array.from(listboxEl.querySelectorAll('[role="option"]'));
+        return items
+          .map((opt, i) => {
+            const text = (opt.textContent || '').trim();
+            const value = (opt as HTMLElement).getAttribute('data-value') || text;
+            return text ? { text, value, index: i } : null;
+          })
+          .filter((o): o is { text: string; value: string; index: number } => o !== null);
+      }
+    }
+
     return [];
   }
 

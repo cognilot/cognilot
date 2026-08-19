@@ -61,7 +61,8 @@ function mapLLMJsonToDataLearned(llmJson: Record<string, any>): Record<string, s
   };
 
   // 1. Direct standard field mapping
-  setField('full_name', llmJson.full_name);
+  setField('given_name', llmJson.given_name);
+  setField('family_name', llmJson.family_name);
   setField('email', llmJson.email);
   setField('phone_number', llmJson.phone_number);
   setField('phone', llmJson.phone_number); // duplicate for compatibility
@@ -184,7 +185,8 @@ onboardingRouter.post('/parse-cv', async (c) => {
   const systemPrompt = `Act as an expert CV data extractor. Extract the information from the following CV text and return it in strict JSON format.
 
 Required fields (use EXACTLY these keys):
-- full_name (string or null)
+- given_name (string or null — first/given name only)
+- family_name (string or null — last/family name only)
 - email (string or null)
 - phone_number (string or null)
 - profession (string or null)

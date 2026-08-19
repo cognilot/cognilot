@@ -63,18 +63,55 @@
 
 /* Identified fields visualization inside Inspector scope */
 .Cognilot-detected-field {
-  box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.45) !important;
-  outline: 1px solid #10b981 !important;
-  background-color: rgba(16, 185, 129, 0.712) !important; /* Restored to user's preferred opacity */
+  box-shadow: 0 0 0 2px rgba(6, 182, 212, 0.35) !important;
+  outline: 1px solid #06b6d4 !important;
+  background-color: rgba(6, 182, 212, 0.05) !important;
   transition: all 0.2s ease;
 }
 
 .Cognilot-detected-field:hover {
-  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.6) !important;
+  box-shadow: 0 0 0 3px rgba(6, 182, 212, 0.55) !important;
 }
 
+/* Detected label color: cyan = memory / memKey resolved */
 .Cognilot-detected-label {
-  color: #10b981 !important;
+  color: #06b6d4 !important;
+  transition: all 0.2s ease;
+}
+
+/* Pending label override: violet = needs AI  */
+.Cognilot-label-ai {
+  color: #8b5cf6 !important;
+}
+
+/* Resolved from memory: subtle cyan border on text inputs */
+.Cognilot-field-resolved {
+  outline: 1px solid rgba(6, 182, 212, 0.55) !important;
+  box-shadow: 0 0 0 2px rgba(6, 182, 212, 0.12) !important;
+  background-color: rgba(6, 182, 212, 0.03) !important;
+  transition: all 0.2s ease;
+}
+
+/* Matching radio / checkbox option wrapper (memory resolved):
+   Gradient border + subtle glow. Applies to the <label> or wrapper
+   element that contains the matching <input type="radio|checkbox">. */
+.Cognilot-radio-mem {
+  outline: 1.5px solid rgba(6, 182, 212, 0.65) !important;
+  box-shadow:
+    0 0 0 3px rgba(6, 182, 212, 0.15),
+    0 0 0 1px rgba(139, 92, 246, 0.1) !important;
+  background: linear-gradient(135deg, rgba(6, 182, 212, 0.1), rgba(139, 92, 246, 0.06)) !important;
+  border-radius: 6px;
+  color: #06b6d4 !important;
+}
+
+/* Matching radio / checkbox option label text (memory resolved) */
+.Cognilot-radio-label-mem {
+  background: var(--Cognilot-main-gradient) !important;
+  -webkit-background-clip: text !important;
+  -webkit-text-fill-color: transparent !important;
+  font-weight: 700 !important;
+  display: inline-block !important;
   transition: all 0.2s ease;
 }
 
@@ -135,4 +172,29 @@
   50% {
     opacity: 0;
   }
+}
+
+/* Color coded visual states for fields in Inspect Mode */
+.Cognilot-field-pending {
+  outline: 2px solid var(--Cognilot-main-secondary) !important;
+  box-shadow: 0 0 0 2px rgba(139, 92, 246, 0.2) !important;
+  background-color: rgba(139, 92, 246, 0.04) !important;
+  transition: all 0.2s ease;
+}
+
+.Cognilot-field-prefilled {
+  outline: 1px dashed rgba(148, 163, 184, 0.6) !important;
+  box-shadow: 0 0 0 1px rgba(148, 163, 184, 0.1) !important;
+  background-color: rgba(148, 163, 184, 0.02) !important;
+  transition: all 0.2s ease;
+}
+
+.Cognilot-field-hover-highlight {
+  outline: 2px dashed #06b6d4 !important;
+  box-shadow: 0 0 0 4px rgba(6, 182, 212, 0.25) !important;
+  background-color: rgba(6, 182, 212, 0.08) !important;
+  transition:
+    outline 0.15s ease,
+    box-shadow 0.15s ease;
+  z-index: 2147483645 !important;
 }

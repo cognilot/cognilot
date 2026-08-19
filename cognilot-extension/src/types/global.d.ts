@@ -415,6 +415,7 @@ interface SuggestionState {
   _isFeedback?: boolean;
   isLoading?: boolean;
   isError?: boolean;
+  isNoMatch?: boolean;
   isHelp?: boolean;
   error?: string;
   type?: string;
@@ -455,7 +456,7 @@ interface Window {
   };
   CognilotAPI: {
     solveAll(questions?: SDKQuestionDTO[] | null): unknown;
-    enableInspector(): void;
+    enableInspector(activeFormId?: string): void;
     disableInspector(): void;
     detect(
       scopeElement?: HTMLElement | null,

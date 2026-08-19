@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
+import { FeatureShowcaseLoader } from './FeatureShowcaseLoader';
 
 export const metadata: Metadata = {
   title: 'Cognilot — AI-Powered Form Autofill',
@@ -301,6 +302,31 @@ export default function HomePage() {
               </div>
             ))}
           </div>
+        </div>
+      </section>
+      {/* How it Works — Feature Showcase */}
+      <section className="relative z-10 w-full px-6 md:px-12 lg:px-20 py-36">
+        {/* Flat top divider with diamond nodes */}
+        <div
+          className="absolute top-0 left-0 right-0 border-t border-white/5 pointer-events-none"
+          aria-hidden="true"
+        >
+          <div className="absolute left-6 md:left-12 lg:left-20 top-0 -translate-x-1/2 -translate-y-1/2 w-1.5 h-1.5 bg-background border border-white/30 rotate-45" />
+          <div className="absolute right-6 md:right-12 lg:right-20 top-0 translate-x-1/2 -translate-y-1/2 w-1.5 h-1.5 bg-background border border-white/30 rotate-45" />
+        </div>
+
+        <div className="relative px-10 md:px-20">
+          {/* Section heading */}
+          <h2
+            className="font-mono font-bold leading-none tracking-tighter text-white mb-16 select-none
+                         text-[8vw] sm:text-[6vw] md:text-[5vw] lg:text-[4.5vw]"
+          >
+            HOW_IT_WORKS
+            <span className="text-accent-violet">/</span>
+            <span className="text-accent-cyan">/</span>
+          </h2>
+
+          <FeatureShowcaseLoader />
         </div>
       </section>
     </>

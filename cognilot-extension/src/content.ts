@@ -249,7 +249,7 @@ import { Modules, init as initModules } from './index';
 
   interface CognilotAPI {
     solveAll(questions?: unknown[] | null): Promise<unknown> | { error: string };
-    enableInspector(): void;
+    enableInspector(activeFormId?: string): void;
     disableInspector(): void;
     detect(scopeElement?: HTMLElement | null, silent?: boolean): DetectionPayload;
   }
@@ -259,8 +259,8 @@ import { Modules, init as initModules } from './index';
       return solveAll(questions as SDKQuestionDTO[] | null);
     },
 
-    enableInspector: () => {
-      enableInspector();
+    enableInspector: (activeFormId?: string) => {
+      enableInspector(activeFormId);
     },
 
     disableInspector: () => {
@@ -328,17 +328,7 @@ import { Modules, init as initModules } from './index';
       const api = (window as unknown as { CognilotAPI: CognilotAPI }).CognilotAPI;
 
       if (request.action === 'sidebarDetectForms') {
-        const cached = window.Cognilot.SDK?.facade?.getCache();
-        if (cached) {
-          Logger.info('♻️ [sidebarDetectForms] Serving from cache.');
-          const payload = new DetectionPayload(
-            cached.result as unknown as Record<string, unknown>,
-            'auto_detection'
-          );
-          sendResponse({ success: true, detection: payload.serialize() });
-          return true;
-        }
-
+        window.Cognilot.SDK?.facade?.clearCache?.();
         const payload = api.detect(null, false);
         sendResponse({ success: true, detection: payload.serialize() });
         return true;
@@ -404,6 +394,75 @@ import { Modules, init as initModules } from './index';
 
       if (request.action === 'sidebarDisableInspector') {
         api.disableInspector();
+        sendResponse({ success: true });
+        return true;
+      }
+
+      if (request.action === 'sidebarHoverField') {
+        const selector = (request.data as any)?.selector || (request as any).selector;
+        if (selector) {
+          try {
+            let el: HTMLElement | null = null;
+            const registry = window.Cognilot?.SDK?.registry;
+            if (registry && typeof registry.getAll === 'function') {
+              const allFields = registry.getAll();
+              const match = allFields.find(
+                (f: any) => f.selector === selector || f.id === selector || f.name === selector
+              );
+              if (match) {
+                const node = match.node || match.element;
+                el = (
+                  node && typeof node.getRawNode === 'function' ? node.getRawNode() : node
+                ) as HTMLElement | null;
+              }
+            }
+
+            if (!el) {
+              el = document.querySelector(selector) as HTMLElement | null;
+            }
+
+            if (el) {
+              el.classList.add('Cognilot-field-hover-highlight');
+              el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+          } catch (e) {
+            console.warn('[content.ts] Failed to highlight/scroll to element:', selector, e);
+          }
+        }
+        sendResponse({ success: true });
+        return true;
+      }
+
+      if (request.action === 'sidebarUnhoverField') {
+        const selector = (request.data as any)?.selector || (request as any).selector;
+        if (selector) {
+          try {
+            let el: HTMLElement | null = null;
+            const registry = window.Cognilot?.SDK?.registry;
+            if (registry && typeof registry.getAll === 'function') {
+              const allFields = registry.getAll();
+              const match = allFields.find(
+                (f: any) => f.selector === selector || f.id === selector || f.name === selector
+              );
+              if (match) {
+                const node = match.node || match.element;
+                el = (
+                  node && typeof node.getRawNode === 'function' ? node.getRawNode() : node
+                ) as HTMLElement | null;
+              }
+            }
+
+            if (!el) {
+              el = document.querySelector(selector) as HTMLElement | null;
+            }
+
+            if (el) {
+              el.classList.remove('Cognilot-field-hover-highlight');
+            }
+          } catch (e) {
+            console.warn('[content.ts] Failed to remove highlight from element:', selector, e);
+          }
+        }
         sendResponse({ success: true });
         return true;
       }

@@ -15,6 +15,15 @@ interface PreviewQuestion {
   id?: string;
   ref_id?: string | null;
   section_ref_id?: string | null;
+  belongsToForm?: boolean;
+  formScopeId?: string | null;
+  formId?: string | null;
+  form_id?: string | null;
+  formScore?: number;
+  form_score?: number;
+  status?: string;
+  resolution?: any;
+  options?: any[];
 }
 
 interface DetectionData {
@@ -56,6 +65,7 @@ export function publish(
   _lastScopedPreviewHash = nextHash;
 
   const questions = questionsList.map((q) => ({
+    id: q?.id || q?.key || '',
     type: q?.type || 'text',
     text: q?.text || q?.label || q?.question || '',
     label: q?.label || '',
@@ -65,6 +75,15 @@ export function publish(
     key: q?.key || q?.id || '',
     ref_id: q?.ref_id || null,
     section_ref_id: q?.section_ref_id || null,
+    belongsToForm: q?.belongsToForm ?? (!!q?.formScopeId || !!q?.formId || !!q?.form_id),
+    formScopeId: q?.formScopeId || q?.formId || q?.form_id || null,
+    formScore:
+      q?.formScore ??
+      q?.form_score ??
+      (q?.belongsToForm || q?.formScopeId || q?.formId || q?.form_id ? 80 : 0),
+    status: q?.status || 'pending',
+    resolution: q?.resolution || null,
+    options: q?.options || [],
   }));
 
   try {

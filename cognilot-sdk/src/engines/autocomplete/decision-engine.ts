@@ -100,8 +100,8 @@ export class DecisionEngine {
 
     const settings = this.sdk.adapters?.settings;
     const actionsProvider = settings
-      ? await settings.getSetting('aiModels.actionsProvider', 'llama-3.1-8b-instant')
-      : 'llama-3.1-8b-instant';
+      ? await settings.getSetting('aiModels.actionsProvider', 'llama-3.3-70b-versatile')
+      : 'llama-3.3-70b-versatile';
     const payload = {
       provider: actionsProvider,
       questions: [
@@ -203,8 +203,8 @@ export class DecisionEngine {
 
     const settings = this.sdk.adapters?.settings;
     const actionsProvider = settings
-      ? await settings.getSetting('aiModels.actionsProvider', 'llama-3.1-8b-instant')
-      : 'llama-3.1-8b-instant';
+      ? await settings.getSetting('aiModels.actionsProvider', 'llama-3.3-70b-versatile')
+      : 'llama-3.3-70b-versatile';
 
     // 2. Multi-field payload
     const payload = {

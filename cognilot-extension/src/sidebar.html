@@ -270,7 +270,7 @@
             <!-- 1. Filters at the top (As requested) -->
             <div
               id="chat-context-filters"
-              style="display: flex; gap: 4px; margin-bottom: 10px; flex-wrap: wrap; flex-shrink: 0"
+              style="display: flex; gap: 4px; margin-bottom: 0px; flex-wrap: wrap; flex-shrink: 0"
             >
               <!-- Buttons injected by sidebar.ts -->
             </div>
@@ -281,6 +281,7 @@
               formulario para automatizar.
             </div>
 
+            <!-- AI Section -->
             <!-- AI Section -->
             <div
               id="home-chat-section"
@@ -293,7 +294,7 @@
                   flex: 1;
                   overflow-y: auto;
                   padding-right: 5px;
-                  display: flex;
+                  display: none;
                   flex-direction: column;
                   gap: 8px;
                   margin-bottom: 10px;
@@ -316,7 +317,7 @@
               ></div>
 
               <!-- Status Bar -->
-              <div id="status-card" style="flex-shrink: 0; padding: 10px 2px; margin-top: auto">
+              <div id="status-card" style="flex-shrink: 0; padding: 6px 2px; margin-top: auto">
                 <div
                   class="agent-context-header"
                   style="display: flex; justify-content: space-between; align-items: center"
@@ -380,27 +381,38 @@
               </div>
 
               <!-- Chat Footer: Input Box -->
-              <div class="chat-footer" style="flex-shrink: 0">
+              <div class="chat-footer" id="chat-footer" style="flex-shrink: 0">
                 <div
                   class="chat-input-container"
+                  id="chat-input-container"
                   style="
                     background: var(--bg-sidebar);
                     border: 1px solid var(--border-color);
                     border-radius: 12px;
-                    padding: 10px 12px;
+                    padding: 8px 12px;
                     display: flex;
                     flex-direction: column;
-                    gap: 8px;
+                    gap: 4px;
                   "
                 >
-                  <!-- Context Preview (the "message" the user will send) -->
-                  <div id="chat-context-preview" style="display: none">
+                  <!-- Context Preview (Form Display Container) -->
+                  <div
+                    id="chat-context-preview"
+                    style="
+                      display: none;
+                      flex-direction: column;
+                      overflow: hidden;
+                      margin-bottom: 8px;
+                      flex: 1;
+                    "
+                  >
                     <div
                       style="
                         display: flex;
                         align-items: start;
                         justify-content: space-between;
-                        margin-bottom: 12px;
+                        margin-bottom: 8px;
+                        flex-shrink: 0;
                       "
                     >
                       <div
@@ -470,13 +482,13 @@
                     <div
                       id="chat-context-text"
                       style="
+                        flex: 1;
                         font-size: 11px;
                         color: var(--text-primary);
                         white-space: normal;
                         overflow-y: auto;
                         overflow-x: hidden;
                         transition: all 0.3s ease;
-                        max-height: 400px;
                       "
                     >
                       No context
@@ -561,10 +573,10 @@
                         <div class="model-dropdown" id="model-dropdown-list">
                           <div
                             class="model-option model-option--active"
-                            data-value="llama-3.1-8b-instant"
-                            data-label="Llama 3.1 8B"
+                            data-value="llama-3.3-70b-versatile"
+                            data-label="Llama 3.3 70B"
                           >
-                            Llama 3.1 8B (Gratuito)
+                            Llama 3.3 70B (Gratuito)
                           </div>
                           <div
                             class="model-option"
@@ -580,11 +592,7 @@
                           >
                             Anthropic Claude 3 (BYOK)
                           </div>
-                          <div
-                            class="model-option"
-                            data-value="byok-groq"
-                            data-label="Llama 70B"
-                          >
+                          <div class="model-option" data-value="byok-groq" data-label="Llama 70B">
                             Groq Llama 3.3 70B (BYOK)
                           </div>
                         </div>
@@ -874,7 +882,9 @@
                       <div class="settings-row">
                         <div class="settings-info">
                           <span class="settings-label">Enable BYOK</span>
-                          <span class="settings-desc">Override inference with your own API key</span>
+                          <span class="settings-desc"
+                            >Override inference with your own API key</span
+                          >
                         </div>
                         <label class="toggle">
                           <input type="checkbox" id="byok-enabled" />
@@ -883,12 +893,18 @@
                       </div>
                     </div>
 
-                    <div class="settings-card byok-field-group" style="padding: 12px;">
-                      <div style="display: flex; flex-direction: column; gap: 8px; width: 100%;">
-                        <div style="display: flex; justify-content: space-between; align-items: center;">
-                          <span class="settings-label" style="font-weight: 500;">Provider</span>
+                    <div class="settings-card byok-field-group" style="padding: 12px">
+                      <div style="display: flex; flex-direction: column; gap: 8px; width: 100%">
+                        <div
+                          style="display: flex; justify-content: space-between; align-items: center"
+                        >
+                          <span class="settings-label" style="font-weight: 500">Provider</span>
                         </div>
-                        <select id="byok-provider" class="settings-select" style="width: 100%; box-sizing: border-box;">
+                        <select
+                          id="byok-provider"
+                          class="settings-select"
+                          style="width: 100%; box-sizing: border-box"
+                        >
                           <option value="openai">OpenAI (gpt-4o-mini)</option>
                           <option value="anthropic">Anthropic (claude-3-haiku)</option>
                           <option value="groq">Groq (llama-3.3-70b)</option>
@@ -896,26 +912,60 @@
                       </div>
                     </div>
 
-                    <div class="settings-card byok-field-group" style="padding: 12px;">
-                      <div style="display: flex; flex-direction: column; gap: 8px; width: 100%;">
-                        <span class="settings-label" style="font-weight: 500;">API Key</span>
-                        <input type="password" id="byok-api-key" placeholder="Enter your API Key" class="sh-input" style="box-sizing: border-box;" />
+                    <div class="settings-card byok-field-group" style="padding: 12px">
+                      <div style="display: flex; flex-direction: column; gap: 8px; width: 100%">
+                        <span class="settings-label" style="font-weight: 500">API Key</span>
+                        <input
+                          type="password"
+                          id="byok-api-key"
+                          placeholder="Enter your API Key"
+                          class="sh-input"
+                          style="box-sizing: border-box"
+                        />
                       </div>
                     </div>
 
-                    <div class="settings-card byok-field-group" style="padding: 12px;">
-                      <div style="display: flex; flex-direction: column; gap: 8px; width: 100%;">
-                        <span class="settings-label" style="font-weight: 500;">Model (Optional)</span>
-                        <input type="text" id="byok-model" placeholder="Default for selected provider" class="sh-input" style="box-sizing: border-box;" />
+                    <div class="settings-card byok-field-group" style="padding: 12px">
+                      <div style="display: flex; flex-direction: column; gap: 8px; width: 100%">
+                        <span class="settings-label" style="font-weight: 500"
+                          >Model (Optional)</span
+                        >
+                        <input
+                          type="text"
+                          id="byok-model"
+                          placeholder="Default for selected provider"
+                          class="sh-input"
+                          style="box-sizing: border-box"
+                        />
                       </div>
                     </div>
 
-                    <div class="settings-card" style="padding: 12px;">
-                      <div style="display: flex; justify-content: space-between; align-items: center; width: 100%; gap: 12px;">
+                    <div class="settings-card" style="padding: 12px">
+                      <div
+                        style="
+                          display: flex;
+                          justify-content: space-between;
+                          align-items: center;
+                          width: 100%;
+                          gap: 12px;
+                        "
+                      >
                         <button id="byok-test-connection" class="btn-sh">
                           ./test_connection.sh
                         </button>
-                        <span id="byok-test-status" style="font-size: 11px; color: var(--text-secondary); font-family: monospace; text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 150px;"></span>
+                        <span
+                          id="byok-test-status"
+                          style="
+                            font-size: 11px;
+                            color: var(--text-secondary);
+                            font-family: monospace;
+                            text-align: right;
+                            overflow: hidden;
+                            text-overflow: ellipsis;
+                            white-space: nowrap;
+                            max-width: 150px;
+                          "
+                        ></span>
                       </div>
                     </div>
                   </div>
