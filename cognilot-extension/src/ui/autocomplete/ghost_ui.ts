@@ -114,16 +114,23 @@ function supportsGhost(element: HTMLElement): boolean {
 export function paint(element: HTMLElement, suggestion: SuggestionState): void {
   clear(element);
 
-  const activeText = Array.isArray(suggestion.options)
-    ? suggestion.options[suggestion._activeIndex || 0] || ''
-    : '';
-
   const inputEl = element as HTMLInputElement;
   const userText = inputEl.value || '';
   const hasUserText = userText.trim().length > 0;
 
-  const isMatch = activeText.toLowerCase().startsWith(userText.toLowerCase());
-  const shouldShowGhost = isMatch && !suggestion.isLoading && !suggestion.isError && !!activeText;
+  const activeText = suggestion.isLoading
+    ? hasUserText
+      ? ''
+      : 'Loading...'
+    : Array.isArray(suggestion.options)
+      ? suggestion.options[suggestion._activeIndex || 0] || ''
+      : '';
+
+  const isMatch = suggestion.isLoading
+    ? !hasUserText
+    : activeText.toLowerCase().startsWith(userText.toLowerCase());
+
+  const shouldShowGhost = isMatch && !suggestion.isError && !!activeText;
 
   if (!shouldShowGhost || !supportsGhost(element)) return;
 
@@ -176,9 +183,13 @@ export function paint(element: HTMLElement, suggestion: SuggestionState): void {
     const caretLeft = rect.left + window.scrollX + caret.x;
     const caretTop = rect.top + window.scrollY + caret.y;
 
-    const liveText = Array.isArray(suggestion.options)
-      ? suggestion.options[suggestion._activeIndex || 0] || ''
-      : '';
+    const liveText = suggestion.isLoading
+      ? (inputEl.value || '').trim().length > 0
+        ? ''
+        : 'Loading...'
+      : Array.isArray(suggestion.options)
+        ? suggestion.options[suggestion._activeIndex || 0] || ''
+        : '';
     const userTextLength = (inputEl.value || '').length;
     const displayGhostPart = userTextLength > 0 ? liveText.slice(userTextLength) : liveText;
 

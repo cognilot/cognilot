@@ -12,6 +12,7 @@ export const SettingsManager = {
       cacheSuggestions: true,
       learnCustomFields: true,
       useProfileContext: true,
+      showFloatingBox: true,
     },
     aiModels: {
       suggestionsProvider: 'llama-3.3-70b-versatile',

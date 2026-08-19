@@ -1114,6 +1114,10 @@ class CognilotSidebar {
   updateUIWithSettings() {
     this.setToggle('copilot-enabled', this.currentSettings.copilotSuggestions?.enabled);
     this.setToggle(
+      'copilot-show-floating-box',
+      this.currentSettings.copilotSuggestions?.showFloatingBox !== false
+    );
+    this.setToggle(
       'copilot-learn-fields',
       this.currentSettings.copilotSuggestions?.learnCustomFields
     );
@@ -1188,6 +1192,10 @@ class CognilotSidebar {
       await settingsAdapter.updateSetting(
         'copilotSuggestions.enabled',
         getChecked('copilot-enabled')
+      );
+      await settingsAdapter.updateSetting(
+        'copilotSuggestions.showFloatingBox',
+        getChecked('copilot-show-floating-box')
       );
       await settingsAdapter.updateSetting(
         'copilotSuggestions.learnCustomFields',
@@ -2459,6 +2467,7 @@ class CognilotSidebar {
     // Auto-Save toggles
     [
       'copilot-enabled',
+      'copilot-show-floating-box',
       'copilot-learn-fields',
       'copilot-use-profile-context',
       'byok-enabled',

@@ -19,13 +19,10 @@ export async function fetchSuggestion(
 
   try {
     const result = await actionEngine.handleTrigger(node);
-
-    // Normalize result for the legacy controller if needed
-    if (result && !(result as any).error) {
-      return result as SDKSuggestionResult;
-    }
+    return result as SDKSuggestionResult | null;
   } catch (e) {
     console.error('[AutocompleteService] Error:', e);
+    return { error: (e as Error).message || 'Error' } as any;
   }
 
   return null;

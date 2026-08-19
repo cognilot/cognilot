@@ -36,12 +36,19 @@ function updateUI(element: HTMLElement, suggestion: SuggestionState): void {
   GhostUI.paint(element, suggestion);
 
   if (!element._blockCognilotTrigger) {
-    CursorUI.paint(element);
+    if (suggestion.isError) {
+      element.style.setProperty('caret-color', 'var(--Cognilot-error)', 'important');
+    } else {
+      const sdk = window.Cognilot?.SDK;
+      const matchedField = sdk?.facade?.matchField(element) || null;
+      const isFormContext = !!matchedField;
+      CursorUI.paint(element, isFormContext);
+    }
   }
 
-  const firstOpt = (suggestion.options?.[0] || '').toLowerCase();
+  const firstOpt = suggestion.options?.[0];
   const currentVal = ((element as HTMLInputElement).value || '').toLowerCase();
-  const isExactMatch = currentVal === firstOpt;
+  const isExactMatch = firstOpt ? currentVal === firstOpt.toLowerCase() : false;
 
   if (suggestion._isHintHidden || isExactMatch) {
     HintUI.clear(element);
@@ -52,8 +59,10 @@ function updateUI(element: HTMLElement, suggestion: SuggestionState): void {
   HelpUI.clear(element);
 }
 
-function clearUI(element: HTMLElement): void {
-  delete element._CognilotSuggestion;
+function clearUI(element: HTMLElement, keepCache = false): void {
+  if (!keepCache) {
+    delete element._CognilotSuggestion;
+  }
   GhostUI.clear(element);
   HintUI.clear(element);
   HelpUI.clear(element);
@@ -67,10 +76,18 @@ async function handleAutocomplete(element: HTMLElement): Promise<void> {
   if (_lastProcessed.element === element && now - _lastProcessed.time < 300) return;
   _lastProcessed = { element, time: now };
 
-  updateUI(element, { isLoading: true, options: [] });
+  const sdk = window.Cognilot?.SDK;
+  const settingsAdapter = sdk?.Core?.Registry?.getAdapter('settings');
+  const settings = settingsAdapter ? await settingsAdapter.getSettings() : {};
+  const showFloatingBox = settings?.copilotSuggestions?.showFloatingBox !== false;
+
+  const loadingTimeout: any = setTimeout(() => {
+    updateUI(element, { isLoading: true, options: [], _isHintHidden: !showFloatingBox });
+  }, 150);
 
   try {
     const suggestion = await fetchSuggestion(null, element, _isBatchRunning);
+    clearTimeout(loadingTimeout);
 
     if ((suggestion as unknown as Record<string, unknown>)?._batchStarted) {
       _isBatchRunning = true;
@@ -80,6 +97,9 @@ async function handleAutocomplete(element: HTMLElement): Promise<void> {
     }
 
     if (suggestion) {
+      if ((suggestion as any).error) {
+        throw new Error((suggestion as any).error);
+      }
       const hasValidOption =
         suggestion.options &&
         suggestion.options.length > 0 &&
@@ -87,7 +107,7 @@ async function handleAutocomplete(element: HTMLElement): Promise<void> {
       const state: SuggestionState = {
         ...suggestion,
         _allOptions: [...(suggestion.options || [])],
-        _isHintHidden: false,
+        _isHintHidden: !showFloatingBox,
         isNoMatch: !hasValidOption,
       } as any;
       element._CognilotSuggestion = state;
@@ -116,17 +136,18 @@ async function handleAutocomplete(element: HTMLElement): Promise<void> {
       const emptyState: SuggestionState = {
         isNoMatch: true,
         options: [],
-        _isHintHidden: false,
+        _isHintHidden: !showFloatingBox,
       };
       element._CognilotSuggestion = emptyState;
       updateUI(element, emptyState);
     }
   } catch (error) {
+    clearTimeout(loadingTimeout);
     const errorState: SuggestionState = {
       isError: true,
       error: (error as Error).message || 'Error de red',
       options: [],
-      _isHintHidden: false,
+      _isHintHidden: !showFloatingBox,
     };
     element._CognilotSuggestion = errorState;
     updateUI(element, errorState);
@@ -231,9 +252,21 @@ function handleKeyboard(e: KeyboardEvent): void {
   // TOGGLE HINT UI: Ctrl + Space
   if (e.code === 'Space' && e.ctrlKey) {
     e.preventDefault();
-    if (suggestion) {
-      suggestion._isHintHidden = !suggestion._isHintHidden;
-      updateUI(element, suggestion);
+    const sdk = window.Cognilot?.SDK;
+    const matchedField = sdk?.facade?.matchField(element) || null;
+    const isFormContext = !!matchedField;
+
+    if (isFormContext) {
+      if (suggestion) {
+        if (suggestion.isError) {
+          handleAutocomplete(element);
+        } else {
+          suggestion._isHintHidden = !suggestion._isHintHidden;
+          updateUI(element, suggestion);
+        }
+      } else {
+        handleAutocomplete(element);
+      }
     } else {
       clearUI(element);
     }
@@ -360,12 +393,10 @@ export function init(): void {
       (el as HTMLInputElement)._CognilotFocusValue = (el as HTMLInputElement).value;
 
       if (isFormContext) {
-        const inputEl = el as HTMLInputElement;
-        if (!inputEl.value || inputEl.value.trim().length === 0) {
-          handleAutocomplete(el);
-        } else {
-          updateUI(el, {});
+        if (el._CognilotSuggestion) {
+          updateUI(el, el._CognilotSuggestion);
         }
+        handleAutocomplete(el);
       }
     }
   }) as EventListener;
@@ -425,7 +456,7 @@ export function init(): void {
     const element = e.target as HTMLElement;
 
     if (e.type === 'blur') {
-      clearUI(element);
+      clearUI(element, true);
       delete (element as HTMLInputElement)._CognilotFocusValue;
     }
   }) as EventListener;

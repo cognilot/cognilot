@@ -291,16 +291,13 @@ export class SuggestionEngine {
           }
         }
       }
-
       if (!response || !response.ok) {
         throw new Error(response?.statusText || 'API server unavailable');
       }
     } catch (e) {
       console.error('[SuggestionEngine] Failed to fetch suggestion:', e);
-      return null;
+      return { error: (e as Error).message || 'Failed to fetch suggestion' } as any;
     }
-
-    return null;
   }
 
   /**
