@@ -41,7 +41,7 @@ graph TD
     subgraph Backend [AI Core — @cognilot/api]
         API[Hono · Vercel Serverless]
         LS[LangChain.js / AI Engine]
-        LLM[Groq LLM — Llama 3.3 70b]
+        LLM[Groq LLM — openai/gpt-oss-120b]
     end
 
     %% BYOK
@@ -76,6 +76,7 @@ graph TD
 >
 > - **Usuarios no autenticados:** `window.ai` (Gemini Nano) — costo $0, ejecución local, sin servidor.
 > - **Usuarios autenticados:** Backend en la nube con Groq (mayor calidad, contexto del perfil del usuario).
+> - **Contexto de Portapapeles (Offscreen Document & Vision):** Se utiliza un _Offscreen Document_ en la extensión para leer texto e imágenes del portapapeles de forma segura. Al activarse el toggle (en Inspector/Sidepanel) o usar el atajo Smart Paste (`Ctrl+Shift+V`), se procesa la imagen y el backend conmuta automáticamente al modelo multimodal **`qwen/qwen3.6-27b`**.
 > - **Usuarios avanzados (BYOK):** Clave propia que omite el backend completamente.
 
 ---

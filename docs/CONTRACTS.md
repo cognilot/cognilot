@@ -54,7 +54,7 @@ Utilizado para la asistencia en tiempo real cuando un campo recibe un atajo del 
     "results": [
       "Capacidad de adaptación de un ser vivo frente a un agente perturbador o un estado o situación adversos."
     ],
-    "source": "llama-3.3-70b-versatile",
+    "source": "openai/gpt-oss-120b",
     "meta": {
       "processing_time_ms": 240,
       "is_command": false
@@ -76,7 +76,7 @@ Utilizado para pre-escanear y resolver de manera masiva los inputs detectados en
 - **Request Body (JSON):**
   ```json
   {
-    "provider": "llama-3.3-70b-versatile",
+    "provider": "openai/gpt-oss-120b",
     "questions": [
       {
         "key": "input_name_1",
@@ -108,6 +108,10 @@ Utilizado para pre-escanear y resolver de manera masiva los inputs detectados en
         "given_name": "Jack",
         "family_name": "Doe",
         "email": "j@example.com"
+      },
+      "clipboard": {
+        "type": "image", // "image" | "text" | "empty"
+        "content": "data:image/jpeg;base64,..." // Base64 data URL if image, raw string if text
       }
     },
     "page_context": {
@@ -122,8 +126,16 @@ Utilizado para pre-escanear y resolver de manera masiva los inputs detectados en
   {
     "request_id": "req_87fd8shf8s",
     "results": {
-      "input_name_1": ["Jack Doe"],
-      "input_email_2": ["j@example.com"]
+      "input_name_1": {
+        "value": "Jack Doe",
+        "options": ["Jack Doe"],
+        "type": "discrete"
+      },
+      "input_email_2": {
+        "value": "j@example.com",
+        "options": ["j@example.com"],
+        "type": "discrete"
+      }
     },
     "standardized_profile": {
       "given_name": "Jack",
@@ -132,10 +144,12 @@ Utilizado para pre-escanear y resolver de manera masiva los inputs detectados en
     },
     "meta": {
       "processing_time_ms": 420,
-      "model": "llama-3.3-70b-versatile"
+      "model": "qwen/qwen3.6-27b" // Automatically switched to Qwen Vision when image is present
     }
   }
   ```
+
+> **Decisión:** Cuando `user_context.clipboard` contiene una imagen (`type: "image"`), la API enruta la petición de inferencia al modelo multimodal **`qwen/qwen3.6-27b`** en Groq. Si sólo contiene texto o está vacío, se utiliza el modelo estándar (`openai/gpt-oss-120b`).
 
 ---
 
