@@ -25,6 +25,48 @@ let _lastProcessed: { element: HTMLElement | null; time: number } = {
 };
 let _isBatchRunning = false;
 
+function paintSiblingGhostTexts(focusedElement: HTMLElement): void {
+  const sdk = window.Cognilot?.SDK;
+  if (!sdk || !sdk.registry) return;
+
+  const entry = sdk.registry.findByNode(focusedElement);
+  if (entry && entry.formScopeId) {
+    const siblings = sdk.registry.getByFormScope(entry.formScopeId);
+    for (const sibling of siblings) {
+      const siblingEl = sibling.node?.getRawNode?.() as HTMLElement | null;
+      if (siblingEl && siblingEl !== focusedElement) {
+        if (sibling.resolution && sibling.resolution.value) {
+          const siblingSuggestion: SuggestionState = {
+            options: sibling.resolution.options || [sibling.resolution.value],
+            _allOptions: sibling.resolution.options || [sibling.resolution.value],
+            _activeIndex: 0,
+            isLoading: false,
+            isError: false,
+          };
+          siblingEl._CognilotSuggestion = siblingSuggestion;
+          GhostUI.paint(siblingEl, siblingSuggestion);
+        }
+      }
+    }
+  }
+}
+
+function clearSiblingGhostTexts(element: HTMLElement): void {
+  const sdk = window.Cognilot?.SDK;
+  if (!sdk || !sdk.registry) return;
+
+  const entry = sdk.registry.findByNode(element);
+  if (entry && entry.formScopeId) {
+    const siblings = sdk.registry.getByFormScope(entry.formScopeId);
+    for (const sibling of siblings) {
+      const siblingEl = sibling.node?.getRawNode?.() as HTMLElement | null;
+      if (siblingEl && siblingEl !== element) {
+        GhostUI.clear(siblingEl);
+      }
+    }
+  }
+}
+
 function updateUI(element: HTMLElement, suggestion: SuggestionState): void {
   if (document.activeElement !== element) return;
 
@@ -36,6 +78,10 @@ function updateUI(element: HTMLElement, suggestion: SuggestionState): void {
   }
 
   GhostUI.paint(element, suggestion);
+
+  if (!suggestion.isLoading && !suggestion.isError) {
+    paintSiblingGhostTexts(element);
+  }
 
   if (!element._blockCognilotTrigger) {
     if (suggestion.isError) {
@@ -61,7 +107,7 @@ function updateUI(element: HTMLElement, suggestion: SuggestionState): void {
   HelpUI.clear(element);
 }
 
-function clearUI(element: HTMLElement, keepCache = false): void {
+function clearUI(element: HTMLElement, keepCache = false, skipSiblings = false): void {
   if (!keepCache) {
     delete element._CognilotSuggestion;
   }
@@ -69,6 +115,10 @@ function clearUI(element: HTMLElement, keepCache = false): void {
   HintUI.clear(element);
   HelpUI.clear(element);
   CursorUI.clear();
+
+  if (!skipSiblings) {
+    clearSiblingGhostTexts(element);
+  }
 }
 
 async function handleAutocomplete(element: HTMLElement): Promise<void> {
@@ -579,7 +629,19 @@ export function init(): void {
     const element = e.target as HTMLElement;
 
     if (e.type === 'blur') {
-      clearUI(element, true);
+      const newActive = e.relatedTarget as HTMLElement | null;
+      const sdk = window.Cognilot?.SDK;
+      const oldEntry = sdk?.registry?.findByNode(element);
+      const newEntry = newActive ? sdk?.registry?.findByNode(newActive) : null;
+
+      const inSameForm = !!(
+        oldEntry &&
+        newEntry &&
+        oldEntry.formScopeId &&
+        oldEntry.formScopeId === newEntry.formScopeId
+      );
+
+      clearUI(element, true, inSameForm);
       delete (element as HTMLInputElement)._CognilotFocusValue;
     }
   }) as EventListener;
@@ -589,16 +651,39 @@ export function init(): void {
   document.addEventListener('input', inputHandler, true);
   document.addEventListener('blur', learningHandler, true);
 
+  const prefetchCompleteHandler = ((e: CustomEvent): void => {
+    const formScopeId = e.detail?.formScopeId;
+    if (!formScopeId) return;
+
+    const activeEl = document.activeElement as HTMLElement;
+    if (activeEl && ['INPUT', 'TEXTAREA'].includes(activeEl.tagName)) {
+      const sdk = window.Cognilot?.SDK;
+      const activeEntry = sdk?.registry?.findByNode(activeEl);
+      if (activeEntry && activeEntry.formScopeId === formScopeId) {
+        paintSiblingGhostTexts(activeEl);
+      }
+    }
+  }) as EventListener;
+
+  window.addEventListener('cognilot-prefetch-complete', prefetchCompleteHandler);
+
   _listeners.push(
     { type: 'focus', fn: focusHandler },
     { type: 'keydown', fn: keydownHandler },
     { type: 'input', fn: inputHandler },
-    { type: 'blur', fn: learningHandler }
+    { type: 'blur', fn: learningHandler },
+    { type: 'cognilot-prefetch-complete', fn: prefetchCompleteHandler }
   );
 }
 
 export function dispose(): void {
-  _listeners.forEach((l) => document.removeEventListener(l.type, l.fn, true));
+  _listeners.forEach((l) => {
+    if (l.type === 'cognilot-prefetch-complete') {
+      window.removeEventListener(l.type, l.fn);
+    } else {
+      document.removeEventListener(l.type, l.fn, true);
+    }
+  });
   _listeners = [];
   _isBatchRunning = false;
 }

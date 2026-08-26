@@ -154,7 +154,7 @@ export class InferenceRouter {
    */
   async getSelectedProviderName(): Promise<string> {
     if (await this.byok.isAvailable()) return 'byok';
-    if (await this.groq.isAvailable()) return 'groq-llama3';
+    if (await this.groq.isAvailable()) return 'groq-gpt-oss';
     if (await this.nano.isAvailable()) return 'gemini-nano';
     return 'none';
   }

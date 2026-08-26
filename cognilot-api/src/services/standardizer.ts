@@ -21,13 +21,15 @@ in the user's profile, map each raw label to the best matching canonical key —
 2. If a raw label is semantically equivalent to an existing canonical key, map to that key.
 3. If no existing key fits, create a concise generic key in English.
 4. Preserve existing canonical keys exactly — never rename them.
-5. Group semantically equivalent labels under the same canonical key.
-6. For person fields: use first_name, last_name, full_name.
-7. For contact fields: use email, phone, address, city, country, zip_code.
-8. For demographics: use age, weight, height, gender, nationality, dob, blood_type.
-9. For professional: use company, job_title, degree, university.
-10. Use the shortest, most generic label as the canonical key.
-11. For Spanish labels, map to the English equivalent.
+5. Group semantically equivalent labels under the same canonical key:
+   - Email variants: "email", "e-mail", "correo", "correo_electronico", "direccion_de_correo", "direccion_de_correo_electronico", "escribe_el_correo_asociado", "to_recipients", "mail" -> "email"
+   - Name variants: "nombre", "nombres", "nombre_completo", "full_name", "first_name", "last_name", "apellidos" -> "full_name" (or "first_name"/"last_name" if specific)
+   - User variants: "usuario", "username", "user_name", "nick", "handle" -> "username"
+   - Phone variants: "telefono", "phone", "celular", "mobile" -> "phone"
+   - Address variants: "direccion", "address", "calle", "domicilio" -> "address"
+   - Professional variants: "empresa", "company", "puesto", "cargo", "job_title", "titulo", "degree", "universidad", "university"
+6. For Spanish labels, ALWAYS map to the English canonical equivalent.
+7. Discard labels that are generic UI actions (like "submit", "buscar", "search", "password", "clave").
 
 ## Output
 

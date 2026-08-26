@@ -100,8 +100,8 @@ export class DecisionEngine {
 
     const settings = this.sdk.adapters?.settings;
     const actionsProvider = settings
-      ? await settings.getSetting('aiModels.actionsProvider', 'llama-3.3-70b-versatile')
-      : 'llama-3.3-70b-versatile';
+      ? await settings.getSetting('aiModels.actionsProvider', 'openai/gpt-oss-120b')
+      : 'openai/gpt-oss-120b';
     const payload = {
       provider: actionsProvider,
       questions: [
@@ -203,8 +203,8 @@ export class DecisionEngine {
 
     const settings = this.sdk.adapters?.settings;
     const actionsProvider = settings
-      ? await settings.getSetting('aiModels.actionsProvider', 'llama-3.3-70b-versatile')
-      : 'llama-3.3-70b-versatile';
+      ? await settings.getSetting('aiModels.actionsProvider', 'openai/gpt-oss-120b')
+      : 'openai/gpt-oss-120b';
 
     // 2. Multi-field payload
     const payload = {

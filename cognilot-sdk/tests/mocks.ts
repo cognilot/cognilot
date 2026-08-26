@@ -279,7 +279,7 @@ export class MockSDK {
       _resolveBestOption: vi.fn(),
     };
     this.inference = {
-      getSelectedProviderName: vi.fn().mockResolvedValue('groq-llama3'),
+      getSelectedProviderName: vi.fn().mockResolvedValue('groq-gpt-oss'),
       route: vi.fn().mockResolvedValue({ value: 'Mocked Value', provider: 'groq' }),
     };
     this.apiClient = {

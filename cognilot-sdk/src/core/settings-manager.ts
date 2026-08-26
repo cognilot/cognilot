@@ -15,8 +15,8 @@ export const SettingsManager = {
       showFloatingBox: true,
     },
     aiModels: {
-      suggestionsProvider: 'llama-3.3-70b-versatile',
-      actionsProvider: 'llama-3.3-70b-versatile',
+      suggestionsProvider: 'openai/gpt-oss-120b',
+      actionsProvider: 'openai/gpt-oss-120b',
     },
     byok: {
       enabled: false,
@@ -26,7 +26,7 @@ export const SettingsManager = {
       providers: {
         openai: { apiKey: '', model: 'gpt-4o-mini' },
         anthropic: { apiKey: '', model: 'claude-3-5-sonnet-20241022' },
-        groq: { apiKey: '', model: 'llama-3.3-70b-versatile' },
+        groq: { apiKey: '', model: 'openai/gpt-oss-120b' },
       },
     },
   },
