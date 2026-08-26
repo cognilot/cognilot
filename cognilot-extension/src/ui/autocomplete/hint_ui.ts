@@ -103,8 +103,12 @@ export function paint(element: HTMLElement, suggestion: SuggestionState): void {
       icon.style.fontWeight = 'bold';
       item.appendChild(icon);
 
+      const isPassword =
+        (element as HTMLInputElement).type === 'password' ||
+        element.getAttribute('type') === 'password';
+
       const text = document.createElement('span');
-      text.textContent = opt;
+      text.textContent = isPassword ? '••••••••••••' : opt;
       text.style.fontWeight = isActive ? '600' : '400';
       item.appendChild(text);
 

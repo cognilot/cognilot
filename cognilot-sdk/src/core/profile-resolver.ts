@@ -44,13 +44,25 @@ export class ProfileResolver {
     const allParts = [label, name, placeholder, id];
     const textToMatch = allParts.join(' ').trim();
 
+    // Security Gate: Never resolve passwords or sensitive fields from global profile
+    const isSensitive = /(password|contrase|clave|secret|pin|cvv|cvc|token)/i.test(
+      `${textToMatch} ${field.type || ''}`
+    );
+    if (isSensitive || field.type === 'password') {
+      return null;
+    }
+
     // Fallback to learned keys (exact match or include)
     const dataKeys = Object.keys(flatProfile).sort((a, b) => b.length - a.length);
     const matchedValues: string[] = [];
     let firstMatchedKey: string | undefined;
 
     for (const key of dataKeys) {
-      if (['data_learned'].includes(key)) continue;
+      if (
+        ['data_learned'].includes(key) ||
+        /(password|contrase|clave|secret|pin|cvv|cvc|token)/i.test(key)
+      )
+        continue;
 
       const normalizedKey = LabelUtil.normalizeText(key).trim();
       const baseKey = normalizedKey.replace(/_\d+$/, '');
@@ -111,6 +123,7 @@ export class ProfileResolver {
 
     // We update the data directly at the root (Local-First pattern)
     for (const key in standardizedProfile) {
+      if (/(password|contrase|clave|secret|pin|cvv|cvc|token)/i.test(key)) continue;
       const newValue = String(standardizedProfile[key]).trim();
       if (!newValue) continue;
 

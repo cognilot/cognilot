@@ -684,6 +684,9 @@ class CognilotSidebar {
             const GRADIENT =
               'background: var(--main-gradient); -webkit-background-clip: text; -webkit-text-fill-color: transparent;';
 
+            const isPassword =
+              type === 'password' || q.field?.type === 'password' || /password/i.test(type);
+
             // ── Source badge & resolved value ──────────────────────────────
             let headerBadge = '';
             let resolvedValue = null;
@@ -693,6 +696,8 @@ class CognilotSidebar {
               const source = q.resolution.source;
               if (source === 'pre-filled') {
                 headerBadge = `<span style="font-size: 8px; font-weight: 700; color: var(--text-secondary); background: rgba(0,0,0,0.05); padding: 0 4px; border-radius: 3px; border: 1px solid var(--border-color); white-space: nowrap;">PRE</span>`;
+              } else if (source === 'credentials_vault') {
+                headerBadge = `<span style="font-size: 8px; font-weight: 700; color: #10b981; background: rgba(16,185,129,0.08); padding: 0 4px; border-radius: 3px; border: 1px solid rgba(16,185,129,0.2); white-space: nowrap;">VAULT</span>`;
               } else if (memKey) {
                 headerBadge = `<span style="font-size: 9px; font-weight: 700; color: var(--accent-color); font-family: monospace; background: rgba(14,116,144,0.07); padding: 1px 5px; border-radius: 3px;">[${memKey}]</span>`;
               } else if (source === 'alias_cache') {
@@ -757,7 +762,9 @@ class CognilotSidebar {
                            `;
             } else if (isMem && !isApplied && memOptions.length > 0) {
               let sHtml = '';
-              if (memOptions.length > 1) {
+              if (isPassword) {
+                sHtml = `<div style="font-size: 10px; ${GRADIENT} font-weight: 600;">••••••••••••</div>`;
+              } else if (memOptions.length > 1) {
                 sHtml = memOptions
                   .map((opt, idx) => {
                     const label =
@@ -792,9 +799,10 @@ class CognilotSidebar {
               } else {
                 valueStyle = 'color: var(--text-primary); font-weight: 500;';
               }
+              const displayVal = isPassword ? '••••••••••••' : resolvedValue;
               entryHtml += `
                              <div style="font-size: 10px; padding-left: 2px; ${valueStyle}">
-                                 ${resolvedValue}
+                                 ${displayVal}
                              </div>
                            `;
             } else {

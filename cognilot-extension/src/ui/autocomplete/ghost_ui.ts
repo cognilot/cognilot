@@ -142,7 +142,15 @@ export function paint(element: HTMLElement, suggestion: SuggestionState): void {
     ghost.classList.add('Cognilot-ghost-example');
   }
 
-  ghost.textContent = hasUserText ? activeText.slice(userText.length) : activeText;
+  const isPassword =
+    (element as HTMLInputElement).type === 'password' ||
+    element.getAttribute('type') === 'password';
+
+  const rawGhostPart = hasUserText ? activeText.slice(userText.length) : activeText;
+  ghost.textContent =
+    isPassword && rawGhostPart && !suggestion.isLoading
+      ? '•'.repeat(Math.max(1, rawGhostPart.length))
+      : rawGhostPart;
 
   document.body.appendChild(ghost);
   element._CognilotGhost = ghost;
@@ -193,9 +201,14 @@ export function paint(element: HTMLElement, suggestion: SuggestionState): void {
     const userTextLength = (inputEl.value || '').length;
     const displayGhostPart = userTextLength > 0 ? liveText.slice(userTextLength) : liveText;
 
-    ghost.textContent = displayGhostPart;
+    const maskedOrRealGhost =
+      isPassword && displayGhostPart && !suggestion.isLoading
+        ? '•'.repeat(Math.max(1, displayGhostPart.length))
+        : displayGhostPart;
 
-    const measuredTextWidth = measureTextWidth(displayGhostPart, styles);
+    ghost.textContent = maskedOrRealGhost;
+
+    const measuredTextWidth = measureTextWidth(maskedOrRealGhost, styles);
     const gradientWidth = Math.min(availableWidth, Math.max(96, measuredTextWidth));
 
     const ghostTop = isTextarea

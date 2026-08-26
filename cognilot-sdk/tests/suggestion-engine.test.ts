@@ -78,14 +78,14 @@ describe('SuggestionEngine', () => {
     expect(result).toEqual({ error: 'Internal Server Error' });
   });
 
-  it('should cache results in storage to avoid redundant API calls', async () => {
+  it('should cache results in storage with domain scoping to avoid redundant API calls', async () => {
     // 1. Arrange
     const node = new MockNode('INPUT', '', { name: 'city', id: 'city-id' });
     const storage = sdk.adapters.storage;
 
     sdk.apiClient.request.mockResolvedValue({
       ok: true,
-      results: { 'city-id': { value: 'Madrid' } },
+      results: { 'localhost::city-id': { value: 'Madrid' }, 'city-id': { value: 'Madrid' } },
     });
 
     // 2. Act
@@ -94,9 +94,36 @@ describe('SuggestionEngine', () => {
     // 3. Assert
     expect(storage.set).toHaveBeenCalledWith(
       'Cognilot_suggestions_cache',
-      expect.objectContaining({ 'city-id': expect.any(Object) }),
+      expect.objectContaining({ 'localhost::city-id': expect.any(Object) }),
       'session'
     );
+  });
+
+  it('should isolate cache between different domains for fields with the same ID', async () => {
+    const node = new MockNode('INPUT', '', { name: 'password', id: 'password-id' });
+
+    // Mock response for site A
+    vi.stubGlobal('location', { hostname: 'falabella.com', pathname: '/login' });
+    sdk.apiClient.request.mockResolvedValueOnce({
+      ok: true,
+      results: { 'falabella.com::password-id': { value: 'passFalabella123' } },
+    });
+
+    // Act 1: Trigger for site A
+    const resA = await engine.handleTrigger(node);
+    // Since type is not 'password' on MockNode unless specified, it will use the API or local_generator
+    expect(sdk.apiClient.request).toHaveBeenCalledTimes(1);
+
+    // Act 2: Switch to site B
+    vi.stubGlobal('location', { hostname: 'vetano.com', pathname: '/login' });
+    sdk.apiClient.request.mockResolvedValueOnce({
+      ok: true,
+      results: { 'vetano.com::password-id': { value: 'passVetano456' } },
+    });
+
+    // Act 3: Trigger for site B — should NOT hit memory cache of site A
+    await engine.handleTrigger(node);
+    expect(sdk.apiClient.request).toHaveBeenCalledTimes(2);
   });
 
   it('should refuse to handle non-textual fields', async () => {

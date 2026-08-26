@@ -181,6 +181,50 @@ export class PageScanner {
       }
     }
 
+    // ── Security Gate & Priority for Password fields: Credential Vault only ──
+    const isPassword =
+      type === 'password' ||
+      (field.node as any)?.type === 'password' ||
+      (field.node as any)?.getAttribute?.('type') === 'password';
+
+    if (isPassword) {
+      try {
+        const storage = this.sdk.adapters?.storage;
+        if (storage) {
+          const res = await (storage as any).get('Cognilot_credentials');
+          const rawList = res?.Cognilot_credentials || res || [];
+          if (Array.isArray(rawList) && rawList.length > 0) {
+            const globalCtx = this.sdk.platform.getGlobalContext();
+            const host = (globalCtx?.location?.hostname || '').toLowerCase().replace(/^www\./, '');
+            const matchedCred = rawList.find((c: any) => {
+              const d = String(c.domain || '')
+                .toLowerCase()
+                .replace(/^www\./, '');
+              const baseD = d.split('.')[0];
+              const baseH = host.split('.')[0];
+              return (
+                host === d ||
+                host.endsWith(`.${d}`) ||
+                d.endsWith(`.${host}`) ||
+                (baseD.length >= 4 && baseD === baseH)
+              );
+            });
+            if (matchedCred && matchedCred.password) {
+              return {
+                value: matchedCred.password,
+                options: [matchedCred.password],
+                source: 'credentials_vault',
+              };
+            }
+          }
+        }
+      } catch (e) {
+        console.warn('[PageScanner] Password resolution error:', e);
+      }
+      // Never allow password fields to be resolved with alias or profile cache
+      return null;
+    }
+
     // Helper to verify if any choice field option matches a memory suggestion (Tanteo)
     const matchChoiceValue = (fieldOpts: any[], memOpts: string[]) => {
       if (

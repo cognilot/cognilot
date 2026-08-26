@@ -35,7 +35,15 @@ function paintSiblingGhostTexts(focusedElement: HTMLElement): void {
     for (const sibling of siblings) {
       const siblingEl = sibling.node?.getRawNode?.() as HTMLElement | null;
       if (siblingEl && siblingEl !== focusedElement) {
+        const isPwd =
+          (siblingEl as HTMLInputElement).type === 'password' ||
+          siblingEl.getAttribute('type') === 'password';
+
         if (sibling.resolution && sibling.resolution.value) {
+          // Guard: Never paint email values onto password fields
+          if (isPwd && sibling.resolution.value.includes('@')) {
+            continue;
+          }
           const siblingSuggestion: SuggestionState = {
             options: sibling.resolution.options || [sibling.resolution.value],
             _allOptions: sibling.resolution.options || [sibling.resolution.value],
@@ -152,6 +160,27 @@ async function handleAutocomplete(element: HTMLElement): Promise<void> {
     const savedEmails = domainCreds.map((c) => c.email);
     const isPassword = (element as HTMLInputElement).type === 'password';
 
+    // If it's a password field, find if an email is already entered in the same form
+    let savedPasswordsForDomain: string[] = [];
+    if (isPassword && domainCreds.length > 0) {
+      const form = element.closest('form') || element.ownerDocument;
+      const emailInput = form?.querySelector(
+        'input[type="email"], input[name*="email" i], input[name*="user" i], input[id*="email" i], input[id*="user" i], input[autocomplete="username"]'
+      ) as HTMLInputElement | null;
+      const enteredEmail = (emailInput?.value || '').trim().toLowerCase();
+
+      if (enteredEmail) {
+        const matchedCred = domainCreds.find((c) => c.email.trim().toLowerCase() === enteredEmail);
+        if (matchedCred) {
+          savedPasswordsForDomain = [matchedCred.password];
+        }
+      }
+
+      if (savedPasswordsForDomain.length === 0) {
+        savedPasswordsForDomain = domainCreds.map((c) => c.password);
+      }
+    }
+
     if (suggestion) {
       if ((suggestion as any).error) {
         throw new Error((suggestion as any).error);
@@ -160,6 +189,9 @@ async function handleAutocomplete(element: HTMLElement): Promise<void> {
       let options = suggestion.options || [];
       if (!isPassword && savedEmails.length > 0) {
         options = Array.from(new Set([...savedEmails, ...options]));
+      } else if (isPassword && savedPasswordsForDomain.length > 0) {
+        // Strictly prioritize saved domain password
+        options = [...savedPasswordsForDomain];
       }
 
       const hasValidOption = options.length > 0 && options[0].trim().length > 0;
@@ -167,8 +199,8 @@ async function handleAutocomplete(element: HTMLElement): Promise<void> {
         ...suggestion,
         options,
         _allOptions: isPassword
-          ? suggestion.options || []
-          : Array.from(new Set([...savedEmails, ...(suggestion._allOptions || options)])),
+          ? options
+          : Array.from(new Set([...savedEmails, ...((suggestion as any)._allOptions || options)])),
         _isHintHidden: !showFloatingBox,
         isNoMatch: !hasValidOption,
       } as any;
@@ -195,7 +227,7 @@ async function handleAutocomplete(element: HTMLElement): Promise<void> {
         }
       }
     } else {
-      const options = !isPassword ? savedEmails : [];
+      const options = !isPassword ? savedEmails : savedPasswordsForDomain;
       const emptyState: SuggestionState = {
         isNoMatch: options.length === 0,
         options,
@@ -314,6 +346,28 @@ async function handleLearn(element: HTMLElement): Promise<void> {
     }
   }
 
+  // Security Gate: Password and sensitive fields must never be saved to AI memory/profile
+  const isPasswordField =
+    inputEl.type === 'password' ||
+    /(password|contrase|clave|secret|pin|cvv|token)/i.test(
+      `${inputEl.name || ''} ${inputEl.id || ''} ${inputEl.placeholder || ''}`
+    );
+
+  if (isPasswordField) {
+    updateUI(element, {
+      options: [
+        '⚠️ Ingresa tu email en el formulario para asociar y guardar las credenciales del sitio',
+      ],
+      _isFeedback: true,
+    });
+    setTimeout(() => {
+      if (document.activeElement === element) {
+        updateUI(element, element._CognilotSuggestion || {});
+      }
+    }, 2500);
+    return;
+  }
+
   const textToLearn = inputEl.value;
   if (!textToLearn || textToLearn.trim().length === 0) return;
 
@@ -330,6 +384,7 @@ async function handleLearn(element: HTMLElement): Promise<void> {
     // Merge learned value into the current suggestion options
     const suggestion = element._CognilotSuggestion;
     if (suggestion) {
+      suggestion.options = suggestion.options || [];
       if (!suggestion.options.includes(textToLearn)) {
         suggestion.options.unshift(textToLearn);
       }
@@ -507,19 +562,23 @@ function handleKeyboard(e: KeyboardEvent): void {
       element.dispatchEvent(new Event('input', { bubbles: true }));
       element.dispatchEvent(new Event('change', { bubbles: true }));
 
-      // Autocomplete corresponding password field if matching saved credential exists
-      CredentialsService.getCredentialForEmail(acceptedValue).then((cred) => {
-        if (cred && cred.password) {
-          const form = element.closest('form') || element.ownerDocument;
-          const pwdInput = form.querySelector('input[type="password"]') as HTMLInputElement | null;
-          if (pwdInput) {
-            pwdInput.value = cred.password;
-            pwdInput.classList.add('Cognilot-suggested');
-            pwdInput.dispatchEvent(new Event('input', { bubbles: true }));
-            pwdInput.dispatchEvent(new Event('change', { bubbles: true }));
+      // Autocomplete corresponding password field if matching saved credential exists for this domain
+      CredentialsService.getCredentialForEmail(acceptedValue, window.location.hostname).then(
+        (cred) => {
+          if (cred && cred.password) {
+            const form = element.closest('form') || element.ownerDocument;
+            const pwdInput = form.querySelector(
+              'input[type="password"]'
+            ) as HTMLInputElement | null;
+            if (pwdInput) {
+              pwdInput.value = cred.password;
+              pwdInput.classList.add('Cognilot-suggested');
+              pwdInput.dispatchEvent(new Event('input', { bubbles: true }));
+              pwdInput.dispatchEvent(new Event('change', { bubbles: true }));
+            }
           }
         }
-      });
+      );
 
       const isInput = element.tagName && element.tagName.toLowerCase() === 'input';
       const sdk = window.Cognilot?.SDK;
@@ -646,10 +705,41 @@ export function init(): void {
     }
   }) as EventListener;
 
+  const submitHandler = ((e: Event): void => {
+    try {
+      const target = (e.target as HTMLElement) || document;
+      const form = (target.tagName === 'FORM' ? target : target.closest?.('form')) || document;
+
+      const passwordInput = form.querySelector('input[type="password"]') as HTMLInputElement | null;
+      if (!passwordInput || !passwordInput.value || passwordInput.value.length < 2) return;
+
+      const emailInput = form.querySelector(
+        'input[type="email"], input[name*="email" i], input[name*="user" i], input[id*="email" i], input[id*="user" i], input[autocomplete="username"]'
+      ) as HTMLInputElement | null;
+
+      const emailValue = emailInput?.value?.trim() || '';
+      const passwordValue = passwordInput.value;
+
+      if (emailValue && passwordValue) {
+        const domain = window.location.hostname;
+        CredentialsService.saveCredential(emailValue, passwordValue, domain)
+          .then(() => {
+            console.log(`[AutocompleteController] Credentials auto-saved for domain: ${domain}`);
+          })
+          .catch((err) => {
+            console.warn('[AutocompleteController] Failed to auto-save credentials:', err);
+          });
+      }
+    } catch (_err) {
+      // silently ignore
+    }
+  }) as EventListener;
+
   document.addEventListener('focus', focusHandler, true);
   document.addEventListener('keydown', keydownHandler, true);
   document.addEventListener('input', inputHandler, true);
   document.addEventListener('blur', learningHandler, true);
+  document.addEventListener('submit', submitHandler, true);
 
   const prefetchCompleteHandler = ((e: CustomEvent): void => {
     const formScopeId = e.detail?.formScopeId;
@@ -672,6 +762,7 @@ export function init(): void {
     { type: 'keydown', fn: keydownHandler },
     { type: 'input', fn: inputHandler },
     { type: 'blur', fn: learningHandler },
+    { type: 'submit', fn: submitHandler },
     { type: 'cognilot-prefetch-complete', fn: prefetchCompleteHandler }
   );
 }

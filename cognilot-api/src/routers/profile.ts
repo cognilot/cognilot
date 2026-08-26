@@ -152,6 +152,12 @@ profileRouter.post('/sync', zValidator('json', syncProfileSchema), async (c) => 
     const val = String(rawVal || '').trim();
     if (!val) return null;
 
+    // Discard any sensitive keys (passwords, PINs, tokens, CVVs) from global profile memory
+    if (/(password|contrase|clave|secret|pin|cvv|cvc|token|auth_token)/i.test(key)) {
+      console.warn(`[Profile/Sync] Discarding sensitive/password key from global profile:`, key);
+      return null;
+    }
+
     // Discard email values accidentally placed into name or username fields
     if (['full_name', 'first_name', 'last_name', 'username'].includes(key) && val.includes('@')) {
       console.warn(`[Profile/Sync] Discarding email value for name field ${key}:`, val);
