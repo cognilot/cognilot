@@ -10,11 +10,28 @@ export interface ToolbarHandlers {
   onMarkdownClick?: () => void;
 }
 
+let _useClipboardContext = false;
+
+export function getUseClipboardContext(): boolean {
+  return _useClipboardContext;
+}
+
+export function setUseClipboardContext(active: boolean): void {
+  _useClipboardContext = active;
+  if (_btnClipboard) {
+    styleToolbarBtn(_btnClipboard, _useClipboardContext, true);
+    _btnClipboard.title = _useClipboardContext
+      ? 'Contexto Portapapeles: ACTIVADO'
+      : 'Contexto Portapapeles: DESACTIVADO';
+  }
+}
+
 let _toolbar: HTMLDivElement | null = null;
 let _btnSolve: HTMLButtonElement | null = null;
 let _btnCapture: HTMLButtonElement | null = null;
 let _btnMarkdown: HTMLButtonElement | null = null;
 let _btnSelectManu: HTMLButtonElement | null = null;
+let _btnClipboard: HTMLButtonElement | null = null;
 
 function styleToolbarBtn(btn: HTMLButtonElement, isActive: boolean, isIcon = false): void {
   Object.assign(btn.style, {
@@ -133,6 +150,16 @@ function createToolbar(
     onManualSelectClick
   );
 
+  const btnClipboard = createIconButton(
+    'clipboard',
+    'Contexto Portapapeles: DESACTIVADO',
+    `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path><rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect></svg>`,
+    () => {
+      setUseClipboardContext(!_useClipboardContext);
+    }
+  );
+  styleToolbarBtn(btnClipboard, _useClipboardContext, true);
+
   const btnClose = document.createElement('button');
   btnClose.innerHTML = '✕';
   styleToolbarBtn(btnClose, false, true);
@@ -144,6 +171,7 @@ function createToolbar(
   toolbar.appendChild(btnSelectManu);
   toolbar.appendChild(createDivider());
   toolbar.appendChild(btnSolve);
+  toolbar.appendChild(btnClipboard);
   toolbar.appendChild(btnCapture);
   toolbar.appendChild(btnMarkdown);
   toolbar.appendChild(createDivider());
@@ -154,6 +182,7 @@ function createToolbar(
   _btnCapture = btnCapture;
   _btnMarkdown = btnMarkdown;
   _btnSelectManu = btnSelectManu;
+  _btnClipboard = btnClipboard;
 }
 
 export function showToolbar(
@@ -259,4 +288,6 @@ export const ToolbarUI = {
   setManualSelectMode,
   hideToolbar,
   updateActionButtons,
+  getUseClipboardContext,
+  setUseClipboardContext,
 };

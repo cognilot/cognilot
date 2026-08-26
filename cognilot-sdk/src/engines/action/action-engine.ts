@@ -40,7 +40,7 @@ export class ActionEngine {
    *             Fallback to the original on-demand detection + suggestion flow.
    *             Register the result so subsequent clicks are instant.
    */
-  async handleTrigger(node: CognilotNode) {
+  async handleTrigger(node: CognilotNode, options: any = {}) {
     if (!node) return { error: 'Node not found or invalid' };
 
     const type = (node.type || '').toLowerCase();
@@ -52,7 +52,7 @@ export class ActionEngine {
     // ── Registry lookup ──────────────────────────────────────────────────────
     const entry = this.sdk.registry.findByNode(node.getRawNode());
 
-    if (entry) {
+    if (entry && !options?.clipboard) {
       // If the field was resolved from an existing value, but is now empty,
       // it means the user cleared the field and wants a suggestion. We reset it to pending.
       const currentValue = node.value?.trim() ?? '';
@@ -106,7 +106,7 @@ export class ActionEngine {
         if (isChoice) {
           aiResult = await this.sdk.decision.handleTrigger(node);
         } else {
-          aiResult = await this.sdk.suggestion.handleTrigger(node);
+          aiResult = await this.sdk.suggestion.handleTrigger(node, options);
         }
 
         // Update registry with the AI result
@@ -126,7 +126,7 @@ export class ActionEngine {
 
         // Batch prefetch for pending siblings in the same form (fire & forget)
         if (entry.belongsToForm && entry.formScopeId) {
-          this._prefetchFormScope(entry.formScopeId, node).catch((err) =>
+          this._prefetchFormScope(entry.formScopeId, node, options).catch((err) =>
             console.warn('[ActionEngine] Prefetch failed (non-critical):', err)
           );
         }
@@ -135,9 +135,17 @@ export class ActionEngine {
       }
     }
 
-    // ── CASE C: Not in registry (dynamic/SPA field) ─────────────────────────
-    console.log(`[ActionEngine] CASE C — Field not in registry. Running on-demand detection...`);
-    return this._handleUnregisteredField(node, isChoice);
+    // ── CASE C: Not in registry (or forced via clipboard) ────────────────────
+    console.log(`[ActionEngine] Running AI trigger (options passed)...`);
+    const aiResult = await this._handleUnregisteredField(node, isChoice, options);
+
+    if (entry && entry.belongsToForm && entry.formScopeId) {
+      this._prefetchFormScope(entry.formScopeId, node, options).catch((err) =>
+        console.warn('[ActionEngine] Prefetch failed (non-critical):', err)
+      );
+    }
+
+    return aiResult;
   }
 
   /**
@@ -145,12 +153,12 @@ export class ActionEngine {
    * Mirrors the old handleTrigger() flow: detect on-demand, then suggest/decide.
    * Registers the resolved field in the FieldRegistry for future instant access.
    */
-  private async _handleUnregisteredField(node: CognilotNode, isChoice: boolean) {
+  private async _handleUnregisteredField(node: CognilotNode, isChoice: boolean, options: any = {}) {
     let result;
     if (isChoice) {
       result = await this.sdk.decision.handleTrigger(node);
     } else {
-      result = await this.sdk.suggestion.handleTrigger(node);
+      result = await this.sdk.suggestion.handleTrigger(node, options);
     }
 
     // Opportunistically register so the next click is instant
@@ -197,7 +205,11 @@ export class ActionEngine {
    * @param formScopeId  - The stable ID of the form scope.
    * @param activeNode   - The field the user just clicked (excluded from the batch).
    */
-  private async _prefetchFormScope(formScopeId: string, activeNode: CognilotNode) {
+  private async _prefetchFormScope(
+    formScopeId: string,
+    activeNode: CognilotNode,
+    options: any = {}
+  ) {
     // Deduplicate: only prefetch each form scope once per page load
     if (this._prefetchedScopes.has(formScopeId)) return;
     this._prefetchedScopes.add(formScopeId);
@@ -229,7 +241,7 @@ export class ActionEngine {
 
     if (textFields.length > 0) {
       batchPromises.push(
-        this.sdk.suggestion.prefetchBatch(textFields as any).then(() => {
+        this.sdk.suggestion.prefetchBatch(textFields as any, options).then(() => {
           // After batch resolves, mark registry entries as resolved
           this._syncBatchResultsToRegistry(
             pendingFields.filter((f) => !['radio', 'checkbox', 'file', 'select'].includes(f.type))
@@ -315,7 +327,7 @@ export class ActionEngine {
    * Orchestrates the execution of a batch of fields.
    * Handles prefetching and parallel processing for different field types.
    */
-  async executeBatch(questions: any[], onProgress?: (data: any) => void) {
+  async executeBatch(questions: any[], onProgress?: (data: any) => void, options: any = {}) {
     if (!questions || questions.length === 0) {
       onProgress?.({ status: 'complete', solved: 0, failed: 0, total: 0 });
       return { success: true, results: [] };
@@ -357,7 +369,7 @@ export class ActionEngine {
     });
 
     if (textFields.length > 0) {
-      await this.sdk.suggestion.prefetchBatch(textFields as any);
+      await this.sdk.suggestion.prefetchBatch(textFields as any, options);
     }
     if (choiceFields.length > 0) {
       await this.sdk.decision.prefetchBatch(choiceFields as any);
@@ -373,7 +385,7 @@ export class ActionEngine {
 
       try {
         console.log(`[ActionEngine] Solving field ${i + 1}/${questions.length}: ${q.text}`);
-        const result: any = await this.handleTrigger(q.node);
+        const result: any = await this.handleTrigger(q.node, options);
 
         let success = false;
         let answerValue = '';

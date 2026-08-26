@@ -4,6 +4,7 @@
  */
 
 import { Logger } from '../utils/logger';
+import { readClipboardDirect } from '../utils/clipboard';
 
 /**
  * Executes a batch of unsolved questions.
@@ -43,19 +44,42 @@ export async function executeBatch(
  * Main "Solve All" orchestration.
  */
 export async function solveAll(
-  precomputedQuestions: SDKQuestionDTO[] | null = null
+  precomputedQuestions: SDKQuestionDTO[] | null = null,
+  useClipboard: boolean = false,
+  preloadedClipboard: any = null
 ): Promise<SDKBatchResult | { error: string }> {
   const sdk = window.Cognilot?.SDK;
   const actionEngine = sdk?.action;
 
+  const checkClipboard =
+    useClipboard ||
+    (window.Cognilot?.Inspector?.UI?.ToolbarUI?.getUseClipboardContext?.() ?? false);
+
   console.log('[ActionService] solveAll triggered', {
     hasPrecomputed: !!precomputedQuestions,
     hasActionEngine: !!actionEngine,
+    checkClipboard,
   });
 
   if (!actionEngine) {
     Logger.error('Action Service: SDK ActionEngine not loaded');
     return { error: 'SDK not loaded' };
+  }
+
+  let options: { clipboard?: any } | undefined;
+  if (preloadedClipboard) {
+    options = { clipboard: preloadedClipboard };
+    console.log('[ActionService] Preloaded clipboard context attached:', preloadedClipboard.type);
+  } else if (checkClipboard) {
+    try {
+      const clipboardData = await readClipboardDirect();
+      if (clipboardData && clipboardData.type !== 'empty') {
+        options = { clipboard: clipboardData };
+        console.log('[ActionService] Clipboard context attached:', clipboardData.type);
+      }
+    } catch (e) {
+      console.warn('[ActionService] Failed to read clipboard context:', e);
+    }
   }
 
   Logger.processing('Starting Solve All Orchestration...');
@@ -70,7 +94,7 @@ export async function solveAll(
 
   if (precomputedQuestions) {
     console.log('[ActionService] Solving with precomputed questions', precomputedQuestions.length);
-    return await actionEngine.executeBatch(precomputedQuestions, progressHandler);
+    return await actionEngine.executeBatch(precomputedQuestions, progressHandler, options);
   } else {
     // Use existing detection result from auto-scan if available
     const lastResult: any = (sdk as any).detection?.lastResult;
@@ -81,7 +105,7 @@ export async function solveAll(
         '[ActionService] Re-using previous detection results for solveAll:',
         lastResult.questions.length
       );
-      return await actionEngine.executeBatch(lastResult.questions, progressHandler);
+      return await actionEngine.executeBatch(lastResult.questions, progressHandler, options);
     }
 
     // Fallback: solve entire page/best form
@@ -90,7 +114,7 @@ export async function solveAll(
       bodyNode: !!bodyNode,
     });
     const detection = await sdk.detection.detect(bodyNode);
-    return await actionEngine.executeBatch(detection.questions, progressHandler);
+    return await actionEngine.executeBatch(detection.questions, progressHandler, options);
   }
 }
 

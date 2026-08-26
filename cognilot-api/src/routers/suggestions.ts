@@ -108,23 +108,32 @@ suggestionsRouter.post('/', zValidator('json', suggestionRequestSchema), async (
     profileData = (profile?.dataLearned as Record<string, unknown>) ?? {};
   }
 
+  const clipboard = reqBody.user_context?.clipboard;
+  const isImageClipboard = !!(clipboard && clipboard.type === 'image' && clipboard.content);
+  const isTextClipboard = !!(clipboard && clipboard.type === 'text' && clipboard.content);
+
+  let clipboardPromptSection = '';
+  if (isTextClipboard) {
+    clipboardPromptSection = `\n\n## Clipboard Context (User Provided Text):\n${clipboard.content}`;
+  }
+
   const systemPrompt = `You are an intelligent form autofill assistant.
-Your job is to suggest the most appropriate value for a web form field based on the user's profile data and the page context.
+Your job is to suggest the most appropriate value for a web form field based on the user's profile data, page context, and any provided clipboard context.
 
 ## User Profile Data:
-${JSON.stringify(profileData, null, 2)}
+${JSON.stringify(profileData, null, 2)}${clipboardPromptSection}
 
 ## Instructions:
-- Suggest a value for the field. If you cannot find the exact information in the user profile data, infer a highly plausible example value based on the field label, type, placeholder, and context.
+- Suggest a value for the field. If you cannot find the exact information in the user profile data or clipboard context, infer a highly plausible example value based on the field label, type, placeholder, and context.
 - Return ONLY a valid JSON object matching the following structure. Do not include markdown code block wrappers (e.g. \`\`\`json) or conversational filler:
 {
   "value": "The suggested value",
-  "isExample": boolean // false if found/derived from user profile, true if it is a generic placeholder/example
+  "isExample": boolean // false if found/derived from user profile or clipboard, true if it is a generic placeholder/example
 }
 - Be ${options?.tone ?? 'professional'} in tone.
 - Respond in ${options?.language ?? 'English'}.`;
 
-  const userMessage = `Fill in this form field:
+  let userMessageContent: any = `Fill in this form field:
 Field Label: ${fieldContext.label}
 Field Type: ${fieldContext.type}
 Placeholder: ${fieldContext.placeholder ?? 'N/A'}
@@ -133,14 +142,60 @@ Current Value: ${fieldContext.value ?? '(empty)'}
 Form Context: ${fieldContext.formContext ?? 'N/A'}
 Page: ${pageContext.title} (${pageContext.domain})`;
 
-  try {
-    const llm = createGroqClient(reqBody.provider);
-    const response = await llm.invoke([
-      new SystemMessage(systemPrompt),
-      new HumanMessage(userMessage),
-    ]);
+  if (isImageClipboard) {
+    userMessageContent = [
+      {
+        type: 'text',
+        text: `Fill in this form field based on the attached image screenshot from the user's clipboard and profile:\nField Label: ${fieldContext.label}\nField Type: ${fieldContext.type}\nPlaceholder: ${fieldContext.placeholder ?? 'N/A'}\nHelper Text: ${fieldContext.helperText ?? 'N/A'}\nCurrent Value: ${fieldContext.value ?? '(empty)'}\nPage: ${pageContext.title} (${pageContext.domain})`,
+      },
+      {
+        type: 'image_url',
+        image_url: {
+          url: clipboard.content,
+        },
+      },
+    ];
+  }
 
-    const content = typeof response.content === 'string' ? response.content.trim() : '{}';
+  try {
+    let content = '';
+    if (isImageClipboard) {
+      const apiKey = process.env['GROQ_API_KEY'];
+      if (!apiKey) throw new Error('GROQ_API_KEY not configured');
+
+      const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: 'qwen/qwen3.6-27b',
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: userMessageContent },
+          ],
+          temperature: 0.3,
+          max_tokens: 1024,
+          response_format: { type: 'json_object' },
+        }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Groq API returned ${response.status}: ${errorText}`);
+      }
+
+      const responseData: any = await response.json();
+      content = responseData.choices?.[0]?.message?.content || '{}';
+    } else {
+      const llm = createGroqClient(reqBody.provider, false);
+      const response = await llm.invoke([
+        new SystemMessage(systemPrompt),
+        new HumanMessage(userMessageContent),
+      ]);
+      content = typeof response.content === 'string' ? response.content.trim() : '{}';
+    }
     const jsonMatch = content.match(/\{[\s\S]*\}/);
     const parsed = jsonMatch ? JSON.parse(jsonMatch[0]) : { value: '', isExample: true };
     const suggestion = (parsed.value ?? '').trim();
@@ -227,7 +282,7 @@ suggestionsRouter.post('/batch', zValidator('json', batchSuggestionSchema), asyn
   const userId = c.get('userId');
   const reqBody = c.req.valid('json');
   const { questions } = reqBody;
-  const model = 'llama-3.3-70b-versatile';
+  const model = 'openai/gpt-oss-120b';
 
   let profileData: Record<string, unknown> = {};
 
@@ -239,14 +294,23 @@ suggestionsRouter.post('/batch', zValidator('json', batchSuggestionSchema), asyn
     profileData = (profile?.dataLearned as Record<string, unknown>) ?? {};
   }
 
+  const clipboard = reqBody.user_context?.clipboard;
+  const isImageClipboard = !!(clipboard && clipboard.type === 'image' && clipboard.content);
+  const isTextClipboard = !!(clipboard && clipboard.type === 'text' && clipboard.content);
+
+  let clipboardPromptSection = '';
+  if (isTextClipboard) {
+    clipboardPromptSection = `\n\n## Clipboard Context (User Provided Text):\n${clipboard.content}`;
+  }
+
   const systemPrompt = `You are an intelligent form autofill assistant.
-Your job is to suggest the most appropriate values for multiple form fields based on the user's profile data.
+Your job is to suggest the most appropriate values for multiple form fields based on the user's profile data and any provided clipboard context.
 
 ## User Profile:
-${JSON.stringify(profileData, null, 2)}
+${JSON.stringify(profileData, null, 2)}${clipboardPromptSection}
 
 ## Instructions:
-For each field in the request, return the best suggestion value. If you cannot find the exact information in the user profile, infer a highly plausible example value.
+For each field in the request, return the best suggestion value. If you cannot find the exact information in the user profile or clipboard context, infer a highly plausible example value.
 Return ONLY a JSON object mapping each question's key to an object with "value" and "isExample" (boolean) properties.
 Example format:
 {
@@ -262,14 +326,62 @@ No explanations, no markdown code block wrappers (e.g. \`\`\`json). Return raw J
     )
     .join('\n');
 
-  try {
-    const llm = createGroqClient(reqBody.provider);
-    const response = await llm.invoke([
-      new SystemMessage(systemPrompt),
-      new HumanMessage(`Fill these fields:\n${fieldsText}`),
-    ]);
+  let userMessageContent: any = `Fill these fields:\n${fieldsText}`;
 
-    const content = typeof response.content === 'string' ? response.content.trim() : '{}';
+  if (isImageClipboard) {
+    userMessageContent = [
+      {
+        type: 'text',
+        text: `Fill these fields based on the attached image screenshot from the user's clipboard and profile:\n${fieldsText}`,
+      },
+      {
+        type: 'image_url',
+        image_url: {
+          url: clipboard.content,
+        },
+      },
+    ];
+  }
+
+  try {
+    let content = '';
+    if (isImageClipboard) {
+      const apiKey = process.env['GROQ_API_KEY'];
+      if (!apiKey) throw new Error('GROQ_API_KEY not configured');
+
+      const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: 'qwen/qwen3.6-27b',
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: userMessageContent },
+          ],
+          temperature: 0.3,
+          max_tokens: 2048,
+          response_format: { type: 'json_object' },
+        }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Groq API returned ${response.status}: ${errorText}`);
+      }
+
+      const responseData: any = await response.json();
+      content = responseData.choices?.[0]?.message?.content || '{}';
+    } else {
+      const llm = createGroqClient(reqBody.provider, false);
+      const response = await llm.invoke([
+        new SystemMessage(systemPrompt),
+        new HumanMessage(userMessageContent),
+      ]);
+      content = typeof response.content === 'string' ? response.content.trim() : '{}';
+    }
     const jsonMatch = content.match(/\{[\s\S]*\}/);
     const results = jsonMatch ? JSON.parse(jsonMatch[0]) : {};
 

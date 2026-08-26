@@ -551,6 +551,25 @@
                           ></path>
                           <circle cx="12" cy="12" r="3"></circle>
                         </svg>
+                      <button
+                        id="sidebar-clipboard-toggle"
+                        class="icon-btn"
+                        title="Usar contexto de portapapeles (DESACTIVADO)"
+                        style="opacity: 0.6; transition: all 0.2s; margin-right: 4px;"
+                      >
+                        <svg
+                          width="16"
+                          height="16"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="2"
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                        >
+                          <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path>
+                          <rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect>
+                        </svg>
                       </button>
                       <div class="model-selector-container">
                         <div class="model-selector-trigger" id="model-selector-trigger">
@@ -567,16 +586,16 @@
                           >
                             <polyline points="18 15 12 9 6 15"></polyline>
                           </svg>
-                          <span id="current-model-display">Llama 3.1 (Fast)</span>
+                          <span id="current-model-display">GPT-OSS 120B</span>
                         </div>
 
                         <div class="model-dropdown" id="model-dropdown-list">
                           <div
                             class="model-option model-option--active"
-                            data-value="llama-3.3-70b-versatile"
-                            data-label="Llama 3.3 70B"
+                            data-value="openai/gpt-oss-120b"
+                            data-label="GPT-OSS 120B"
                           >
-                            Llama 3.3 70B (Gratuito)
+                            GPT-OSS 120B (Gratuito)
                           </div>
                           <div
                             class="model-option"
@@ -592,8 +611,8 @@
                           >
                             Anthropic Claude 3 (BYOK)
                           </div>
-                          <div class="model-option" data-value="byok-groq" data-label="Llama 70B">
-                            Groq Llama 3.3 70B (BYOK)
+                          <div class="model-option" data-value="byok-groq" data-label="GPT-OSS 120B">
+                            Groq GPT-OSS 120B (BYOK)
                           </div>
                         </div>
                       </div>
@@ -920,7 +939,7 @@
                         >
                           <option value="openai">OpenAI (gpt-4o-mini)</option>
                           <option value="anthropic">Anthropic (claude-3-haiku)</option>
-                          <option value="groq">Groq (llama-3.3-70b)</option>
+                          <option value="groq">Groq (gpt-oss-120b)</option>
                         </select>
                       </div>
                     </div>
