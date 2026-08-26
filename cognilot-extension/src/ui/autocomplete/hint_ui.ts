@@ -8,12 +8,6 @@ import { parsePixelValue } from './ghost_ui';
 export function paint(element: HTMLElement, suggestion: SuggestionState): void {
   if (!document.body) return;
 
-  const hasOptions = suggestion.options && suggestion.options.length > 0;
-  if (!hasOptions && !suggestion.isHelp && !suggestion.isError && !suggestion.isNoMatch) {
-    clear(element);
-    return;
-  }
-
   let container = element._CognilotHint;
   if (!container) {
     container = document.createElement('div');
@@ -53,7 +47,18 @@ export function paint(element: HTMLElement, suggestion: SuggestionState): void {
   const activeIdx = suggestion._activeIndex || 0;
   const isExample = suggestion.type === 'example';
 
-  if (suggestion.isError) {
+  if (suggestion.isLoading) {
+    const loadingItem = document.createElement('div');
+    Object.assign(loadingItem.style, {
+      padding: '6px 12px',
+      display: 'flex',
+      alignItems: 'center',
+      gap: '8px',
+      color: 'rgba(255, 255, 255, 0.6)',
+    });
+    loadingItem.innerHTML = `<span>></span><span>Loading suggestions...</span>`;
+    listWrapper.appendChild(loadingItem);
+  } else if (suggestion.isError) {
     const errorItem = document.createElement('div');
     Object.assign(errorItem.style, {
       padding: '6px 12px',
@@ -117,6 +122,17 @@ export function paint(element: HTMLElement, suggestion: SuggestionState): void {
 
       listWrapper.appendChild(item);
     });
+  } else {
+    const emptyItem = document.createElement('div');
+    Object.assign(emptyItem.style, {
+      padding: '6px 12px',
+      display: 'flex',
+      alignItems: 'center',
+      gap: '8px',
+      color: 'rgba(255, 255, 255, 0.45)',
+    });
+    emptyItem.innerHTML = `<span>></span><span>No matching suggestions</span>`;
+    listWrapper.appendChild(emptyItem);
   }
 
   container.appendChild(listWrapper);
@@ -138,15 +154,17 @@ export function paint(element: HTMLElement, suggestion: SuggestionState): void {
   });
 
   const leftFooter = document.createElement('div');
+  const placeholder =
+    (element as HTMLInputElement).placeholder ||
+    suggestion.field?.placeholder ||
+    'Write your answer';
+
   if (suggestion.isError) {
-    leftFooter.innerHTML = `// <span style="color:#ef4444">[error]</span>`;
-  } else if (suggestion.isNoMatch) {
-    leftFooter.innerHTML = `// <span style="color:rgba(255,255,255,0.6)">[no matches]</span>`;
+    leftFooter.innerHTML = `// <span style="color:#ef4444">${placeholder}</span>`;
   } else if (isExample) {
     const msg = options[0] || 'Example';
     leftFooter.innerHTML = `// <span style="color:rgba(255,255,255,0.6)">${msg}</span>`;
   } else {
-    const placeholder = suggestion.field?.placeholder || 'Write your answer';
     leftFooter.innerHTML = `// <span style="color:rgba(255,255,255,0.6)">${placeholder}</span>`;
   }
   footer.appendChild(leftFooter);
@@ -154,7 +172,7 @@ export function paint(element: HTMLElement, suggestion: SuggestionState): void {
   const rightFooter = document.createElement('div');
   if (suggestion.isError) {
     rightFooter.innerHTML = `<span>Retry <span style="color:rgba(255,255,255,0.6)">[Ctrl+Space]</span></span>`;
-  } else if (suggestion.isNoMatch) {
+  } else if (suggestion.isNoMatch || suggestion.isLoading) {
     rightFooter.innerHTML = `<span>Save <span style="color:rgba(255,255,255,0.6)">[Ctrl+Ins]</span></span>`;
   } else {
     rightFooter.innerHTML = `<span>Help <span style="color:rgba(255,255,255,0.6)">[--]</span></span>`;
@@ -163,17 +181,31 @@ export function paint(element: HTMLElement, suggestion: SuggestionState): void {
 
   container.appendChild(footer);
 
+  const styles = window.getComputedStyle(element);
+  const borderLeft = parsePixelValue(styles.borderLeftWidth);
+  const paddingLeft = parsePixelValue(styles.paddingLeft);
+  const textIndent = parsePixelValue(styles.textIndent);
+
+  // Cancel any existing animation frame loop for this element's hint
+  if (element._CognilotHintRaf) {
+    cancelAnimationFrame(element._CognilotHintRaf);
+  }
+
   // Dynamic positioning
+  let lastTop = -1;
+  let lastLeft = -1;
+
   const updatePosition = (): void => {
     if (!element._CognilotHint) return;
     const rect = element.getBoundingClientRect();
-    const hintHeight = container!.offsetHeight || 60;
-    const hintWidth = container!.offsetWidth || 220;
-    const styles = window.getComputedStyle(element);
+    const hintHeight = container!.offsetHeight;
+    const hintWidth = container!.offsetWidth;
 
-    const borderLeft = parsePixelValue(styles.borderLeftWidth);
-    const paddingLeft = parsePixelValue(styles.paddingLeft);
-    const textIndent = parsePixelValue(styles.textIndent);
+    // Fix the 0px height jump/flicker bug: wait until layout dimensions are computed
+    if (hintHeight === 0 || hintWidth === 0) {
+      element._CognilotHintRaf = requestAnimationFrame(updatePosition);
+      return;
+    }
 
     const viewportPad = 8;
     let top = rect.bottom + 8;
@@ -187,8 +219,13 @@ export function paint(element: HTMLElement, suggestion: SuggestionState): void {
       Math.min(rawLeft, window.innerWidth - hintWidth - viewportPad)
     );
 
-    container!.style.top = `${top}px`;
-    container!.style.left = `${left}px`;
+    // Only update styles if coordinates actually changed (avoids layout thrashing)
+    if (top !== lastTop || left !== lastLeft) {
+      container!.style.top = `${top}px`;
+      container!.style.left = `${left}px`;
+      lastTop = top;
+      lastLeft = left;
+    }
 
     if (container!.style.opacity === '0') {
       requestAnimationFrame(() => {
@@ -196,13 +233,17 @@ export function paint(element: HTMLElement, suggestion: SuggestionState): void {
         container!.style.transform = 'translateY(0) scale(1)';
       });
     }
-    requestAnimationFrame(updatePosition);
+    element._CognilotHintRaf = requestAnimationFrame(updatePosition);
   };
 
-  requestAnimationFrame(updatePosition);
+  element._CognilotHintRaf = requestAnimationFrame(updatePosition);
 }
 
 export function clear(element: HTMLElement): void {
+  if (element._CognilotHintRaf) {
+    cancelAnimationFrame(element._CognilotHintRaf);
+    delete element._CognilotHintRaf;
+  }
   if (element._CognilotHint) {
     const hint = element._CognilotHint;
     hint.style.opacity = '0';

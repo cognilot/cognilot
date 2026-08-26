@@ -17,7 +17,7 @@ export interface GroqProviderConfig {
  * user's stored profile data and aliases.
  */
 export class GroqProvider implements InferenceProvider {
-  readonly name = 'groq-llama3';
+  readonly name = 'groq-gpt-oss';
 
   private config: GroqProviderConfig;
 

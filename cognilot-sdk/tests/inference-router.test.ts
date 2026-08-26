@@ -96,7 +96,7 @@ describe('InferenceRouter', () => {
   describe('route() — provider selection', () => {
     it('routes to BYOK when it is available (highest priority)', async () => {
       const byok = makeProvider('byok', true, 'BYOK result');
-      const groq = makeProvider('groq-llama3', true, 'Groq result');
+      const groq = makeProvider('groq-gpt-oss', true, 'Groq result');
       const nano = makeProvider('gemini-nano', true, 'Nano result');
 
       const router = makeRouter({ byok, groq, nano });
@@ -111,13 +111,13 @@ describe('InferenceRouter', () => {
 
     it('routes to Groq when authenticated and BYOK is not available', async () => {
       const byok = makeProvider('byok', false);
-      const groq = makeProvider('groq-llama3', true, 'Groq result');
+      const groq = makeProvider('groq-gpt-oss', true, 'Groq result');
       const nano = makeProvider('gemini-nano', true, 'Nano result');
 
       const router = makeRouter({ byok, groq, nano });
       const result = await router.route({ label: 'Email' });
 
-      expect(result.provider).toBe('groq-llama3');
+      expect(result.provider).toBe('groq-gpt-oss');
       expect(result.reason).toBe('groq_authenticated');
       expect(result.value).toBe('Groq result');
       expect(groq.complete).toHaveBeenCalledOnce();
@@ -126,7 +126,7 @@ describe('InferenceRouter', () => {
 
     it('routes to Gemini Nano for anonymous users (no Groq, no BYOK)', async () => {
       const byok = makeProvider('byok', false);
-      const groq = makeProvider('groq-llama3', false);
+      const groq = makeProvider('groq-gpt-oss', false);
       const nano = makeProvider('gemini-nano', true, 'Nano result');
 
       const router = makeRouter({ byok, groq, nano });
@@ -139,7 +139,7 @@ describe('InferenceRouter', () => {
 
     it('throws InferenceUnavailableError when no provider is available', async () => {
       const byok = makeProvider('byok', false);
-      const groq = makeProvider('groq-llama3', false);
+      const groq = makeProvider('groq-gpt-oss', false);
       const nano = makeProvider('gemini-nano', false);
 
       const router = makeRouter({ byok, groq, nano });
@@ -152,7 +152,7 @@ describe('InferenceRouter', () => {
   describe('route() — Groq fallback to Nano', () => {
     it('falls back to Nano if Groq throws', async () => {
       const byok = makeProvider('byok', false);
-      const groq = makeProvider('groq-llama3', true);
+      const groq = makeProvider('groq-gpt-oss', true);
       const nano = makeProvider('gemini-nano', true, 'Nano fallback result');
 
       vi.mocked(groq.complete).mockRejectedValue(new Error('Groq API 503'));
@@ -167,7 +167,7 @@ describe('InferenceRouter', () => {
 
     it('re-throws the Groq error if Nano is also unavailable', async () => {
       const byok = makeProvider('byok', false);
-      const groq = makeProvider('groq-llama3', true);
+      const groq = makeProvider('groq-gpt-oss', true);
       const nano = makeProvider('gemini-nano', false);
 
       vi.mocked(groq.complete).mockRejectedValue(new Error('Groq down'));
@@ -183,7 +183,7 @@ describe('InferenceRouter', () => {
       const nano = makeProvider('gemini-nano', true, 'test value');
       const router = makeRouter({
         byok: makeProvider('byok', false),
-        groq: makeProvider('groq-llama3', false),
+        groq: makeProvider('groq-gpt-oss', false),
         nano,
       });
 
@@ -206,16 +206,16 @@ describe('InferenceRouter', () => {
       expect(await router.getSelectedProviderName()).toBe('byok');
     });
 
-    it('returns "groq-llama3" when authenticated and no BYOK', async () => {
+    it('returns "groq-gpt-oss" when authenticated and no BYOK', async () => {
       const byok = makeProvider('byok', false);
-      const groq = makeProvider('groq-llama3', true);
+      const groq = makeProvider('groq-gpt-oss', true);
       const router = makeRouter({ byok, groq });
-      expect(await router.getSelectedProviderName()).toBe('groq-llama3');
+      expect(await router.getSelectedProviderName()).toBe('groq-gpt-oss');
     });
 
     it('returns "gemini-nano" when anonymous and Nano is available', async () => {
       const byok = makeProvider('byok', false);
-      const groq = makeProvider('groq-llama3', false);
+      const groq = makeProvider('groq-gpt-oss', false);
       const nano = makeProvider('gemini-nano', true);
       const router = makeRouter({ byok, groq, nano });
       expect(await router.getSelectedProviderName()).toBe('gemini-nano');
@@ -224,7 +224,7 @@ describe('InferenceRouter', () => {
     it('returns "none" when no provider is available', async () => {
       const router = makeRouter({
         byok: makeProvider('byok', false),
-        groq: makeProvider('groq-llama3', false),
+        groq: makeProvider('groq-gpt-oss', false),
         nano: makeProvider('gemini-nano', false),
       });
       expect(await router.getSelectedProviderName()).toBe('none');

@@ -7,7 +7,8 @@
 export async function fetchSuggestion(
   _manager: unknown,
   element: HTMLElement,
-  _isBatchRunning: boolean
+  _isBatchRunning: boolean,
+  options?: { clipboard?: any }
 ): Promise<SDKSuggestionResult | null> {
   const sdk = window.Cognilot?.SDK;
   const actionEngine = sdk?.action;
@@ -18,14 +19,11 @@ export async function fetchSuggestion(
   if (!node) return null;
 
   try {
-    const result = await actionEngine.handleTrigger(node);
-
-    // Normalize result for the legacy controller if needed
-    if (result && !(result as any).error) {
-      return result as SDKSuggestionResult;
-    }
+    const result = await actionEngine.handleTrigger(node, options);
+    return result as SDKSuggestionResult | null;
   } catch (e) {
     console.error('[AutocompleteService] Error:', e);
+    return { error: (e as Error).message || 'Error' } as any;
   }
 
   return null;

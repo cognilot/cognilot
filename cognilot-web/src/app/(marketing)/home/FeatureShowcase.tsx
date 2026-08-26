@@ -60,7 +60,7 @@ const FEATURES: FeatureItem[] = [
     desc: 'Connect your own API key from Groq, Gemini Nano, or OpenAI. Cognilot routes inference requests through your key so no form data ever passes through our infrastructure.',
     preview: `// inference_router.config
 
-  groq_llama3    ●  ACTIVE    42ms   local key
+  groq_gpt_oss   ●  ACTIVE    42ms   local key
   gemini_nano    ○  standby         on-device  
   openai_gpt4o   ○  inactive        —
 

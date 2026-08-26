@@ -23,6 +23,17 @@ export class SuggestionEngine {
     this.labelExtractor = new LabelExtractor(this.platform);
   }
 
+  private generateSecurePassword(): string {
+    const chars =
+      'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*()_+~`|}{[]:;?><,./-=';
+    let password = '';
+    for (let i = 0; i < 16; i++) {
+      const randomIndex = Math.floor(Math.random() * chars.length);
+      password += chars[randomIndex];
+    }
+    return password;
+  }
+
   /**
    * Handles a field trigger (e.g., focus or click) to fetch suggestions.
    */
@@ -34,6 +45,21 @@ export class SuggestionEngine {
     if (['radio', 'checkbox', 'file'].includes(fieldType) || tagName === 'select') {
       return {
         error: 'Field is not textual. SuggestionEngine handles only text/inputs.',
+      };
+    }
+
+    // 1a. Security & Privacy: Never send passwords to AI. Generate locally.
+    if (fieldType === 'password') {
+      const generatedPwd = this.generateSecurePassword();
+      const metadata = this.sdk.detection.getFieldMetadata(node) || { label: 'Password' };
+      const { labelElement, ...cleanMetadata } = metadata as any;
+      return {
+        success: true,
+        value: generatedPwd,
+        options: [generatedPwd],
+        source: 'local_generator',
+        field: cleanMetadata,
+        type: 'discrete',
       };
     }
 
@@ -55,6 +81,7 @@ export class SuggestionEngine {
     }
 
     if (
+      !options?.clipboard &&
       registryEntry?.status === 'resolved' &&
       registryEntry.resolution?.source !== 'existing_value'
     ) {
@@ -99,35 +126,37 @@ export class SuggestionEngine {
 
     if (!metadata.label && !metadata.source) return null;
 
-    // 4. Local Resolution Level (Check Alias/Profile first)
-    const localMatch = await this.resolveLocally(node, metadata);
-    if (localMatch) {
-      return localMatch;
-    }
-
-    // 5. Cache Check (Memory -> Persistent Storage)
     const cacheKey =
       (node as any).id || (node as any).getAttribute('name') || metadata.label || 'unknown';
-
-    // In-Memory check (Fastest)
-    if (this.requestCache.has(cacheKey)) {
-      console.log(`[SuggestionEngine] Memory Cache Hit for "${metadata.label}"`);
-      const cachedRes = this.requestCache.get(cacheKey);
-      if (cachedRes && !cachedRes.options) cachedRes.options = [cachedRes.value]; // Ensure ghost-text compatibility
-      return cachedRes;
-    }
-
-    // Persistent Storage check (Survives Refresh)
     const storage = this.sdk.adapters?.storage;
-    if (storage) {
-      const storageResult = await (storage as any).get('Cognilot_suggestions_cache', 'session');
-      const persistentCache = storageResult?.Cognilot_suggestions_cache || storageResult || {};
-      if (persistentCache[cacheKey]) {
-        console.log(`[SuggestionEngine] Persistent Cache Hit for "${metadata.label}"`);
-        const cachedRes = persistentCache[cacheKey];
-        if (cachedRes && !cachedRes.options) cachedRes.options = [cachedRes.value];
-        this.requestCache.set(cacheKey, cachedRes); // Hydro memories for speed
+
+    if (!options?.clipboard) {
+      // 4. Local Resolution Level (Check Alias/Profile first)
+      const localMatch = await this.resolveLocally(node, metadata);
+      if (localMatch) {
+        return localMatch;
+      }
+
+      // 5. Cache Check (Memory -> Persistent Storage)
+      // In-Memory check (Fastest)
+      if (this.requestCache.has(cacheKey)) {
+        console.log(`[SuggestionEngine] Memory Cache Hit for "${metadata.label}"`);
+        const cachedRes = this.requestCache.get(cacheKey);
+        if (cachedRes && !cachedRes.options) cachedRes.options = [cachedRes.value]; // Ensure ghost-text compatibility
         return cachedRes;
+      }
+
+      // Persistent Storage check (Survives Refresh)
+      if (storage) {
+        const storageResult = await (storage as any).get('Cognilot_suggestions_cache', 'session');
+        const persistentCache = storageResult?.Cognilot_suggestions_cache || storageResult || {};
+        if (persistentCache[cacheKey]) {
+          console.log(`[SuggestionEngine] Persistent Cache Hit for "${metadata.label}"`);
+          const cachedRes = persistentCache[cacheKey];
+          if (cachedRes && !cachedRes.options) cachedRes.options = [cachedRes.value];
+          this.requestCache.set(cacheKey, cachedRes); // Hydro memories for speed
+          return cachedRes;
+        }
       }
     }
 
@@ -135,7 +164,7 @@ export class SuggestionEngine {
     const settings = this.sdk.adapters?.settings
       ? await (this.sdk.adapters.settings as any).getSettings()
       : {};
-    const provider = settings.aiModels?.suggestionsProvider || 'llama-3.3-70b-versatile';
+    const provider = settings.aiModels?.suggestionsProvider || 'openai/gpt-oss-120b';
     const useProfileContext = settings.copilotSuggestions?.useProfileContext !== false;
 
     // NEW: Get Local Profile and Sync Queue
@@ -166,6 +195,7 @@ export class SuggestionEngine {
       user_context: {
         profile: profile,
         sync_queue: syncQueue,
+        ...(options?.clipboard ? { clipboard: options.clipboard } : {}),
       },
       page_context: {
         domain: globalContext.location.hostname,
@@ -291,16 +321,13 @@ export class SuggestionEngine {
           }
         }
       }
-
       if (!response || !response.ok) {
         throw new Error(response?.statusText || 'API server unavailable');
       }
     } catch (e) {
       console.error('[SuggestionEngine] Failed to fetch suggestion:', e);
-      return null;
+      return { error: (e as Error).message || 'Failed to fetch suggestion' } as any;
     }
-
-    return null;
   }
 
   /**
@@ -369,7 +396,7 @@ export class SuggestionEngine {
    * Batches multiple suggestion requests into a single API call for efficiency.
    * Filters out already cached/local matches.
    */
-  async prefetchBatch(items: { node: CognilotNode; metadata: LabelMetadata }[]) {
+  async prefetchBatch(items: { node: CognilotNode; metadata: LabelMetadata }[], options: any = {}) {
     const globalContext = this.platform.getGlobalContext();
     const storage = this.sdk.adapters?.storage;
 
@@ -381,12 +408,30 @@ export class SuggestionEngine {
         (item.node as any).getAttribute('name') ||
         item.metadata.label ||
         'unknown';
-      if (this.requestCache.has(cacheKey)) continue;
 
-      const localMatch = await this.resolveLocally(item.node, item.metadata);
-      if (localMatch) {
-        this.requestCache.set(cacheKey, localMatch); // Prime memory cache
+      if (!options?.clipboard && this.requestCache.has(cacheKey)) continue;
+
+      if ((item.node as any).type === 'password') {
+        const generatedPwd = this.generateSecurePassword();
+        const { labelElement, ...cleanMetadata } = item.metadata as any;
+        const finalRes = {
+          success: true,
+          value: generatedPwd,
+          options: [generatedPwd],
+          source: 'local_generator',
+          field: cleanMetadata,
+          type: 'discrete' as const,
+        };
+        this.requestCache.set(cacheKey, finalRes);
         continue;
+      }
+
+      if (!options?.clipboard) {
+        const localMatch = await this.resolveLocally(item.node, item.metadata);
+        if (localMatch) {
+          this.requestCache.set(cacheKey, localMatch); // Prime memory cache
+          continue;
+        }
       }
 
       pendingItems.push({ key: cacheKey, item });
@@ -397,7 +442,7 @@ export class SuggestionEngine {
     const settings = this.sdk.adapters?.settings
       ? await (this.sdk.adapters.settings as any).getSettings()
       : {};
-    const provider = settings.aiModels?.suggestionsProvider || 'llama-3.3-70b-versatile';
+    const provider = settings.aiModels?.suggestionsProvider || 'openai/gpt-oss-120b';
     const activeProvider = await this.sdk.inference.getSelectedProviderName();
     if (activeProvider === 'byok' || activeProvider === 'gemini-nano') {
       console.log(`[SuggestionEngine] Prefetch: Local inference route chosen: ${activeProvider}`);
@@ -472,6 +517,7 @@ export class SuggestionEngine {
       user_context: {
         profile: profile,
         sync_queue: syncQueue,
+        ...(options?.clipboard ? { clipboard: options.clipboard } : {}),
       },
       page_context: {
         domain: globalContext.location.hostname,

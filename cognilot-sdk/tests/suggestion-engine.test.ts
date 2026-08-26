@@ -61,7 +61,7 @@ describe('SuggestionEngine', () => {
     expect(sdk.profile.updateFromStandardizedData).toHaveBeenCalledWith(mockProfile);
   });
 
-  it('should return null when API fails (Error 500)', async () => {
+  it('should return error object when API fails (Error 500)', async () => {
     // 1. Arrange
     const node = new MockNode('INPUT', '', { name: 'phone' });
 
@@ -75,7 +75,7 @@ describe('SuggestionEngine', () => {
     const result = await engine.handleTrigger(node);
 
     // 3. Assert
-    expect(result).toBeNull();
+    expect(result).toEqual({ error: 'Internal Server Error' });
   });
 
   it('should cache results in storage to avoid redundant API calls', async () => {

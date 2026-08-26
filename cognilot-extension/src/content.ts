@@ -248,15 +248,19 @@ import { Modules, init as initModules } from './index';
   // ─── PUBLIC API ─────────────────────────────────────────────
 
   interface CognilotAPI {
-    solveAll(questions?: unknown[] | null): Promise<unknown> | { error: string };
+    solveAll(
+      questions?: unknown[] | null,
+      useClipboard?: boolean,
+      clipboardData?: any
+    ): Promise<unknown> | { error: string };
     enableInspector(activeFormId?: string): void;
     disableInspector(): void;
     detect(scopeElement?: HTMLElement | null, silent?: boolean): DetectionPayload;
   }
 
   (window as unknown as { CognilotAPI: CognilotAPI }).CognilotAPI = {
-    solveAll: (questions = null) => {
-      return solveAll(questions as SDKQuestionDTO[] | null);
+    solveAll: (questions = null, useClipboard = false, clipboardData = null) => {
+      return solveAll(questions as SDKQuestionDTO[] | null, useClipboard, clipboardData);
     },
 
     enableInspector: (activeFormId?: string) => {
@@ -380,7 +384,11 @@ import { Modules, init as initModules } from './index';
 
       if (request.action === 'sidebarSolveAll') {
         const data = request.data as Record<string, unknown> | undefined;
-        api.solveAll(data?.questions as unknown[] | undefined);
+        api.solveAll(
+          data?.questions as unknown[] | undefined,
+          data?.useClipboard as boolean | undefined,
+          data?.clipboardData
+        );
         sendResponse({ success: true });
         return true;
       }

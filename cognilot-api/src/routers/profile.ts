@@ -145,17 +145,39 @@ profileRouter.post('/sync', zValidator('json', syncProfileSchema), async (c) => 
     console.log('[Profile/Sync] No raw labels to standardize.');
   }
 
-  // ── 4. Merge values under canonical keys ──────────────────────────────────
+  // ── 4. Merge values under canonical keys with semantic validation ─────────
   const mergedData: Record<string, string[]> = { ...existingDataLearned };
+
+  const sanitizeAndValidate = (key: string, rawVal: string): string | null => {
+    const val = String(rawVal || '').trim();
+    if (!val) return null;
+
+    // Discard email values accidentally placed into name or username fields
+    if (['full_name', 'first_name', 'last_name', 'username'].includes(key) && val.includes('@')) {
+      console.warn(`[Profile/Sync] Discarding email value for name field ${key}:`, val);
+      return null;
+    }
+
+    // Discard non-email values in email field
+    if (key === 'email' && (!val.includes('@') || !val.includes('.'))) {
+      console.warn(`[Profile/Sync] Discarding invalid email format for email field:`, val);
+      return null;
+    }
+
+    return val;
+  };
 
   // Process sync_queue items
   if (sync_queue && Array.isArray(sync_queue)) {
     for (const item of sync_queue) {
       if (!item.key || !item.value) continue;
       const canonicalKey = mappings[item.key] || item.key;
+      const validVal = sanitizeAndValidate(canonicalKey, item.value);
+      if (!validVal) continue;
+
       if (!mergedData[canonicalKey]) mergedData[canonicalKey] = [];
-      if (!mergedData[canonicalKey].includes(item.value)) {
-        mergedData[canonicalKey].push(item.value);
+      if (!mergedData[canonicalKey].includes(validVal)) {
+        mergedData[canonicalKey].push(validVal);
       }
     }
   }
@@ -164,10 +186,12 @@ profileRouter.post('/sync', zValidator('json', syncProfileSchema), async (c) => 
   if (learnedData && typeof learnedData === 'object') {
     for (const [rawKey, value] of Object.entries(learnedData)) {
       const canonicalKey = mappings[rawKey] || rawKey;
+      const validVal = sanitizeAndValidate(canonicalKey, String(value));
+      if (!validVal) continue;
+
       if (!mergedData[canonicalKey]) mergedData[canonicalKey] = [];
-      const valueStr = String(value);
-      if (!mergedData[canonicalKey].includes(valueStr)) {
-        mergedData[canonicalKey].push(valueStr);
+      if (!mergedData[canonicalKey].includes(validVal)) {
+        mergedData[canonicalKey].push(validVal);
       }
     }
   }
@@ -187,46 +211,13 @@ profileRouter.post('/sync', zValidator('json', syncProfileSchema), async (c) => 
       set: { dataLearned: mergedData, updatedAt: new Date() },
     });
 
-  // ── 6. Auto-create aliases for raw → canonical mappings ───────────────────
-  const newAliases: Array<{ label: string; memoryKey: string }> = [];
-  const labelsToCheck = Object.keys(mappings);
-
-  if (labelsToCheck.length > 0) {
-    // Fetch existing aliases for these labels
-    const existingAliases = await db
-      .select({ label: aliases.label })
-      .from(aliases)
-      .where(and(eq(aliases.userId, userId), inArray(aliases.label, labelsToCheck)));
-    const existingLabels = new Set(existingAliases.map((a) => a.label));
-
-    // Insert only new ones
-    const aliasesToInsert = labelsToCheck
-      .filter((rawLabel) => {
-        const canonicalKey = mappings[rawLabel]!;
-        // Skip if label == canonical key (self-mapping, not useful)
-        if (rawLabel === canonicalKey) return false;
-        // Skip if alias already exists
-        if (existingLabels.has(rawLabel)) return false;
-        return true;
-      })
-      .map((rawLabel) => ({
-        userId,
-        label: rawLabel,
-        memoryKey: mappings[rawLabel]!,
-        category: 'auto',
-      }));
-
-    if (aliasesToInsert.length > 0) {
-      await db.insert(aliases).values(aliasesToInsert);
-      newAliases.push(...aliasesToInsert.map((a) => ({ label: a.label, memoryKey: a.memoryKey })));
-    }
-  }
+  // ── 6. (KISS: No automatic database alias creation) ───────────────────────
 
   return c.json({
     message: 'Profile synced successfully.',
     fieldsLearned: Object.keys(mergedData).length,
     profile: { dataLearned: mergedData },
     mappings,
-    newAliases,
+    newAliases: [],
   });
 });

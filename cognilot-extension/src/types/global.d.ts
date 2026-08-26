@@ -237,6 +237,7 @@ interface SDKSettingsManager {
       showInPlaceholder: boolean;
       cacheSuggestions: boolean;
       learnCustomFields: boolean;
+      showFloatingBox: boolean;
     };
     aiModels: {
       suggestionsProvider: string;
@@ -390,6 +391,7 @@ interface HTMLElement {
   _CognilotGhost?: HTMLDivElement;
   _CognilotGhostRaf?: number;
   _CognilotHint?: HTMLDivElement;
+  _CognilotHintRaf?: number;
   _CognilotHelp?: HTMLDivElement;
   _CognilotSuggestion?: SuggestionState;
   _isTabCompletion?: boolean;

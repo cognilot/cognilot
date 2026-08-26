@@ -10,6 +10,8 @@ import * as HintUI from '../ui/autocomplete/hint_ui';
 import * as HelpUI from '../ui/autocomplete/help_ui';
 import { fetchSuggestion } from '../services/autocomplete_service';
 import { refineText } from '../services/refinement_service';
+import { CredentialsService } from '../services/credentials_service';
+import { readClipboardDirect } from '../utils/clipboard';
 
 interface ListenerEntry {
   type: string;
@@ -23,6 +25,48 @@ let _lastProcessed: { element: HTMLElement | null; time: number } = {
 };
 let _isBatchRunning = false;
 
+function paintSiblingGhostTexts(focusedElement: HTMLElement): void {
+  const sdk = window.Cognilot?.SDK;
+  if (!sdk || !sdk.registry) return;
+
+  const entry = sdk.registry.findByNode(focusedElement);
+  if (entry && entry.formScopeId) {
+    const siblings = sdk.registry.getByFormScope(entry.formScopeId);
+    for (const sibling of siblings) {
+      const siblingEl = sibling.node?.getRawNode?.() as HTMLElement | null;
+      if (siblingEl && siblingEl !== focusedElement) {
+        if (sibling.resolution && sibling.resolution.value) {
+          const siblingSuggestion: SuggestionState = {
+            options: sibling.resolution.options || [sibling.resolution.value],
+            _allOptions: sibling.resolution.options || [sibling.resolution.value],
+            _activeIndex: 0,
+            isLoading: false,
+            isError: false,
+          };
+          siblingEl._CognilotSuggestion = siblingSuggestion;
+          GhostUI.paint(siblingEl, siblingSuggestion);
+        }
+      }
+    }
+  }
+}
+
+function clearSiblingGhostTexts(element: HTMLElement): void {
+  const sdk = window.Cognilot?.SDK;
+  if (!sdk || !sdk.registry) return;
+
+  const entry = sdk.registry.findByNode(element);
+  if (entry && entry.formScopeId) {
+    const siblings = sdk.registry.getByFormScope(entry.formScopeId);
+    for (const sibling of siblings) {
+      const siblingEl = sibling.node?.getRawNode?.() as HTMLElement | null;
+      if (siblingEl && siblingEl !== element) {
+        GhostUI.clear(siblingEl);
+      }
+    }
+  }
+}
+
 function updateUI(element: HTMLElement, suggestion: SuggestionState): void {
   if (document.activeElement !== element) return;
 
@@ -35,13 +79,24 @@ function updateUI(element: HTMLElement, suggestion: SuggestionState): void {
 
   GhostUI.paint(element, suggestion);
 
-  if (!element._blockCognilotTrigger) {
-    CursorUI.paint(element);
+  if (!suggestion.isLoading && !suggestion.isError) {
+    paintSiblingGhostTexts(element);
   }
 
-  const firstOpt = (suggestion.options?.[0] || '').toLowerCase();
+  if (!element._blockCognilotTrigger) {
+    if (suggestion.isError) {
+      element.style.setProperty('caret-color', 'var(--Cognilot-error)', 'important');
+    } else {
+      const sdk = window.Cognilot?.SDK;
+      const matchedField = sdk?.facade?.matchField(element) || null;
+      const isFormContext = !!matchedField;
+      CursorUI.paint(element, isFormContext);
+    }
+  }
+
+  const firstOpt = suggestion.options?.[0];
   const currentVal = ((element as HTMLInputElement).value || '').toLowerCase();
-  const isExactMatch = currentVal === firstOpt;
+  const isExactMatch = firstOpt ? currentVal === firstOpt.toLowerCase() : false;
 
   if (suggestion._isHintHidden || isExactMatch) {
     HintUI.clear(element);
@@ -52,12 +107,18 @@ function updateUI(element: HTMLElement, suggestion: SuggestionState): void {
   HelpUI.clear(element);
 }
 
-function clearUI(element: HTMLElement): void {
-  delete element._CognilotSuggestion;
+function clearUI(element: HTMLElement, keepCache = false, skipSiblings = false): void {
+  if (!keepCache) {
+    delete element._CognilotSuggestion;
+  }
   GhostUI.clear(element);
   HintUI.clear(element);
   HelpUI.clear(element);
   CursorUI.clear();
+
+  if (!skipSiblings) {
+    clearSiblingGhostTexts(element);
+  }
 }
 
 async function handleAutocomplete(element: HTMLElement): Promise<void> {
@@ -67,10 +128,18 @@ async function handleAutocomplete(element: HTMLElement): Promise<void> {
   if (_lastProcessed.element === element && now - _lastProcessed.time < 300) return;
   _lastProcessed = { element, time: now };
 
-  updateUI(element, { isLoading: true, options: [] });
+  const sdk = window.Cognilot?.SDK;
+  const settingsAdapter = sdk?.Core?.Registry?.getAdapter('settings');
+  const settings = settingsAdapter ? await settingsAdapter.getSettings() : {};
+  const showFloatingBox = settings?.copilotSuggestions?.showFloatingBox !== false;
+
+  const loadingTimeout: any = setTimeout(() => {
+    updateUI(element, { isLoading: true, options: [], _isHintHidden: !showFloatingBox });
+  }, 150);
 
   try {
     const suggestion = await fetchSuggestion(null, element, _isBatchRunning);
+    clearTimeout(loadingTimeout);
 
     if ((suggestion as unknown as Record<string, unknown>)?._batchStarted) {
       _isBatchRunning = true;
@@ -79,15 +148,28 @@ async function handleAutocomplete(element: HTMLElement): Promise<void> {
       }, 3000);
     }
 
+    const domainCreds = await CredentialsService.getCredentialsForDomain();
+    const savedEmails = domainCreds.map((c) => c.email);
+    const isPassword = (element as HTMLInputElement).type === 'password';
+
     if (suggestion) {
-      const hasValidOption =
-        suggestion.options &&
-        suggestion.options.length > 0 &&
-        suggestion.options[0].trim().length > 0;
+      if ((suggestion as any).error) {
+        throw new Error((suggestion as any).error);
+      }
+
+      let options = suggestion.options || [];
+      if (!isPassword && savedEmails.length > 0) {
+        options = Array.from(new Set([...savedEmails, ...options]));
+      }
+
+      const hasValidOption = options.length > 0 && options[0].trim().length > 0;
       const state: SuggestionState = {
         ...suggestion,
-        _allOptions: [...(suggestion.options || [])],
-        _isHintHidden: false,
+        options,
+        _allOptions: isPassword
+          ? suggestion.options || []
+          : Array.from(new Set([...savedEmails, ...(suggestion._allOptions || options)])),
+        _isHintHidden: !showFloatingBox,
         isNoMatch: !hasValidOption,
       } as any;
       element._CognilotSuggestion = state;
@@ -101,7 +183,7 @@ async function handleAutocomplete(element: HTMLElement): Promise<void> {
               data: {
                 fieldId: (element as HTMLInputElement).id,
                 fieldName: (element as HTMLInputElement).name,
-                value: suggestion.options![0],
+                value: options[0],
                 source: suggestion.source || 'suggestion',
               },
             })
@@ -113,20 +195,23 @@ async function handleAutocomplete(element: HTMLElement): Promise<void> {
         }
       }
     } else {
+      const options = !isPassword ? savedEmails : [];
       const emptyState: SuggestionState = {
-        isNoMatch: true,
-        options: [],
-        _isHintHidden: false,
+        isNoMatch: options.length === 0,
+        options,
+        _allOptions: options,
+        _isHintHidden: !showFloatingBox,
       };
       element._CognilotSuggestion = emptyState;
       updateUI(element, emptyState);
     }
   } catch (error) {
+    clearTimeout(loadingTimeout);
     const errorState: SuggestionState = {
       isError: true,
       error: (error as Error).message || 'Error de red',
       options: [],
-      _isHintHidden: false,
+      _isHintHidden: !showFloatingBox,
     };
     element._CognilotSuggestion = errorState;
     updateUI(element, errorState);
@@ -184,6 +269,51 @@ async function handleRefine(element: HTMLElement): Promise<void> {
 
 async function handleLearn(element: HTMLElement): Promise<void> {
   const inputEl = element as HTMLInputElement;
+
+  // Search DOM/Form for password and email inputs to save credential pair
+  const form = element.closest('form') || element.ownerDocument;
+  const passwordInput = (
+    inputEl.type === 'password' ? inputEl : form.querySelector('input[type="password"]')
+  ) as HTMLInputElement | null;
+
+  const emailInput = (
+    inputEl.type !== 'password' &&
+    (inputEl.type === 'email' ||
+      inputEl.name?.toLowerCase().includes('user') ||
+      inputEl.name?.toLowerCase().includes('email') ||
+      inputEl.id?.toLowerCase().includes('email'))
+      ? inputEl
+      : (form.querySelector(
+          'input[type="email"], input[name*="email" i], input[name*="user" i], input[id*="email" i], input[id*="user" i], input[autocomplete="username"]'
+        ) as HTMLInputElement | null) ||
+        (inputEl.type !== 'password'
+          ? inputEl
+          : (form.querySelector(
+              'input:not([type="password"]):not([type="hidden"]):not([type="submit"]):not([type="button"])'
+            ) as HTMLInputElement | null))
+  ) as HTMLInputElement | null;
+
+  if (passwordInput && passwordInput.value && emailInput && emailInput.value) {
+    updateUI(element, { isLoading: true, options: ['Saving credentials...'] });
+    try {
+      await CredentialsService.saveCredential(emailInput.value, passwordInput.value);
+      updateUI(element, {
+        options: ['🔑 Credenciales guardadas!'],
+        _isFeedback: true,
+      });
+
+      setTimeout(() => {
+        if (document.activeElement === element) {
+          updateUI(element, element._CognilotSuggestion || {});
+        }
+      }, 1500);
+      return;
+    } catch (_error) {
+      updateUI(element, { isError: true, error: 'Failed to save credentials' });
+      return;
+    }
+  }
+
   const textToLearn = inputEl.value;
   if (!textToLearn || textToLearn.trim().length === 0) return;
 
@@ -224,16 +354,77 @@ async function handleLearn(element: HTMLElement): Promise<void> {
   }
 }
 
+async function handleSmartPaste(element: HTMLElement): Promise<void> {
+  const isTextField = ['INPUT', 'TEXTAREA'].includes(element.tagName);
+  if (!isTextField) return;
+
+  updateUI(element, { isLoading: true, options: ['Leyendo portapapeles...'] });
+
+  try {
+    const clipboardData = await readClipboardDirect();
+
+    if (!clipboardData || clipboardData.type === 'empty') {
+      updateUI(element, { isError: true, error: 'Portapapeles vacío o no accesible' });
+      return;
+    }
+
+    updateUI(element, { isLoading: true, options: ['Generando sugerencia contextual...'] });
+
+    const suggestion = await fetchSuggestion(null, element, false, { clipboard: clipboardData });
+    if (suggestion) {
+      if ((suggestion as any).error) {
+        throw new Error((suggestion as any).error);
+      }
+      const options = suggestion.options || [];
+      const state: SuggestionState = {
+        ...suggestion,
+        options,
+        _allOptions: options,
+        _isHintHidden: false,
+      } as any;
+      element._CognilotSuggestion = state;
+      updateUI(element, state);
+    } else {
+      updateUI(element, { isNoMatch: true, options: [] });
+    }
+  } catch (error) {
+    updateUI(element, { isError: true, error: (error as Error).message || 'Error IA' });
+  }
+}
+
 function handleKeyboard(e: KeyboardEvent): void {
   const element = e.target as HTMLElement;
   const suggestion = element._CognilotSuggestion;
 
+  // SMART PASTE (CLIPBOARD CONTEXT): Ctrl + Shift + V (or Cmd + Shift + V)
+  if (
+    (e.code === 'KeyV' || e.key === 'V' || e.key === 'v') &&
+    (e.ctrlKey || e.metaKey) &&
+    e.shiftKey
+  ) {
+    e.preventDefault();
+    handleSmartPaste(element);
+    return;
+  }
+
   // TOGGLE HINT UI: Ctrl + Space
   if (e.code === 'Space' && e.ctrlKey) {
     e.preventDefault();
-    if (suggestion) {
-      suggestion._isHintHidden = !suggestion._isHintHidden;
-      updateUI(element, suggestion);
+    const sdk = window.Cognilot?.SDK;
+    const matchedField = sdk?.facade?.matchField(element) || null;
+    const isFormContext = !!matchedField;
+
+    if (isFormContext) {
+      if (suggestion) {
+        if (suggestion.isError) {
+          handleAutocomplete(element);
+        } else {
+          suggestion._isHintHidden = !suggestion._isHintHidden;
+          updateUI(element, suggestion);
+        }
+      } else {
+        handleAutocomplete(element);
+      }
     } else {
       clearUI(element);
     }
@@ -314,6 +505,21 @@ function handleKeyboard(e: KeyboardEvent): void {
       inputEl.value = acceptedValue;
       element.classList.add('Cognilot-suggested');
       element.dispatchEvent(new Event('input', { bubbles: true }));
+      element.dispatchEvent(new Event('change', { bubbles: true }));
+
+      // Autocomplete corresponding password field if matching saved credential exists
+      CredentialsService.getCredentialForEmail(acceptedValue).then((cred) => {
+        if (cred && cred.password) {
+          const form = element.closest('form') || element.ownerDocument;
+          const pwdInput = form.querySelector('input[type="password"]') as HTMLInputElement | null;
+          if (pwdInput) {
+            pwdInput.value = cred.password;
+            pwdInput.classList.add('Cognilot-suggested');
+            pwdInput.dispatchEvent(new Event('input', { bubbles: true }));
+            pwdInput.dispatchEvent(new Event('change', { bubbles: true }));
+          }
+        }
+      });
 
       const isInput = element.tagName && element.tagName.toLowerCase() === 'input';
       const sdk = window.Cognilot?.SDK;
@@ -360,12 +566,10 @@ export function init(): void {
       (el as HTMLInputElement)._CognilotFocusValue = (el as HTMLInputElement).value;
 
       if (isFormContext) {
-        const inputEl = el as HTMLInputElement;
-        if (!inputEl.value || inputEl.value.trim().length === 0) {
-          handleAutocomplete(el);
-        } else {
-          updateUI(el, {});
+        if (el._CognilotSuggestion) {
+          updateUI(el, el._CognilotSuggestion);
         }
+        handleAutocomplete(el);
       }
     }
   }) as EventListener;
@@ -425,7 +629,19 @@ export function init(): void {
     const element = e.target as HTMLElement;
 
     if (e.type === 'blur') {
-      clearUI(element);
+      const newActive = e.relatedTarget as HTMLElement | null;
+      const sdk = window.Cognilot?.SDK;
+      const oldEntry = sdk?.registry?.findByNode(element);
+      const newEntry = newActive ? sdk?.registry?.findByNode(newActive) : null;
+
+      const inSameForm = !!(
+        oldEntry &&
+        newEntry &&
+        oldEntry.formScopeId &&
+        oldEntry.formScopeId === newEntry.formScopeId
+      );
+
+      clearUI(element, true, inSameForm);
       delete (element as HTMLInputElement)._CognilotFocusValue;
     }
   }) as EventListener;
@@ -435,16 +651,39 @@ export function init(): void {
   document.addEventListener('input', inputHandler, true);
   document.addEventListener('blur', learningHandler, true);
 
+  const prefetchCompleteHandler = ((e: CustomEvent): void => {
+    const formScopeId = e.detail?.formScopeId;
+    if (!formScopeId) return;
+
+    const activeEl = document.activeElement as HTMLElement;
+    if (activeEl && ['INPUT', 'TEXTAREA'].includes(activeEl.tagName)) {
+      const sdk = window.Cognilot?.SDK;
+      const activeEntry = sdk?.registry?.findByNode(activeEl);
+      if (activeEntry && activeEntry.formScopeId === formScopeId) {
+        paintSiblingGhostTexts(activeEl);
+      }
+    }
+  }) as EventListener;
+
+  window.addEventListener('cognilot-prefetch-complete', prefetchCompleteHandler);
+
   _listeners.push(
     { type: 'focus', fn: focusHandler },
     { type: 'keydown', fn: keydownHandler },
     { type: 'input', fn: inputHandler },
-    { type: 'blur', fn: learningHandler }
+    { type: 'blur', fn: learningHandler },
+    { type: 'cognilot-prefetch-complete', fn: prefetchCompleteHandler }
   );
 }
 
 export function dispose(): void {
-  _listeners.forEach((l) => document.removeEventListener(l.type, l.fn, true));
+  _listeners.forEach((l) => {
+    if (l.type === 'cognilot-prefetch-complete') {
+      window.removeEventListener(l.type, l.fn);
+    } else {
+      document.removeEventListener(l.type, l.fn, true);
+    }
+  });
   _listeners = [];
   _isBatchRunning = false;
 }

@@ -10,6 +10,7 @@
 import { registerGlobals as registerConfigGlobals } from './config';
 import '@cognilot/sdk';
 import { initHostAdapters } from './host_adapters';
+import { readClipboardDirect } from './utils/clipboard';
 
 // Register globals before class instantiation
 registerConfigGlobals();
@@ -36,6 +37,7 @@ class CognilotSidebar {
     this.activeStatus = 'all'; // Internal filters (Todo, Mem, IA)
     this.activeMode = 'all'; // Mode filters (Escritura, Opciones)
     this.carouselIndex = 0; // Active form index in carousel
+    this.useClipboardContext = false;
   }
 
   async init() {
@@ -695,6 +697,8 @@ class CognilotSidebar {
                 headerBadge = `<span style="font-size: 9px; font-weight: 700; color: var(--accent-color); font-family: monospace; background: rgba(14,116,144,0.07); padding: 1px 5px; border-radius: 3px;">[${memKey}]</span>`;
               } else if (source === 'alias_cache') {
                 headerBadge = `<span style="font-size: 8px; font-weight: 700; color: #8b5cf6; background: rgba(139,92,246,0.08); padding: 0 4px; border-radius: 3px; border: 1px solid rgba(139,92,246,0.2); white-space: nowrap;">ALIAS</span>`;
+              } else if (source === 'local_generator') {
+                headerBadge = `<span style="font-size: 8px; font-weight: 700; color: #10b981; background: rgba(16,185,129,0.08); padding: 0 4px; border-radius: 3px; border: 1px solid rgba(16,185,129,0.2); white-space: nowrap;">KEY</span>`;
               }
             } else if (q.answer) {
               resolvedValue = q.answer;
@@ -1114,6 +1118,10 @@ class CognilotSidebar {
   updateUIWithSettings() {
     this.setToggle('copilot-enabled', this.currentSettings.copilotSuggestions?.enabled);
     this.setToggle(
+      'copilot-show-floating-box',
+      this.currentSettings.copilotSuggestions?.showFloatingBox !== false
+    );
+    this.setToggle(
       'copilot-learn-fields',
       this.currentSettings.copilotSuggestions?.learnCustomFields
     );
@@ -1139,8 +1147,7 @@ class CognilotSidebar {
     this.toggleByokFieldsVisibility(!!this.currentSettings.byok?.enabled);
 
     // AI Model selected in Home
-    const modelValue =
-      this.currentSettings.aiModels?.suggestionsProvider || 'llama-3.3-70b-versatile';
+    const modelValue = this.currentSettings.aiModels?.suggestionsProvider || 'openai/gpt-oss-120b';
     const activeOption = document.querySelector(`.model-option[data-value="${modelValue}"]`);
     if (activeOption) {
       this.updateModelSelectionUI(activeOption);
@@ -1181,13 +1188,17 @@ class CognilotSidebar {
     const getVal = (id) =>
       (document.getElementById(id) as HTMLInputElement | HTMLSelectElement)?.value || '';
     const activeModelEl = document.querySelector('.model-option--active');
-    const getModelVal = () => activeModelEl?.dataset?.value || 'llama-3.3-70b-versatile';
+    const getModelVal = () => activeModelEl?.dataset?.value || 'openai/gpt-oss-120b';
 
     const settingsAdapter = window.Cognilot.SDK.Core.Registry.getAdapter('settings');
     if (settingsAdapter) {
       await settingsAdapter.updateSetting(
         'copilotSuggestions.enabled',
         getChecked('copilot-enabled')
+      );
+      await settingsAdapter.updateSetting(
+        'copilotSuggestions.showFloatingBox',
+        getChecked('copilot-show-floating-box')
       );
       await settingsAdapter.updateSetting(
         'copilotSuggestions.learnCustomFields',
@@ -1665,6 +1676,16 @@ class CognilotSidebar {
       openOrFocusWebApp('/auth');
     });
 
+    const clipboardToggleBtn = document.getElementById('sidebar-clipboard-toggle');
+    if (clipboardToggleBtn) {
+      clipboardToggleBtn.addEventListener('click', () => {
+        this.useClipboardContext = !this.useClipboardContext;
+        clipboardToggleBtn.style.opacity = this.useClipboardContext ? '1' : '0.6';
+        clipboardToggleBtn.style.color = this.useClipboardContext ? '#3b82f6' : 'currentColor';
+        clipboardToggleBtn.title = `Usar contexto de portapapeles (${this.useClipboardContext ? 'ACTIVADO' : 'DESACTIVADO'})`;
+      });
+    }
+
     document.getElementById('header-user-badge')?.addEventListener('click', (e) => {
       e.stopPropagation();
       this.toggleUserDropdown();
@@ -1721,7 +1742,7 @@ class CognilotSidebar {
 
             // Revert option select in UI
             const currentVal =
-              this.currentSettings.aiModels?.suggestionsProvider || 'llama-3.3-70b-versatile';
+              this.currentSettings.aiModels?.suggestionsProvider || 'openai/gpt-oss-120b';
             const currentOption = document.querySelector(
               `.model-option[data-value="${currentVal}"]`
             );
@@ -2459,6 +2480,7 @@ class CognilotSidebar {
     // Auto-Save toggles
     [
       'copilot-enabled',
+      'copilot-show-floating-box',
       'copilot-learn-fields',
       'copilot-use-profile-context',
       'byok-enabled',
@@ -2540,7 +2562,7 @@ class CognilotSidebar {
               Authorization: `Bearer ${apiKey}`,
             },
             body: JSON.stringify({
-              model: customModel || 'llama-3.3-70b-versatile',
+              model: customModel || 'openai/gpt-oss-120b',
               messages: [{ role: 'user', content: 'Say OK' }],
               max_tokens: 5,
             }),
@@ -2672,8 +2694,21 @@ class CognilotSidebar {
     // 4. Disable solve button while solving
     this.updatePrimarySolveButtonState(false);
 
+    let clipboardData = null;
+    if (this.useClipboardContext) {
+      try {
+        clipboardData = await readClipboardDirect();
+      } catch (e) {
+        console.warn('[Sidebar] Failed to read clipboard context:', e);
+      }
+    }
+
     try {
-      const response: any = await this.safeSendMessage('sidebarSolveAll', { questions: questions });
+      const response: any = await this.safeSendMessage('sidebarSolveAll', {
+        questions: questions,
+        useClipboard: this.useClipboardContext,
+        clipboardData: clipboardData,
+      });
 
       if (!response.success) {
         if (this._assistantMsgEl) {

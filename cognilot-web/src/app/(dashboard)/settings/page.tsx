@@ -46,7 +46,7 @@ export default function SettingsPage() {
       data: { session },
     } = await supabase.auth.getSession();
     if (session) {
-      setActiveProviderBadge('groq-llama3');
+      setActiveProviderBadge('groq-gpt-oss');
     } else {
       setActiveProviderBadge('gemini-nano');
     }
@@ -260,7 +260,7 @@ export default function SettingsPage() {
                   onChange={(e) => setModelOverride(e.target.value)}
                   placeholder={
                     provider === 'groq'
-                      ? 'llama-3.3-70b-versatile'
+                      ? 'openai/gpt-oss-120b'
                       : provider === 'openai'
                         ? 'gpt-4o-mini'
                         : 'claude-3-haiku-20240307'

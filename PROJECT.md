@@ -5,14 +5,14 @@
 Cognilot is a monorepo consisting of:
 
 - **`cognilot-web` (Next.js 15 App Router)**: Provides the dashboard, onboarding, and memory interface. Communicates with `cognilot-api` backend.
-- **`cognilot-api` (Hono + Supabase Auth + Drizzle ORM)**: Provides REST API services, user profile database storage, and AI processing integration (via Groq/Llama).
+- **`cognilot-api` (Hono + Supabase Auth + Drizzle ORM)**: Provides REST API services, user profile database storage, and AI processing integration (via Groq/GPT-OSS).
 - **`cognilot-extension` (Chrome Extension)**: Injects autocomplete (ghost text) based on the user's profile and memory.
 
 Data Flow for CV Parsing:
 
 1. User drops PDF/DOCX file into `CVUploader` component in `cognilot-web`.
 2. `CVUploader` posts a multipart form to `POST /api/onboarding/parse-cv` in `cognilot-api`.
-3. Backend extracts raw text (via `pdf-parse` or `mammoth`) and links, sends it to Groq Llama 3.3 70b versatile.
+3. Backend extracts raw text (via `pdf-parse` or `mammoth`) and links, sends it to Groq (openai/gpt-oss-120b).
 4. Groq returns structured JSON matching `UserProfileResponse` format.
 5. Backend saves the raw CV text (`cv_raw_text`) and extracted memory (`data_learned`) in `user_profiles` table, then returns the fields to the client.
 6. Client updates the form data with the parsed fields and lets the user save.

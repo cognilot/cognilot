@@ -81,7 +81,7 @@ No explanations, no markdown block wrappers. Return raw JSON.`;
     })
     .join('\n\n');
 
-  const model = 'llama-3.3-70b-versatile';
+  const model = 'openai/gpt-oss-120b';
 
   try {
     const llm = createGroqClient(reqBody.provider);

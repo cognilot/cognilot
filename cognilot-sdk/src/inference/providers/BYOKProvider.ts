@@ -205,7 +205,7 @@ Page: {{PAGE_TITLE}} ({{PAGE_URL}})`;
         Authorization: `Bearer ${config.apiKey}`,
       },
       body: JSON.stringify({
-        model: config.model || 'llama-3.3-70b-versatile',
+        model: config.model || 'openai/gpt-oss-120b',
         messages: [
           {
             role: 'system',

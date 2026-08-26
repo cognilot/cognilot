@@ -348,6 +348,25 @@ export class DetectionEngine {
         }
         usedIds.add(uniqueId);
 
+        let resolution: any = null;
+        let status: 'pending' | 'resolved' = 'pending';
+
+        if (cleanType === 'password') {
+          const chars =
+            'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*()_+~`|}{[]:;?><,./-=';
+          let generatedPwd = '';
+          for (let i = 0; i < 16; i++) {
+            generatedPwd += chars[Math.floor(Math.random() * chars.length)];
+          }
+          resolution = {
+            success: true,
+            value: generatedPwd,
+            options: [generatedPwd],
+            source: 'local_generator',
+          };
+          status = 'resolved';
+        }
+
         fields.push({
           id: uniqueId,
           type: cleanType,
@@ -367,8 +386,8 @@ export class DetectionEngine {
           node: el,
           belongsToForm: false,
           formScopeId: null,
-          resolution: null,
-          status: 'pending',
+          resolution,
+          status,
         });
       }
     }

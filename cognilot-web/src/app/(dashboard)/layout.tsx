@@ -99,7 +99,6 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
   const navItems = [
     { href: '/welcome', label: 'welcome', hint: '// getting started' },
     { href: '/memory', label: 'memory', hint: '// profile & learned data' },
-    { href: '/aliases', label: 'aliases', hint: '// shorthand mappings' },
     { href: '/playground', label: 'playground', hint: '// skills & testing' },
     { href: '/settings', label: 'settings', hint: '// BYOK & preferences' },
     { href: '/plan', label: 'plan', hint: '// billing & usage' },

@@ -125,54 +125,12 @@ export class AliasResolver {
       normalizedId,
     ].filter((p) => p.length >= 2);
 
-    // 1. Direct label match (learned alias cache)
-    const labelKey = this.normalizeAliasKey(normalizedLabel);
-    if (labelKey && aliasCache[labelKey]) {
-      return this._resolveAlias(aliasCache, labelKey, flatProfile);
-    }
-
-    // 2. Seed aliases (multilingual bootstrap dictionary)
+    // 1. Direct label match (deprecated, skipped in KISS model)
+    // 2. Seed aliases (multilingual bootstrap dictionary against clean profile)
     const seedResult = this._matchSeedAliases(textToMatch, flatProfile);
     if (seedResult) return seedResult;
 
-    // 3. Fallback: name/placeholder/id match (learned alias cache)
-    for (const aliasKey in aliasCache) {
-      if (aliasKey === labelKey) continue;
-
-      const normAlias = LabelUtil.normalizeText(aliasKey);
-      if (
-        exactParts.includes(normAlias) ||
-        (textToMatch.includes(normAlias) && normAlias.length >= 4)
-      ) {
-        return this._resolveAlias(aliasCache, aliasKey, flatProfile);
-      }
-    }
-
     return null;
-  }
-
-  private _resolveAlias(
-    aliasCache: Record<string, { memoryKey: string }>,
-    key: string,
-    flatProfile: Record<string, unknown>
-  ) {
-    const entry = aliasCache[key];
-    if (!entry || !entry.memoryKey) return null;
-
-    const raw = flatProfile[entry.memoryKey];
-    const options = this._normalizeOptions(raw);
-    if (options.length === 0) return null;
-
-    return {
-      success: true,
-      suggestion: {
-        options: options.slice(0, 5),
-        type: 'discrete',
-        source: 'alias_cache',
-      },
-      memoryKey: entry.memoryKey,
-      reasoning: `Alias → memoryKey "${entry.memoryKey}" → ${options.length} value(s)`,
-    };
   }
 
   private _normalizeOptions(value: unknown): string[] {
@@ -217,9 +175,9 @@ export class AliasResolver {
   private _learningLock = new Map<string, number>();
 
   /**
-   * When user confirms a suggestion, sync the learned value to memory (profile sync).
-   * Also updates local caches immediately so the value is available on the next trigger
-   * without waiting for the sync roundtrip.
+   * When user confirms a suggestion, enqueue the raw label and value directly
+   * into Cognilot_sync_queue for background LLM standardization.
+   * Under KISS, no raw keys are written locally to profile_cache or alias_cache.
    */
   async persistAlias(label: string, value: string, skipSync = false) {
     const settings = this.sdk.adapters?.settings
@@ -247,36 +205,7 @@ export class AliasResolver {
     const storage = this.sdk.adapters?.storage;
     if (!storage) return false;
 
-    // ── 1. Update local profile_cache immediately ────────────────────────
-    try {
-      const profileResult = await storage.get('Cognilot_profile_cache');
-      const profileCache =
-        (profileResult?.Cognilot_profile_cache as Record<string, unknown>) || profileResult || {};
-      const existing = Array.isArray(profileCache[aliasKey])
-        ? (profileCache[aliasKey] as string[])
-        : [];
-      if (!existing.includes(trimmedValue)) {
-        profileCache[aliasKey] = [...existing, trimmedValue].slice(0, 20);
-        await storage.set({ Cognilot_profile_cache: profileCache });
-      }
-    } catch (e) {
-      console.warn('[AliasResolver] Failed to update local profile cache:', e);
-    }
-
-    // ── 2. Auto-create self-referencing alias locally (label → label) ────
-    try {
-      const aliasResult = await storage.get('Cognilot_alias_cache');
-      const aliasCache =
-        (aliasResult?.Cognilot_alias_cache as Record<string, { memoryKey: string }>) || {};
-      if (!aliasCache[aliasKey]) {
-        aliasCache[aliasKey] = { memoryKey: aliasKey };
-        await storage.set({ Cognilot_alias_cache: aliasCache });
-      }
-    } catch (e) {
-      console.warn('[AliasResolver] Failed to update local alias cache:', e);
-    }
-
-    // ── 3. Enqueue for backend sync (background) ────────────────────────
+    // Enqueue directly for backend sync (KISS: no local dirty writes)
     const result = await storage.get('Cognilot_sync_queue');
     let syncQueue = result?.Cognilot_sync_queue || [];
 
@@ -290,30 +219,19 @@ export class AliasResolver {
       syncQueue.push({ label: aliasKey, value: trimmedValue, timestamp: now });
       if (syncQueue.length > 20) syncQueue = syncQueue.slice(-20);
       await storage.set({ Cognilot_sync_queue: syncQueue });
-      this.scheduleIdleSync();
+      if (!skipSync) {
+        this.scheduleIdleSync();
+      }
     }
 
     return true;
   }
 
   /**
-   * Updates the local alias cache from API data.
-   * Called by the extension after fetching aliases from the backend.
-   * Cache structure: { label: { memoryKey: string } }
+   * Updates the local alias cache from API data (kept for backwards-compatibility).
    */
-  async updateAliasCache(aliases: Array<{ label: string; memoryKey: string }>) {
-    const storage = this.sdk.adapters?.storage;
-    if (!storage) return;
-
-    const cache: Record<string, { memoryKey: string }> = {};
-    for (const a of aliases) {
-      const key = this.normalizeAliasKey(LabelUtil.normalizeText(a.label));
-      if (key && a.memoryKey) {
-        cache[key] = { memoryKey: a.memoryKey };
-      }
-    }
-
-    await storage.set({ Cognilot_alias_cache: cache });
+  async updateAliasCache(_aliases: Array<{ label: string; memoryKey: string }>) {
+    // No-op in KISS model: we don't store alias mappings in the client.
   }
 
   private scheduleIdleSync() {
@@ -333,13 +251,16 @@ export class AliasResolver {
     const queue = await this.getSyncQueue();
     if (queue.length === 0) return;
 
+    // 1. Snapshot items to flush to avoid race conditions with incoming inputs
+    const snapshot = [...queue];
+
     console.log(
-      `[AliasResolver] Flushing sync queue (${queue.length} items, keepalive=${keepalive})...`
+      `[AliasResolver] Flushing sync queue (${snapshot.length} items, keepalive=${keepalive})...`
     );
 
     try {
       const globalContext = this.sdk.platform.getGlobalContext();
-      const formattedQueue = queue.map((item: any) => ({
+      const formattedQueue = snapshot.map((item: any) => ({
         key: item.label,
         value: item.value,
         domain: globalContext.location.hostname || 'unknown',
@@ -354,35 +275,13 @@ export class AliasResolver {
       );
 
       if (response) {
-        // ── Update profile_cache with canonical dataLearned ──────────────
+        // ── Update profile_cache with canonical dataLearned returned by server ──
         if (response.profile?.dataLearned && this.sdk.profile) {
           await this.sdk.profile.updateFromStandardizedData(response.profile.dataLearned);
         }
-
-        // ── Merge server-created aliases into local alias_cache ─────────
-        if (Array.isArray(response.newAliases) && response.newAliases.length > 0) {
-          const storage = this.sdk.adapters?.storage;
-          if (storage) {
-            const aliasResult = await storage.get('Cognilot_alias_cache');
-            const aliasCache =
-              (aliasResult?.Cognilot_alias_cache as Record<string, { memoryKey: string }>) || {};
-
-            for (const a of response.newAliases) {
-              const key = this.normalizeAliasKey(LabelUtil.normalizeText(a.label));
-              if (key && a.memoryKey) {
-                aliasCache[key] = { memoryKey: a.memoryKey };
-              }
-            }
-
-            await storage.set({ Cognilot_alias_cache: aliasCache });
-            console.log(
-              `[AliasResolver] Merged ${response.newAliases.length} new alias(es) from server.`
-            );
-          }
-        }
+        // Remove only the items we successfully flushed from the current queue
+        await this.clearSyncQueue(snapshot);
       }
-
-      await this.clearSyncQueue();
     } catch (e) {
       console.warn('[AliasResolver] Failed to flush queue:', e);
     }
@@ -395,10 +294,30 @@ export class AliasResolver {
     return result?.Cognilot_sync_queue || [];
   }
 
-  async clearSyncQueue() {
+  /**
+   * Selectively clears flushed items from Cognilot_sync_queue to prevent race conditions.
+   */
+  async clearSyncQueue(flushedItems?: any[]) {
     const storage = this.sdk.adapters?.storage;
     if (!storage) return;
-    await storage.set({ Cognilot_sync_queue: [] });
+
+    if (!flushedItems || flushedItems.length === 0) {
+      await storage.set({ Cognilot_sync_queue: [] });
+      return;
+    }
+
+    const currentQueue = await this.getSyncQueue();
+    const remaining = currentQueue.filter(
+      (item: any) =>
+        !flushedItems.some(
+          (flushed: any) =>
+            flushed.label === item.label &&
+            flushed.value === item.value &&
+            flushed.timestamp === item.timestamp
+        )
+    );
+
+    await storage.set({ Cognilot_sync_queue: remaining });
   }
 
   private normalizeAliasKey(label: string): string {
