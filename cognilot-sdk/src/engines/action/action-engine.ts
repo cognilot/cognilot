@@ -417,10 +417,14 @@ export class ActionEngine {
       if (isInvalidNode) {
         // A. Lookup in FieldRegistry by ID, selector, name or text
         let registryEntry =
-          (q.id ? this.sdk.registry.findById(q.id) : null) ||
-          (q.selector ? this.sdk.registry.findBySelector(q.selector) : null);
+          (q.id && typeof this.sdk.registry?.findById === 'function'
+            ? this.sdk.registry.findById(q.id)
+            : null) ||
+          (q.selector && typeof this.sdk.registry?.findBySelector === 'function'
+            ? this.sdk.registry.findBySelector(q.selector)
+            : null);
 
-        if (!registryEntry && this.sdk.registry) {
+        if (!registryEntry && typeof this.sdk.registry?.getAll === 'function') {
           const allEntries = this.sdk.registry.getAll();
           registryEntry =
             allEntries.find(
@@ -459,7 +463,7 @@ export class ActionEngine {
       q.node = node;
 
       // Sync metadata and options if missing
-      if (q.id && this.sdk.registry) {
+      if (q.id && typeof this.sdk.registry?.findById === 'function') {
         const reg = this.sdk.registry.findById(q.id);
         if (reg) {
           if (!q.metadata) q.metadata = reg.metadata;
