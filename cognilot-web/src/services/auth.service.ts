@@ -35,7 +35,7 @@ export const authService = {
     // We still call our backend /profile to get the local profile data
     // The ApiClient will automatically attach the Supabase JWT
     const response = await api.get<any>('/profile', token);
-    
+
     // Map the /profile response to the expected User interface
     return {
       id: response.user.id,
