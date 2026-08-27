@@ -1,6 +1,7 @@
 import { CognilotSDK } from '../../index';
 import { PlatformAdapter, CognilotNode } from '../../platforms/interface';
 import { LabelExtractor, LabelMetadata } from '../detection/label-extractor';
+import { isResolvableFieldType } from '../../contracts/field-registry-entry';
 
 export interface SuggestionRequest {
   field: LabelMetadata;
@@ -38,13 +39,20 @@ export class SuggestionEngine {
    * Handles a field trigger (e.g., focus or click) to fetch suggestions.
    */
   async handleTrigger(node: CognilotNode, options: any = {}) {
-    // 1. Validation (Strictly text fields)
-    const fieldType = node.type || '';
+    // 1. Validation (Strictly resolvable text fields)
+    const fieldType = (node.type || '').toLowerCase();
     const tagName = node.tagName.toLowerCase();
+    const isCombobox = (node as any).getAttribute?.('role') === 'combobox';
 
-    if (['radio', 'checkbox', 'file'].includes(fieldType) || tagName === 'select') {
+    if (['radio', 'checkbox'].includes(fieldType) || tagName === 'select') {
       return {
         error: 'Field is not textual. SuggestionEngine handles only text/inputs.',
+      };
+    }
+
+    if (!isResolvableFieldType(fieldType) || isCombobox) {
+      return {
+        error: `Field is detection-only (${fieldType || 'combobox'}) and cannot be resolved with AI suggestions.`,
       };
     }
 
@@ -126,8 +134,11 @@ export class SuggestionEngine {
 
     if (!metadata.label && !metadata.source) return null;
 
-    const cacheKey =
+    const globalContext = this.platform.getGlobalContext();
+    const domain = globalContext?.location?.hostname || 'unknown';
+    const fieldIdentifier =
       (node as any).id || (node as any).getAttribute('name') || metadata.label || 'unknown';
+    const cacheKey = `${domain}::${fieldIdentifier}`;
     const storage = this.sdk.adapters?.storage;
 
     if (!options?.clipboard) {
@@ -140,7 +151,7 @@ export class SuggestionEngine {
       // 5. Cache Check (Memory -> Persistent Storage)
       // In-Memory check (Fastest)
       if (this.requestCache.has(cacheKey)) {
-        console.log(`[SuggestionEngine] Memory Cache Hit for "${metadata.label}"`);
+        console.log(`[SuggestionEngine] Memory Cache Hit for "${metadata.label}" (${domain})`);
         const cachedRes = this.requestCache.get(cacheKey);
         if (cachedRes && !cachedRes.options) cachedRes.options = [cachedRes.value]; // Ensure ghost-text compatibility
         return cachedRes;
@@ -148,10 +159,12 @@ export class SuggestionEngine {
 
       // Persistent Storage check (Survives Refresh)
       if (storage) {
-        const storageResult = await (storage as any).get('Cognilot_suggestions_cache', 'session');
+        const storageResult = await (storage as any).get('Cognilot_suggestions_cache');
         const persistentCache = storageResult?.Cognilot_suggestions_cache || storageResult || {};
         if (persistentCache[cacheKey]) {
-          console.log(`[SuggestionEngine] Persistent Cache Hit for "${metadata.label}"`);
+          console.log(
+            `[SuggestionEngine] Persistent Cache Hit for "${metadata.label}" (${domain})`
+          );
           const cachedRes = persistentCache[cacheKey];
           if (cachedRes && !cachedRes.options) cachedRes.options = [cachedRes.value];
           this.requestCache.set(cacheKey, cachedRes); // Hydro memories for speed
@@ -173,7 +186,6 @@ export class SuggestionEngine {
       : {};
     // LAZY SYNC: We no longer send sync_queue in the Priority request to minimize latency.
     const syncQueue: any[] = [];
-    const globalContext = this.platform.getGlobalContext();
 
     const payload: any = {
       provider: provider,
@@ -262,7 +274,7 @@ export class SuggestionEngine {
 
         // 2. Extract specific result
         if (response.results) {
-          const suggestion = response.results[cacheKey];
+          const suggestion = response.results[cacheKey] || response.results[fieldIdentifier];
           if (suggestion) {
             const options = Array.isArray(suggestion) ? suggestion : suggestion.options || [];
             const value =
@@ -302,18 +314,11 @@ export class SuggestionEngine {
               }
 
               if (storage) {
-                const storageResult = await (storage as any).get(
-                  'Cognilot_suggestions_cache',
-                  'session'
-                );
+                const storageResult = await (storage as any).get('Cognilot_suggestions_cache');
                 const persistentCache =
                   storageResult?.Cognilot_suggestions_cache || storageResult || {};
                 persistentCache[cacheKey] = finalRes;
-                await (storage as any).set(
-                  'Cognilot_suggestions_cache',
-                  persistentCache,
-                  'session'
-                );
+                await (storage as any).set('Cognilot_suggestions_cache', persistentCache);
               }
 
               return finalRes;
@@ -350,6 +355,55 @@ export class SuggestionEngine {
     };
 
     const { labelElement, ...cleanMetadata } = metadata;
+
+    const isPassword =
+      fieldDto.type === 'password' ||
+      (node as any)?.type === 'password' ||
+      (node as any)?.getAttribute?.('type') === 'password';
+
+    // 0. Check Credential Vault for password fields
+    if (isPassword) {
+      try {
+        const storage = this.sdk.adapters?.storage;
+        if (storage) {
+          const res = await (storage as any).get('Cognilot_credentials');
+          const rawList = res?.Cognilot_credentials || res || [];
+          if (Array.isArray(rawList) && rawList.length > 0) {
+            const globalCtx = this.platform.getGlobalContext();
+            const host = (globalCtx?.location?.hostname || '').toLowerCase().replace(/^www\./, '');
+            const matchedCred = rawList.find((c: any) => {
+              const d = String(c.domain || '')
+                .toLowerCase()
+                .replace(/^www\./, '');
+              const baseD = d.split('.')[0];
+              const baseH = host.split('.')[0];
+              return (
+                host === d ||
+                host.endsWith(`.${d}`) ||
+                d.endsWith(`.${host}`) ||
+                (baseD.length >= 4 && baseD === baseH)
+              );
+            });
+            if (matchedCred && matchedCred.password) {
+              return {
+                success: true,
+                value: matchedCred.password,
+                options: [matchedCred.password],
+                field: {
+                  ...cleanMetadata,
+                  placeholder: (node as any).getAttribute?.('placeholder') || '',
+                },
+                source: 'credentials_vault',
+                type: 'discrete' as const,
+              };
+            }
+          }
+        }
+      } catch (e) {
+        console.warn('[SuggestionEngine] Vault resolution error:', e);
+      }
+      return null;
+    }
 
     // 1. Check Alias Cache
     if (this.sdk.alias) {
@@ -398,27 +452,65 @@ export class SuggestionEngine {
    */
   async prefetchBatch(items: { node: CognilotNode; metadata: LabelMetadata }[], options: any = {}) {
     const globalContext = this.platform.getGlobalContext();
+    const domain = globalContext?.location?.hostname || 'unknown';
     const storage = this.sdk.adapters?.storage;
+    // 1. Prime requestCache from persistent storage if available
+    let persistentCache: any = {};
+    if (storage) {
+      try {
+        const stored = await (storage as any).get('Cognilot_suggestions_cache');
+        persistentCache = stored?.Cognilot_suggestions_cache || stored || {};
+        for (const [k, v] of Object.entries(persistentCache)) {
+          if (!this.requestCache.has(k)) {
+            this.requestCache.set(k, v);
+          }
+        }
+      } catch (e) {
+        console.warn('[SuggestionEngine] Failed to read persistent cache in prefetchBatch:', e);
+      }
+    }
 
-    // 1. Filter items that are NOT in cache and NOT resolvable locally
+    // 2. Filter items that are NOT in cache and NOT resolvable locally
     const pendingItems = [];
     for (const item of items) {
-      const cacheKey =
+      const fieldType = (
+        (item.node as any)?.type ||
+        (item.node as any)?.tagName ||
+        ''
+      ).toLowerCase();
+      const isCombobox = (item.node as any)?.getAttribute?.('role') === 'combobox';
+      if (!isResolvableFieldType(fieldType) || isCombobox) continue;
+
+      const fieldIdentifier =
         (item.node as any).id ||
         (item.node as any).getAttribute('name') ||
         item.metadata.label ||
         'unknown';
+      const cacheKey = `${domain}::${fieldIdentifier}`;
 
-      if (!options?.clipboard && this.requestCache.has(cacheKey)) continue;
+      if (
+        !options?.clipboard &&
+        (this.requestCache.has(cacheKey) || this.requestCache.has(fieldIdentifier))
+      ) {
+        continue;
+      }
 
-      if ((item.node as any).type === 'password') {
+      if (
+        (item.node as any).type === 'password' ||
+        (item.node as any).getAttribute?.('type') === 'password'
+      ) {
+        const localMatch = await this.resolveLocally(item.node, item.metadata);
+        if (localMatch) {
+          this.requestCache.set(cacheKey, localMatch);
+          continue;
+        }
         const generatedPwd = this.generateSecurePassword();
         const { labelElement, ...cleanMetadata } = item.metadata as any;
         const finalRes = {
           success: true,
           value: generatedPwd,
           options: [generatedPwd],
-          source: 'local_generator',
+          source: 'local_generator' as const,
           field: cleanMetadata,
           type: 'discrete' as const,
         };
@@ -434,7 +526,7 @@ export class SuggestionEngine {
         }
       }
 
-      pendingItems.push({ key: cacheKey, item });
+      pendingItems.push({ key: cacheKey, fieldIdentifier, item });
     }
 
     if (pendingItems.length === 0) return;
@@ -538,6 +630,7 @@ export class SuggestionEngine {
       );
 
       if (response && response.ok) {
+        console.log(`[SuggestionEngine] <== Batch Response Received from AI:`, response.results);
         // 1. Handle Standardized Profile (Piggyback Learning)
         if (response.standardized_profile && this.sdk.profile) {
           await this.sdk.profile.updateFromStandardizedData(response.standardized_profile);
@@ -547,12 +640,37 @@ export class SuggestionEngine {
         // 2. Extract results
         if (response.results) {
           const storageResult = storage
-            ? await (storage as any).get('Cognilot_suggestions_cache', 'session')
+            ? await (storage as any).get('Cognilot_suggestions_cache')
             : null;
           const persistentCache = storageResult?.Cognilot_suggestions_cache || storageResult || {};
 
           for (const p of pendingItems) {
-            const suggestion = response.results[p.key];
+            const rawNode = p.item.node as any;
+            const nodeAttr =
+              typeof rawNode?.getAttribute === 'function' ? rawNode.getAttribute('name') : null;
+            const id = rawNode?.id;
+            const name = rawNode?.name || nodeAttr;
+            const label = p.item.metadata?.label;
+
+            const candidateLookupKeys = [
+              p.key,
+              p.fieldIdentifier,
+              id ? `${domain}::${id}` : null,
+              name ? `${domain}::${name}` : null,
+              label ? `${domain}::${label}` : null,
+              id || null,
+              name || null,
+              label || null,
+            ].filter(Boolean) as string[];
+
+            let suggestion: any = null;
+            for (const ck of candidateLookupKeys) {
+              if (response.results[ck]) {
+                suggestion = response.results[ck];
+                break;
+              }
+            }
+
             if (suggestion) {
               const options = Array.isArray(suggestion) ? suggestion : suggestion.options || [];
               const value =
@@ -562,27 +680,38 @@ export class SuggestionEngine {
                     ? suggestion.value
                     : suggestion;
 
-              if (value !== undefined && value !== null) {
-                const { labelElement, ...cleanMetadata } = p.item.metadata;
+              if (value !== undefined && value !== null && value !== '') {
+                console.log(
+                  `[SuggestionEngine] 💡 Prefetched suggestion for "${label || p.fieldIdentifier}": "${value}"`
+                );
+                const { labelElement, ...cleanMetadata } = (p.item.metadata || {}) as any;
+                const placeholder =
+                  typeof rawNode?.getAttribute === 'function'
+                    ? rawNode.getAttribute('placeholder') || ''
+                    : '';
+
                 const result = {
                   success: true,
                   value,
                   options: options.length > 0 ? options : [value],
                   field: {
                     ...cleanMetadata,
-                    placeholder: (p.item.node as any).getAttribute('placeholder') || '',
+                    placeholder,
                   },
                   source: (response as any).meta?.model || provider,
                   type: suggestion.type || 'discrete',
                 };
-                this.requestCache.set(p.key, result);
-                if (persistentCache) persistentCache[p.key] = result;
+
+                candidateLookupKeys.forEach((k) => this.requestCache.set(k, result));
+                if (persistentCache) {
+                  candidateLookupKeys.forEach((k) => (persistentCache[k] = result));
+                }
               }
             }
           }
 
           if (storage && Object.keys(persistentCache).length > 0) {
-            await (storage as any).set('Cognilot_suggestions_cache', persistentCache, 'session');
+            await (storage as any).set('Cognilot_suggestions_cache', persistentCache);
           }
         }
       }
@@ -640,19 +769,28 @@ export class SuggestionEngine {
   async confirmSuggestion(node: CognilotNode, value: string, skipSync = false) {
     if (!node || !value) return;
 
-    // Security Gate: Never learn from password fields
-    if (node.type === 'password' || node.getAttribute?.('type') === 'password') {
-      console.warn('[SuggestionEngine] Skipping learning/alias persistence for password field.');
-      return;
-    }
-
     // Extract metadata for the node to get the label
     const metadata = this.sdk.detection.getFieldMetadata(node);
     const label =
       metadata?.label ||
       (node as any).getAttribute?.('name') ||
       (node as any).id ||
-      (node as any).getAttribute?.('placeholder');
+      (node as any).getAttribute?.('placeholder') ||
+      '';
+
+    // Security Gate: Never learn from password fields or sensitive field names
+    const sensitiveRegex = /(password|contrase|clave|secret|pin|cvv|cvc|token|auth_token)/i;
+    const combined = `${node.type || ''} ${node.getAttribute?.('type') || ''} ${(node as any).name || ''} ${(node as any).id || ''} ${label}`;
+    if (
+      node.type === 'password' ||
+      node.getAttribute?.('type') === 'password' ||
+      sensitiveRegex.test(combined)
+    ) {
+      console.warn(
+        '[SuggestionEngine] Skipping learning/alias persistence for password or sensitive field.'
+      );
+      return;
+    }
 
     if (label && this.sdk.alias) {
       console.log(

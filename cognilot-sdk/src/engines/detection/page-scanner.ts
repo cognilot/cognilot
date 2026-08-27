@@ -1,6 +1,10 @@
 import { CognilotSDK } from '../../index';
 import { FieldRegistry } from '../../core/field-registry';
-import { FieldRegistryEntry, FieldResolution } from '../../contracts/field-registry-entry';
+import {
+  FieldRegistryEntry,
+  FieldResolution,
+  isResolvableFieldType,
+} from '../../contracts/field-registry-entry';
 import { FormScopeInfo } from '../../contracts/form-scope-info';
 
 /**
@@ -73,10 +77,16 @@ export class PageScanner {
 
       // ── Step 2 & 3: Resolve locally and register ────────────────────────────
       for (const field of fields) {
-        const resolution = await this._resolveFieldLocally(field);
-        if (resolution) {
-          field.resolution = resolution;
-          field.status = 'resolved';
+        if (!isResolvableFieldType(field.type) || field.resolvable === false) {
+          field.status = 'detected';
+          field.resolvable = false;
+          field.resolution = null;
+        } else {
+          const resolution = await this._resolveFieldLocally(field);
+          if (resolution) {
+            field.resolution = resolution;
+            field.status = 'resolved';
+          }
         }
         // status remains 'pending' if no local match was found
         this.registry.register(field);
@@ -166,9 +176,13 @@ export class PageScanner {
    * Returns null if no local match is found (field will be marked 'pending').
    */
   private async _resolveFieldLocally(field: FieldRegistryEntry): Promise<FieldResolution | null> {
+    const type = (field.type || '').toLowerCase();
+    if (!isResolvableFieldType(type) || field.resolvable === false) {
+      return null;
+    }
+
     // ── Priority 1: Existing value (skip radio/checkbox — their .value is
     //    the HTML value attribute, not user input) ──────────────────────────
-    const type = (field.type || '').toLowerCase();
     const isChoice = type === 'radio' || type === 'checkbox';
     if (!isChoice) {
       const existingValue = (field.node as any).value?.trim?.() ?? '';
@@ -179,6 +193,50 @@ export class PageScanner {
           source: 'existing_value',
         };
       }
+    }
+
+    // ── Security Gate & Priority for Password fields: Credential Vault only ──
+    const isPassword =
+      type === 'password' ||
+      (field.node as any)?.type === 'password' ||
+      (field.node as any)?.getAttribute?.('type') === 'password';
+
+    if (isPassword) {
+      try {
+        const storage = this.sdk.adapters?.storage;
+        if (storage) {
+          const res = await (storage as any).get('Cognilot_credentials');
+          const rawList = res?.Cognilot_credentials || res || [];
+          if (Array.isArray(rawList) && rawList.length > 0) {
+            const globalCtx = this.sdk.platform.getGlobalContext();
+            const host = (globalCtx?.location?.hostname || '').toLowerCase().replace(/^www\./, '');
+            const matchedCred = rawList.find((c: any) => {
+              const d = String(c.domain || '')
+                .toLowerCase()
+                .replace(/^www\./, '');
+              const baseD = d.split('.')[0];
+              const baseH = host.split('.')[0];
+              return (
+                host === d ||
+                host.endsWith(`.${d}`) ||
+                d.endsWith(`.${host}`) ||
+                (baseD.length >= 4 && baseD === baseH)
+              );
+            });
+            if (matchedCred && matchedCred.password) {
+              return {
+                value: matchedCred.password,
+                options: [matchedCred.password],
+                source: 'credentials_vault',
+              };
+            }
+          }
+        }
+      } catch (e) {
+        console.warn('[PageScanner] Password resolution error:', e);
+      }
+      // Never allow password fields to be resolved with alias or profile cache
+      return null;
     }
 
     // Helper to verify if any choice field option matches a memory suggestion (Tanteo)
@@ -331,6 +389,69 @@ export class PageScanner {
       }
     }
 
+    // ── Priority 5: Persistent / Session AI Cache ──────────────────────────
+    // If the field was already resolved by AI previously on this domain,
+    // reuse the cached result across page reloads without making another AI call.
+    try {
+      const storage = this.sdk.adapters?.storage;
+      if (storage) {
+        const globalContext = this.sdk.platform.getGlobalContext();
+        const domain = (globalContext?.location?.hostname || '').toLowerCase();
+        const rawNode = field.node?.getRawNode?.() as any;
+        const attrName =
+          rawNode && typeof rawNode.getAttribute === 'function'
+            ? rawNode.getAttribute('name')
+            : null;
+        const id = field.id;
+        const name = field.name || attrName;
+        const text = field.text || field.metadata?.label;
+
+        if (isChoice) {
+          const decisionsResult = await storage.get('Cognilot_decisions_cache');
+          const cachedDecisions =
+            decisionsResult?.Cognilot_decisions_cache || decisionsResult || {};
+          const candidateKeys = [id, name, text, field.selector].filter(Boolean) as string[];
+
+          for (const k of candidateKeys) {
+            const dec = cachedDecisions[k];
+            if (dec && (dec.selected_values?.length || dec.value)) {
+              const resVal = dec.selected_values?.[0] || dec.value || 'Selected';
+              return {
+                value: String(resVal),
+                options: dec.selected_values || [String(resVal)],
+                source: 'ai',
+              };
+            }
+          }
+        } else {
+          const suggestionsResult = await storage.get('Cognilot_suggestions_cache');
+          const cachedSuggestions =
+            suggestionsResult?.Cognilot_suggestions_cache || suggestionsResult || {};
+          const candidateKeys = [
+            id ? `${domain}::${id}` : null,
+            name ? `${domain}::${name}` : null,
+            text ? `${domain}::${text}` : null,
+            id || null,
+            name || null,
+            text || null,
+          ].filter(Boolean) as string[];
+
+          for (const k of candidateKeys) {
+            const sug = cachedSuggestions[k];
+            if (sug && sug.value) {
+              return {
+                value: sug.value,
+                options: sug.options || [sug.value],
+                source: 'ai',
+              };
+            }
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('[PageScanner] AI cache resolution error:', e);
+    }
+
     return null;
   }
 
@@ -355,6 +476,19 @@ export class PageScanner {
           fieldCount: this.registry.getByFormScope(s.id).length,
         })),
       });
+
+      const globalCtx = this.sdk.platform.getGlobalContext() as any;
+      const win = globalCtx?.window || globalCtx;
+      if (win && typeof win.dispatchEvent === 'function' && typeof CustomEvent === 'function') {
+        win.dispatchEvent(
+          new CustomEvent('cognilot-scan-complete', {
+            detail: {
+              formScopes,
+              summary,
+            },
+          })
+        );
+      }
     } catch (e) {
       // Messaging may not be available in all environments (e.g. tests)
       console.warn('[PageScanner] Could not notify sidebar:', e);
@@ -445,10 +579,16 @@ export class PageScanner {
 
     console.log(`[PageScanner] Found ${newFields.length} new field(s).`);
     for (const field of newFields) {
-      const resolution = await this._resolveFieldLocally(field);
-      if (resolution) {
-        field.resolution = resolution;
-        field.status = 'resolved';
+      if (!isResolvableFieldType(field.type) || field.resolvable === false) {
+        field.status = 'detected';
+        field.resolvable = false;
+        field.resolution = null;
+      } else {
+        const resolution = await this._resolveFieldLocally(field);
+        if (resolution) {
+          field.resolution = resolution;
+          field.status = 'resolved';
+        }
       }
       this.registry.register(field);
     }

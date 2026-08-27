@@ -26,6 +26,7 @@ import { BackdropUI } from './ui/inspector/backdrop_ui';
 import { ToolbarUI } from './ui/inspector/toolbar_ui';
 import { PainterUI } from './ui/inspector/painter_ui';
 import { InspectorUI, processDetection } from './ui/inspector/main_ui';
+import { FormTriggerUI } from './ui/inspector/form_trigger_ui';
 import { AutocompleteService } from './services/autocomplete_service';
 import { RefinementService } from './services/refinement_service';
 import { ActionService, solveAll } from './services/action_service';
@@ -116,7 +117,8 @@ import { Modules, init as initModules } from './index';
         (as._isPro as boolean) = plan === 'pro';
         Logger.info(`🔐 Authenticated - Plan: ${plan.toUpperCase()}`);
       } else {
-        Logger.info('⚠️ Not authenticated - Defaulting to FREE plan');
+        (as._isPro as boolean) = false;
+        Logger.info('⚠️ Not authenticated');
       }
 
       if (document.readyState === 'loading') {
@@ -176,9 +178,11 @@ import { Modules, init as initModules } from './index';
 
     // 2. Smoke check — Universal Scan is triggered by registerAdapters() above
     runDetectionSmokeCheck();
-    // NOTE: Discovery Mode (initDiscoveryMode) is deprecated in favor of the
-    // Registry-First architecture. Universal Scan (initUniversalScan) is the
-    // sole detection path, triggered automatically via registerAdapters().
+
+    // 3. Proactive in-page form trigger placement for normal view
+    setTimeout(() => {
+      renderInPageFormTriggers();
+    }, 1200);
   }
 
   function initDiscoveryMode(): void {
@@ -385,7 +389,7 @@ import { Modules, init as initModules } from './index';
       if (request.action === 'sidebarSolveAll') {
         const data = request.data as Record<string, unknown> | undefined;
         api.solveAll(
-          data?.questions as unknown[] | undefined,
+          (data?.questions as unknown[] | undefined) || null,
           data?.useClipboard as boolean | undefined,
           data?.clipboardData
         );
@@ -402,6 +406,48 @@ import { Modules, init as initModules } from './index';
 
       if (request.action === 'sidebarDisableInspector') {
         api.disableInspector();
+        sendResponse({ success: true });
+        return true;
+      }
+
+      if (request.action === 'sidebarFocusField') {
+        const selector = (request.data as any)?.selector || (request as any).selector;
+        if (selector) {
+          try {
+            let el: HTMLElement | null = null;
+            const registry = window.Cognilot?.SDK?.registry;
+            if (registry && typeof registry.getAll === 'function') {
+              const allFields = registry.getAll();
+              const match = allFields.find(
+                (f: any) => f.selector === selector || f.id === selector || f.name === selector
+              );
+              if (match) {
+                const node = match.node || match.element;
+                el = (
+                  node && typeof node.getRawNode === 'function' ? node.getRawNode() : node
+                ) as HTMLElement | null;
+              }
+            }
+
+            if (!el) {
+              el = document.querySelector(selector) as HTMLElement | null;
+            }
+
+            if (el) {
+              el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+              el.focus({ preventScroll: true });
+              el.classList.remove('Cognilot-field-click-pulse');
+              // Trigger reflow to restart CSS animation
+              void el.offsetWidth;
+              el.classList.add('Cognilot-field-click-pulse');
+              setTimeout(() => {
+                el?.classList.remove('Cognilot-field-click-pulse');
+              }, 1200);
+            }
+          } catch (e) {
+            console.warn('[content.ts] Failed to focus/scroll to element:', selector, e);
+          }
+        }
         sendResponse({ success: true });
         return true;
       }
@@ -662,8 +708,128 @@ import { Modules, init as initModules } from './index';
     }
   });
 
+  // ─── Global Shortcut Listener: Alt + / (Autofill) and Ctrl + Shift + M (Inspect) ──────────
+  window.addEventListener(
+    'keydown',
+    (e: KeyboardEvent) => {
+      const isAutofillShortcut =
+        e.altKey &&
+        (e.key === '/' ||
+          e.code === 'Slash' ||
+          e.key === '\\' ||
+          e.code === 'Backslash' ||
+          e.key === 'º' ||
+          e.code === 'IntlBackslash' ||
+          e.key === '|' ||
+          e.key === '¿' ||
+          e.key === '?');
+
+      if (isAutofillShortcut) {
+        e.preventDefault();
+        Logger.info(`⌨️ Global shortcut Alt + ${e.key} triggered from content.ts`);
+        const api = (window as unknown as { CognilotAPI?: { solveAll(): unknown } }).CognilotAPI;
+        if (api?.solveAll) {
+          api.solveAll();
+        }
+        return;
+      }
+
+      const isInspectShortcut =
+        (e.ctrlKey || e.metaKey) &&
+        e.shiftKey &&
+        (e.key === 'M' || e.key === 'm' || e.code === 'KeyM');
+
+      if (isInspectShortcut) {
+        e.preventDefault();
+        Logger.info(`⌨️ Global shortcut Ctrl+Shift+M triggered from content.ts`);
+        const api = (
+          window as unknown as {
+            CognilotAPI?: {
+              enableInspector(): unknown;
+              inspectorActive?: boolean;
+              disableInspector(): unknown;
+            };
+          }
+        ).CognilotAPI;
+        if (api) {
+          if (api.inspectorActive && api.disableInspector) {
+            api.disableInspector();
+          } else if (api.enableInspector) {
+            api.enableInspector();
+          }
+        }
+      }
+    },
+    true
+  );
+
+  function renderInPageFormTriggers(formScopes?: any[]): void {
+    const sdk = window.Cognilot.SDK;
+    const registry = sdk?.registry;
+    if (!registry) return;
+
+    const allFields = registry.getAll();
+    if (allFields.length === 0) {
+      FormTriggerUI.removeAll();
+      return;
+    }
+
+    if (formScopes && formScopes.length > 0) {
+      for (const scope of formScopes) {
+        const scopeFields = registry.getByFormScope(scope.id);
+        const count = scopeFields.length;
+        if (count > 0 && scope.selector) {
+          try {
+            const container = document.querySelector(scope.selector) as HTMLElement | null;
+            if (container) {
+              FormTriggerUI.showFormTrigger(container, count, () => {
+                const api = (window as unknown as { CognilotAPI?: { solveAll(q?: any): unknown } })
+                  .CognilotAPI;
+                const questions = scopeFields.map((f: any) => ({
+                  id: f.id,
+                  text: f.text,
+                  type: f.type,
+                  selector: f.selector,
+                  resolution: f.resolution,
+                }));
+                api?.solveAll(questions);
+              });
+            }
+          } catch (err) {
+            console.warn(
+              '[content.ts] Failed to attach form trigger to scope selector:',
+              scope.selector,
+              err
+            );
+          }
+        }
+      }
+    } else {
+      const firstEl =
+        (allFields[0]?.node?.getRawNode?.() as HTMLElement | null) ||
+        (document.querySelector(allFields[0]?.selector || '') as HTMLElement | null);
+      const container =
+        (firstEl?.closest('form') as HTMLElement | null) ||
+        (firstEl ? InspectorLib.resolveContainerFromElement(firstEl) : null);
+      if (container) {
+        FormTriggerUI.showFormTrigger(container, allFields.length, () => {
+          const api = (window as unknown as { CognilotAPI?: { solveAll(): unknown } }).CognilotAPI;
+          api?.solveAll();
+        });
+      }
+    }
+  }
+
+  // ─── Listen to proactive scan complete from PageScanner ──────
+  window.addEventListener('cognilot-scan-complete', (e: Event) => {
+    const customEvent = e as CustomEvent;
+    const scopes = customEvent.detail?.formScopes;
+    renderInPageFormTriggers(scopes);
+  });
+
   // ─── Listen to batch prefetch completion from ActionEngine ──
   window.addEventListener('cognilot-prefetch-complete', (e: Event) => {
+    FormTriggerUI.setSolving(false);
     const customEvent = e as CustomEvent;
     chrome.runtime
       .sendMessage({

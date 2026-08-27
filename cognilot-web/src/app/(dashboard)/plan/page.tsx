@@ -13,6 +13,11 @@ interface ProfileResponse {
     email: string;
     plan: 'free' | 'pro';
   };
+  usage?: {
+    creditsUsed: number;
+    creditsLimit: number;
+    resetsAt: string;
+  };
   profile: {
     dataLearned: Record<string, any>;
     onboardingCompleted: string | null;
@@ -21,9 +26,11 @@ interface ProfileResponse {
 
 export default function PlanPage() {
   const [loading, setLoading] = useState(true);
+  const [updatingPlan, setUpdatingPlan] = useState(false);
   const [plan, setPlan] = useState<'free' | 'pro'>('free');
-  const [creditsUsed, setCreditsUsed] = useState(12);
-  const maxCredits = 50;
+  const [creditsUsed, setCreditsUsed] = useState(0);
+  const [maxCredits, setMaxCredits] = useState(50);
+  const [resetsAt, setResetsAt] = useState<string>('');
 
   const supabase = createBrowserClient(
     process.env['NEXT_PUBLIC_SUPABASE_URL'] ?? '',
@@ -48,8 +55,11 @@ export default function PlanPage() {
       const data: ProfileResponse = await response.json();
       setPlan(data.user.plan || 'free');
 
-      const dayHash = new Date().getDate();
-      setCreditsUsed((dayHash * 7) % maxCredits);
+      if (data.usage) {
+        setCreditsUsed(data.usage.creditsUsed ?? 0);
+        setMaxCredits(data.usage.creditsLimit ?? 50);
+        setResetsAt(data.usage.resetsAt ?? '');
+      }
     } catch (err) {
       console.error(err);
       toast.error('Failed to retrieve billing plan status.');
@@ -58,11 +68,47 @@ export default function PlanPage() {
     }
   };
 
+  const handleTogglePlan = async (newPlan: 'free' | 'pro') => {
+    try {
+      setUpdatingPlan(true);
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      if (!session) {
+        toast.error('Sesión no encontrada');
+        return;
+      }
+
+      const apiBase = process.env['NEXT_PUBLIC_API_URL'] || '';
+      const response = await fetch(`${apiBase}/api/profile/plan`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ plan: newPlan }),
+      });
+
+      if (!response.ok) throw new Error('Error al actualizar el plan');
+
+      const data = await response.json();
+      setPlan(data.user.plan);
+      toast.success(
+        newPlan === 'pro' ? '🚀 Plan cambiado a Pro (Testing)' : 'ℹ️ Plan cambiado a Free (Testing)'
+      );
+    } catch (err) {
+      console.error(err);
+      toast.error('Error al cambiar de plan');
+    } finally {
+      setUpdatingPlan(false);
+    }
+  };
+
   useEffect(() => {
     void fetchPlanStatus();
   }, []);
 
-  const usagePercent = Math.round((creditsUsed / maxCredits) * 100);
+  const usagePercent = Math.min(100, Math.round((creditsUsed / Math.max(1, maxCredits)) * 100));
 
   if (loading) {
     return (
@@ -118,24 +164,26 @@ export default function PlanPage() {
                 </span>
               </div>
             </div>
-            {plan === 'free' ? (
-              <a
-                href="https://cognilot.app/upgrade"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="py-2 px-5 bg-accent-violet/10 hover:bg-accent-violet/25 border border-accent-violet/30 text-accent-violet rounded transition-colors flex items-center gap-1.5 font-medium cursor-pointer text-sm"
-              >
-                Upgrade to Pro
-                <ArrowUpRight className="w-3.5 h-3.5" />
-              </a>
-            ) : (
-              <Button variant="terminal" size="sm" asChild>
-                <a href="https://cognilot.app/billing" target="_blank" rel="noopener noreferrer">
-                  Manage Subscription
+            <div className="flex items-center gap-3">
+              {plan === 'free' ? (
+                <button
+                  onClick={() => handleTogglePlan('pro')}
+                  disabled={updatingPlan}
+                  className="py-2 px-5 bg-accent-violet/20 hover:bg-accent-violet/30 border border-accent-violet/50 text-accent-violet rounded transition-colors flex items-center gap-1.5 font-medium cursor-pointer text-sm disabled:opacity-50"
+                >
+                  {updatingPlan ? 'Actualizando...' : 'Cambiar a Pro (Dev)'}
                   <ArrowUpRight className="w-3.5 h-3.5" />
-                </a>
-              </Button>
-            )}
+                </button>
+              ) : (
+                <button
+                  onClick={() => handleTogglePlan('free')}
+                  disabled={updatingPlan}
+                  className="py-2 px-4 bg-white/5 hover:bg-white/10 border border-white/20 text-white/70 rounded transition-colors flex items-center gap-1.5 font-medium cursor-pointer text-sm disabled:opacity-50"
+                >
+                  {updatingPlan ? 'Actualizando...' : 'Cambiar a Free (Dev)'}
+                </button>
+              )}
+            </div>
           </div>
 
           <div>

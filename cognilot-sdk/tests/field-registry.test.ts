@@ -127,6 +127,92 @@ describe('FieldRegistry', () => {
     expect(pending[0].id).toBe('id-1');
   });
 
+  it('should find entries by secondary nodes in groupNodes', () => {
+    const primaryNode = new MockNode('INPUT', '', {
+      type: 'radio',
+      name: 'office',
+      value: 'mexico',
+    });
+    const secondaryNode1 = new MockNode('INPUT', '', {
+      type: 'radio',
+      name: 'office',
+      value: 'colombia',
+    });
+    const secondaryNode2 = new MockNode('INPUT', '', {
+      type: 'radio',
+      name: 'office',
+      value: 'peru',
+    });
+
+    const entry: FieldRegistryEntry = {
+      id: 'radio-office-id',
+      type: 'radio',
+      tagName: 'INPUT',
+      name: 'office',
+      text: 'Oficina',
+      placeholder: '',
+      required: false,
+      options: [
+        { text: 'México', value: 'mexico', index: 0 },
+        { text: 'Colombia', value: 'colombia', index: 1 },
+        { text: 'Perú', value: 'peru', index: 2 },
+      ],
+      ref_id: '',
+      section_ref_id: '',
+      metadata: {} as any,
+      selector: '#mexico',
+      node: primaryNode as any,
+      groupNodes: [primaryNode, secondaryNode1, secondaryNode2] as any[],
+      belongsToForm: true,
+      formScopeId: 'form-1',
+      resolution: { value: 'peru', options: ['peru'], source: 'profile_cache' },
+      status: 'resolved',
+    };
+
+    registry.register(entry);
+
+    expect(registry.findByNode(primaryNode as any)).toEqual(entry);
+    expect(registry.findByNode(secondaryNode1 as any)).toEqual(entry);
+    expect(registry.findByNode(secondaryNode2 as any)).toEqual(entry);
+  });
+
+  it('should fallback to name matching for unregistered radio nodes of the same group', () => {
+    const primaryNode = new MockNode('INPUT', '', {
+      type: 'radio',
+      name: 'country',
+      value: 'mexico',
+    });
+    const unindexedNode = new MockNode('INPUT', '', {
+      type: 'radio',
+      name: 'country',
+      value: 'argentina',
+    });
+
+    const entry: FieldRegistryEntry = {
+      id: 'radio-country-id',
+      type: 'radio',
+      tagName: 'INPUT',
+      name: 'country',
+      text: 'Country',
+      placeholder: '',
+      required: false,
+      options: [],
+      ref_id: '',
+      section_ref_id: '',
+      metadata: {} as any,
+      selector: '#mexico',
+      node: primaryNode as any,
+      belongsToForm: true,
+      formScopeId: 'form-1',
+      resolution: null,
+      status: 'pending',
+    };
+
+    registry.register(entry);
+
+    expect(registry.findByNode(unindexedNode as any)).toEqual(entry);
+  });
+
   it('should clear the registry', () => {
     const node = new MockNode('INPUT');
     const entry: FieldRegistryEntry = {

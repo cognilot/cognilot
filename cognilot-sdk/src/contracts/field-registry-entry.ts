@@ -19,17 +19,37 @@ export interface FieldResolution {
 
   /**
    * Where the resolution came from:
-   * - 'alias_cache'    → matched from the user's learned alias cache
-   * - 'profile_cache'  → matched from the user's profile data
-   * - 'ai'             → returned by the Cognilot AI backend
-   * - 'existing_value' → field already had a value when the page was scanned
+   * - 'alias_cache'       → matched from the user's learned alias cache
+   * - 'profile_cache'     → matched from the user's profile data
+   * - 'ai'                → returned by the Cognilot AI backend
+   * - 'existing_value'    → field already had a value when the page was scanned
+   * - 'credentials_vault' → matched from the user's saved domain credentials
    */
-  source: 'alias_cache' | 'profile_cache' | 'ai' | 'existing_value';
+  source: 'alias_cache' | 'profile_cache' | 'ai' | 'existing_value' | 'credentials_vault';
 
   /**
    * The underlying memory profile key (e.g. 'country', 'degree', 'given_name')
    */
   memoryKey?: string | null;
+}
+
+export const NON_RESOLVABLE_FIELD_TYPES = new Set([
+  'autocomplete',
+  'file',
+  'search',
+  'range',
+  'color',
+  'date',
+  'datetime-local',
+  'month',
+  'week',
+  'time',
+  'iframe-input',
+]);
+
+export function isResolvableFieldType(type: string | undefined | null): boolean {
+  const clean = (type || 'text').toLowerCase().trim();
+  return !NON_RESOLVABLE_FIELD_TYPES.has(clean);
 }
 
 /**
@@ -77,6 +97,8 @@ export interface FieldRegistryEntry {
   selector: string;
   /** Reference to the platform-abstracted DOM node. */
   node: CognilotNode;
+  /** All option DOM nodes belonging to a choice group (radios/checkboxes). */
+  groupNodes?: CognilotNode[];
 
   // ── Registry flags ────────────────────────────────────────────────────────
   /**
@@ -102,12 +124,20 @@ export interface FieldRegistryEntry {
 
   // ── Lifecycle status ──────────────────────────────────────────────────────
   /**
-   * Simple 3-state lifecycle:
-   * - 'pending'  → awaiting resolution (will be sent to AI batch)
-   * - 'resolved' → has a valid resolution from any source
-   * - 'failed'   → resolution was attempted and failed
+   * Lifecycle states:
+   * - 'pending'     → awaiting resolution (will be sent to AI batch)
+   * - 'resolved'    → has a valid resolution from any source
+   * - 'failed'      → resolution was attempted and failed
+   * - 'detected'    → field is detected for display only and should NOT be resolved (e.g. search, autocomplete, file)
+   * - 'unsupported' → alias for detected/non-resolvable fields
    */
-  status: 'pending' | 'resolved' | 'failed';
+  status: 'pending' | 'resolved' | 'failed' | 'detected' | 'unsupported';
+
+  /**
+   * Whether this field is eligible for resolution (MemKey, AI, Autofill).
+   * False for detection-only fields like search, autocomplete, file, range, color, etc.
+   */
+  resolvable?: boolean;
 
   /**
    * Priority score assigned to the form this field belongs to.

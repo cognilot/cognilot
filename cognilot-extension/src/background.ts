@@ -247,54 +247,29 @@ chrome.runtime.onMessageExternal.addListener(
 // ─── Keyboard Shortcuts ─────────────────────────────────────
 
 chrome.commands.onCommand.addListener((command) => {
-  chrome.tabs.query({ active: true, currentWindow: true }, async (tabs) => {
+  chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
     const tab = tabs[0];
     if (!tab || !tab.id) return;
 
     if (command === 'Cognilot-all') {
-      const plan = await getStoredPlan();
-      if (plan !== 'pro') {
-        await chrome.scripting
-          .executeScript({
-            target: { tabId: tab.id },
-            func: () => {
-              alert('Automation is available on Cognilot Pro.');
-            },
-          })
-          .catch(() => {
-            // silently ignore
-          });
-        return;
-      }
-
-      console.log('⌨️ Keyboard shortcut intercepted: AutoSolving!');
-
-      await chrome.scripting.executeScript({
-        target: { tabId: tab.id },
-        func: () => {
-          const api = (window as unknown as { CognilotAPI?: { solveAll(): unknown } }).CognilotAPI;
-          if (api?.solveAll) {
-            return api.solveAll();
-          } else {
-            alert('Error: Cognilot not available. Try reloading the page (F5).');
-            return null;
-          }
-        },
+      console.log('⌨️ Keyboard shortcut intercepted: AutoSolving via tab messaging!');
+      chrome.tabs.sendMessage(tab.id, { action: 'sidebarSolveAll' }, (_response) => {
+        if (chrome.runtime.lastError) {
+          console.warn(
+            '[Background] SolveAll command messaging error:',
+            chrome.runtime.lastError.message
+          );
+        }
       });
     } else if (command === 'Cognilot-manual') {
-      console.log('⌨️ Keyboard shortcut intercepted: Manual Mode!');
-
-      await chrome.scripting.executeScript({
-        target: { tabId: tab.id },
-        func: () => {
-          const api = (window as unknown as Record<string, { enableInspector?(): void }>)
-            .CognilotAPI;
-          if (api?.enableInspector) {
-            api.enableInspector();
-          } else {
-            console.error('Manual inspector function not available');
-          }
-        },
+      console.log('⌨️ Keyboard shortcut intercepted: Manual Mode via tab messaging!');
+      chrome.tabs.sendMessage(tab.id, { action: 'sidebarEnableInspector' }, (_response) => {
+        if (chrome.runtime.lastError) {
+          console.warn(
+            '[Background] Manual inspector command messaging error:',
+            chrome.runtime.lastError.message
+          );
+        }
       });
     }
   });

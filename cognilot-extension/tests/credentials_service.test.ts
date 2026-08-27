@@ -6,6 +6,8 @@ import {
   getCredentialsForDomain,
   getCredentialForEmail,
   deleteCredential,
+  encryptPassword,
+  decryptPassword,
 } from '../src/services/credentials_service';
 
 describe('CredentialsService', () => {
@@ -32,44 +34,113 @@ describe('CredentialsService', () => {
     };
   });
 
-  it('normalizes domain correctly', () => {
-    expect(normalizeDomain('https://www.falabella.airavirtual.com/login')).toBe(
-      'https://www.falabella.airavirtual.com/login'
-    );
-    expect(normalizeDomain('www.google.com')).toBe('google.com');
+  describe('normalizeDomain', () => {
+    it('normalizes full URLs with paths and protocols', () => {
+      expect(normalizeDomain('https://aira.falabella.com/login?ref=1')).toBe('falabella.com');
+      expect(normalizeDomain('https://www.falabella.airavirtual.com/login')).toBe(
+        'airavirtual.com'
+      );
+      expect(normalizeDomain('http://vetano.com/auth')).toBe('vetano.com');
+    });
+
+    it('strips www and standard subdomains to base domain', () => {
+      expect(normalizeDomain('www.google.com')).toBe('google.com');
+      expect(normalizeDomain('login.falabella.com')).toBe('falabella.com');
+      expect(normalizeDomain('app.vetano.com')).toBe('vetano.com');
+    });
+
+    it('handles two-part ccTLDs correctly', () => {
+      expect(normalizeDomain('auth.mercadolibre.com.ar')).toBe('mercadolibre.com.ar');
+      expect(normalizeDomain('https://login.banco.gob.pe/portal')).toBe('banco.gob.pe');
+      expect(normalizeDomain('sub.domain.co.uk')).toBe('domain.co.uk');
+    });
+
+    it('preserves localhost and IP addresses', () => {
+      expect(normalizeDomain('http://localhost:3000/login')).toBe('localhost');
+      expect(normalizeDomain('192.168.1.50:8080')).toBe('192.168.1.50');
+    });
   });
 
-  it('saves and retrieves credentials for a domain', async () => {
-    await saveCredential('test@gmail.com', 'secret123', 'falabella.com');
-    const creds = await getCredentialsForDomain('falabella.com');
+  describe('Encryption & Storage', () => {
+    it('encrypts and decrypts passwords transparently', async () => {
+      const plain = 'super_secret_password_123';
+      const encrypted = await encryptPassword(plain);
+      expect(encrypted).toMatch(/^enc:v1:/);
+      expect(encrypted).not.toContain(plain);
 
-    expect(creds.length).toBe(1);
-    expect(creds[0].email).toBe('test@gmail.com');
-    expect(creds[0].password).toBe('secret123');
+      const decrypted = await decryptPassword(encrypted);
+      expect(decrypted).toBe(plain);
+    });
+
+    it('handles legacy unencrypted passwords without failing', async () => {
+      const plain = 'legacy_unencrypted_pass';
+      const decrypted = await decryptPassword(plain);
+      expect(decrypted).toBe(plain);
+    });
   });
 
-  it('retrieves credential by email and domain', async () => {
-    await saveCredential('user@domain.com', 'pass123', 'example.com');
-    const found = await getCredentialForEmail('user@domain.com', 'example.com');
+  describe('Domain Isolation (Fixing Cross-Site Overwrite)', () => {
+    it('stores distinct passwords for the same email on different domains', async () => {
+      const email = 'user@gmail.com';
+      const passFalabella = 'falabella_pass_99';
+      const passVetano = 'vetano_pass_77';
 
-    expect(found).not.toBeNull();
-    expect(found?.password).toBe('pass123');
-  });
+      // 1. Save credential on Falabella
+      await saveCredential(email, passFalabella, 'https://aira.falabella.com/login');
 
-  it('updates password if saving credential for existing email and domain', async () => {
-    await saveCredential('user@domain.com', 'oldpass', 'example.com');
-    await saveCredential('user@domain.com', 'newpass', 'example.com');
+      // 2. Save credential on Vetano with the same email
+      await saveCredential(email, passVetano, 'https://vetano.com/auth');
 
-    const creds = await getCredentialsForDomain('example.com');
-    expect(creds.length).toBe(1);
-    expect(creds[0].password).toBe('newpass');
-  });
+      // 3. Verify Falabella retrieves its own password
+      const falabellaCred = await getCredentialForEmail(email, 'aira.falabella.com');
+      expect(falabellaCred).not.toBeNull();
+      expect(falabellaCred?.domain).toBe('falabella.com');
+      expect(falabellaCred?.password).toBe(passFalabella);
 
-  it('deletes credential by id', async () => {
-    const entry = await saveCredential('delete@me.com', 'pass', 'example.com');
-    await deleteCredential(entry.id);
+      // 4. Verify Vetano retrieves its own password
+      const vetanoCred = await getCredentialForEmail(email, 'vetano.com');
+      expect(vetanoCred).not.toBeNull();
+      expect(vetanoCred?.domain).toBe('vetano.com');
+      expect(vetanoCred?.password).toBe(passVetano);
 
-    const creds = await getCredentialsForDomain('example.com');
-    expect(creds.length).toBe(0);
+      // 5. Verify storage holds 2 distinct entries with encrypted passwords
+      const stored = mockStorage['Cognilot_credentials'];
+      expect(stored.length).toBe(2);
+      expect(stored[0].password).toMatch(/^enc:v1:/);
+      expect(stored[1].password).toMatch(/^enc:v1:/);
+    });
+
+    it('updates password for existing email on the SAME domain without touching other domains', async () => {
+      const email = 'shared@company.com';
+      await saveCredential(email, 'passA', 'siteA.com');
+      await saveCredential(email, 'passB', 'siteB.com');
+
+      // Update siteA password
+      await saveCredential(email, 'passA_updated', 'siteA.com');
+
+      const credA = await getCredentialForEmail(email, 'siteA.com');
+      const credB = await getCredentialForEmail(email, 'siteB.com');
+
+      expect(credA?.password).toBe('passA_updated');
+      expect(credB?.password).toBe('passB');
+    });
+
+    it('retrieves all credentials for a specific domain', async () => {
+      await saveCredential('admin@vetano.com', 'adminPass', 'vetano.com');
+      await saveCredential('sales@vetano.com', 'salesPass', 'vetano.com');
+      await saveCredential('other@other.com', 'otherPass', 'other.com');
+
+      const vetanoCreds = await getCredentialsForDomain('app.vetano.com');
+      expect(vetanoCreds.length).toBe(2);
+      expect(vetanoCreds.map((c) => c.email)).toEqual(['admin@vetano.com', 'sales@vetano.com']);
+    });
+
+    it('deletes credential by id', async () => {
+      const entry = await saveCredential('delete@me.com', 'pass', 'example.com');
+      await deleteCredential(entry.id);
+
+      const creds = await getCredentialsForDomain('example.com');
+      expect(creds.length).toBe(0);
+    });
   });
 });

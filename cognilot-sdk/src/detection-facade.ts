@@ -60,15 +60,27 @@ export class DetectionFacade {
       const entry = registry.findByNode(rawElement);
       if (entry) return entry;
 
-      // O(n) fallback matching by selector
+      // O(n) fallback matching by selector, groupNodes, or name
       const allEntries = registry.getAll();
       for (const e of allEntries) {
+        if (Array.isArray(e.groupNodes)) {
+          for (const gn of e.groupNodes) {
+            if (gn && (gn.getRawNode?.() === rawElement || (gn as any) === rawElement)) return e;
+          }
+        }
         if (e.selector && typeof rawElement.matches === 'function') {
           try {
             if (rawElement.matches(e.selector)) return e;
           } catch (_) {
             // ignore invalid selectors
           }
+        }
+        if (
+          typeof rawElement.getAttribute === 'function' &&
+          e.name &&
+          rawElement.getAttribute('name') === e.name
+        ) {
+          return e;
         }
       }
     }

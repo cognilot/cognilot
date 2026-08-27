@@ -1,6 +1,6 @@
 import { CognilotSDK } from '../../index';
 import { PlatformAdapter, CognilotNode } from '../../platforms/interface';
-import { FieldRegistryEntry } from '../../contracts/field-registry-entry';
+import { FieldRegistryEntry, isResolvableFieldType } from '../../contracts/field-registry-entry';
 
 /**
  * ActionEngine
@@ -45,7 +45,13 @@ export class ActionEngine {
 
     const type = (node.type || '').toLowerCase();
     const tagName = node.tagName.toLowerCase();
-    const isChoice = ['radio', 'checkbox', 'file', 'select'].includes(type) || tagName === 'select';
+    const isCombobox = (node as any).getAttribute?.('role') === 'combobox';
+
+    if (!isResolvableFieldType(type) || isCombobox) {
+      return { error: `Field is detection-only (${type || 'combobox'}) and cannot be resolved` };
+    }
+
+    const isChoice = ['radio', 'checkbox', 'select'].includes(type) || tagName === 'select';
 
     console.log(`[ActionEngine] Trigger: ${tagName}[type="${type}"] isChoice=${isChoice}`);
 
@@ -227,48 +233,68 @@ export class ActionEngine {
       `[ActionEngine] Prefetching ${pendingFields.length} pending field(s) in scope "${formScopeId}"...`
     );
 
-    // Separate by engine type
+    // Separate by engine type (resolvable only)
     const textFields = pendingFields
-      .filter((f) => !['radio', 'checkbox', 'file', 'select'].includes(f.type))
+      .filter(
+        (f) =>
+          !['radio', 'checkbox', 'select'].includes(f.type) &&
+          isResolvableFieldType(f.type) &&
+          f.resolvable !== false
+      )
       .map((f) => ({ node: f.node, metadata: f.metadata }));
 
-    const choiceFields = pendingFields
-      .filter((f) => ['radio', 'checkbox', 'file', 'select'].includes(f.type))
-      .map((f) => ({ node: f.node, metadata: f.metadata }));
+    const choiceFields = pendingFields.filter((f) =>
+      ['radio', 'checkbox', 'select'].includes(f.type)
+    );
 
     // Fire batch requests (fire & forget from the caller's perspective)
     const batchPromises: Promise<any>[] = [];
 
-    if (textFields.length > 0) {
-      batchPromises.push(
-        this.sdk.suggestion.prefetchBatch(textFields as any, options).then(() => {
-          // After batch resolves, mark registry entries as resolved
-          this._syncBatchResultsToRegistry(
-            pendingFields.filter((f) => !['radio', 'checkbox', 'file', 'select'].includes(f.type))
-          );
-        })
-      );
-    }
+    try {
+      if (textFields.length > 0) {
+        batchPromises.push(
+          this.sdk.suggestion.prefetchBatch(textFields as any, options).then(() => {
+            // After batch resolves, mark registry entries as resolved
+            this._syncBatchResultsToRegistry(
+              pendingFields.filter(
+                (f) =>
+                  !['radio', 'checkbox', 'select'].includes(f.type) &&
+                  isResolvableFieldType(f.type) &&
+                  f.resolvable !== false
+              )
+            );
+          })
+        );
+      }
 
-    if (choiceFields.length > 0) {
-      batchPromises.push(
-        this.sdk.decision.prefetchBatch(choiceFields as any).then(() => {
-          this._syncDecisionBatchResultsToRegistry(
-            pendingFields.filter((f) => ['radio', 'checkbox', 'file', 'select'].includes(f.type))
-          );
-        })
-      );
-    }
+      if (choiceFields.length > 0) {
+        batchPromises.push(
+          this.sdk.decision.prefetchBatch(choiceFields as any).then(() => {
+            this._syncDecisionBatchResultsToRegistry(
+              pendingFields.filter((f) => ['radio', 'checkbox', 'select'].includes(f.type))
+            );
+          })
+        );
+      }
 
-    await Promise.allSettled(batchPromises);
-
-    // Notify listeners (e.g. Chrome Extension Content Script) that batch prefetching has finished
-    if (typeof window !== 'undefined' && typeof CustomEvent !== 'undefined') {
-      window.dispatchEvent(
-        new CustomEvent('cognilot-prefetch-complete', {
-          detail: { formScopeId },
-        })
-      );
+      const settled = await Promise.allSettled(batchPromises);
+      const hasErrors = settled.some((r) => r.status === 'rejected');
+      if (hasErrors) {
+        // Allow retry on next trigger if any batch failed
+        this._prefetchedScopes.delete(formScopeId);
+      }
+    } catch (err) {
+      this._prefetchedScopes.delete(formScopeId);
+      console.warn('[ActionEngine] Prefetch batch error:', err);
+    } finally {
+      // Notify listeners (e.g. Chrome Extension Content Script) that batch prefetching has finished
+      if (typeof window !== 'undefined' && typeof CustomEvent !== 'undefined') {
+        window.dispatchEvent(
+          new CustomEvent('cognilot-prefetch-complete', {
+            detail: { formScopeId },
+          })
+        );
+      }
     }
   }
 
@@ -281,15 +307,43 @@ export class ActionEngine {
     const suggestionCache = (this.sdk.suggestion as any).requestCache as Map<string, any>;
     if (!suggestionCache) return;
 
+    const globalContext = this.platform.getGlobalContext();
+    const domain = globalContext?.location?.hostname || 'unknown';
+
     for (const entry of pendingEntries) {
       if (entry.status !== 'pending') continue;
-      const cacheKey = entry.id || entry.name || entry.text || '';
-      const cached = suggestionCache.get(cacheKey);
+      const rawNode = entry.node?.getRawNode?.() as any;
+      const id = entry.id;
+      const attrName =
+        rawNode && typeof rawNode.getAttribute === 'function' ? rawNode.getAttribute('name') : null;
+      const name = entry.name || attrName;
+      const text = entry.text || entry.metadata?.label;
+
+      const keysToTry = [
+        id ? `${domain}::${id}` : null,
+        name ? `${domain}::${name}` : null,
+        text ? `${domain}::${text}` : null,
+        id || null,
+        name || null,
+        text || null,
+      ].filter(Boolean) as string[];
+
+      let cached: any = null;
+      for (const key of keysToTry) {
+        if (suggestionCache.has(key)) {
+          cached = suggestionCache.get(key);
+          break;
+        }
+      }
+
       if (cached && cached.value) {
+        console.log(
+          `[ActionEngine] ✅ Synced prefetch result to FieldRegistry for "${text || entry.text}": "${cached.value}"`
+        );
         this.sdk.registry.updateResolution(entry.id, {
           value: cached.value,
           options: cached.options ?? [cached.value],
-          source: 'ai',
+          source: cached.source || 'ai',
         });
       }
     }
@@ -309,8 +363,29 @@ export class ActionEngine {
 
       for (const entry of pendingEntries) {
         if (entry.status !== 'pending') continue;
-        const decision = cachedDecisions[entry.id];
+        const rawNode = entry.node?.getRawNode?.() as any;
+        const attrName =
+          rawNode && typeof rawNode.getAttribute === 'function'
+            ? rawNode.getAttribute('name')
+            : null;
+        const name = entry.name || attrName;
+        const text = entry.text || entry.metadata?.label;
+
+        const candidateKeys = [entry.id, name, text, entry.selector].filter(Boolean) as string[];
+
+        let decision: any = null;
+        for (const key of candidateKeys) {
+          if (cachedDecisions[key]) {
+            decision = cachedDecisions[key];
+            break;
+          }
+        }
+
         if (decision) {
+          console.log(
+            `[ActionEngine] ✅ Synced decision prefetch result to FieldRegistry for "${text || entry.text}":`,
+            decision.selected_values
+          );
           this.sdk.registry.updateResolution(entry.id, {
             value: decision.selected_values?.[0] || 'Selected',
             options: decision.selected_values || [],
@@ -337,19 +412,61 @@ export class ActionEngine {
 
     // 1. Ensure nodes are active (re-wrap if they came from serialised DTOs or missing node property)
     questions.forEach((q) => {
-      const needsWrap = !q.node || typeof q.node.setValue !== 'function';
-      if (needsWrap && q.selector) {
-        console.log(
-          `[ActionEngine] Attempting to recover node for ${q.id} via selector: ${q.selector}`
-        );
-        const el = document.querySelector(q.selector);
-        if (el) {
-          q.node = this.sdk.wrap(el);
-          console.log(`[ActionEngine] Successfully recovered node for ${q.id}`);
-        } else {
-          console.warn(
-            `[ActionEngine] Failed to find element for ${q.id} with selector: ${q.selector}`
-          );
+      let node = q.node;
+      const isInvalidNode = !node || typeof node.setValue !== 'function';
+      if (isInvalidNode) {
+        // A. Lookup in FieldRegistry by ID, selector, name or text
+        let registryEntry =
+          (this.sdk.registry?.findById && q.id ? this.sdk.registry.findById(q.id) : null) ||
+          (this.sdk.registry?.findBySelector && q.selector
+            ? this.sdk.registry.findBySelector(q.selector)
+            : null);
+
+        if (!registryEntry && this.sdk.registry?.getAll) {
+          const allEntries = this.sdk.registry.getAll();
+          registryEntry =
+            allEntries.find(
+              (e: any) =>
+                (q.id && e.id === q.id) ||
+                (q.selector && e.selector === q.selector) ||
+                (q.name && e.name === q.name) ||
+                (q.text && (e.text === q.text || e.metadata?.label === q.text))
+            ) || null;
+        }
+
+        if (registryEntry?.node) {
+          node = registryEntry.node;
+        } else if (typeof document !== 'undefined') {
+          // B. Lookup in DOM via selector, ID, or name
+          let el: HTMLElement | null = null;
+          if (q.selector) {
+            try {
+              el = document.querySelector(q.selector);
+            } catch (e) {}
+          }
+          if (!el && q.id) {
+            el = document.getElementById(q.id);
+          }
+          if (!el && q.name) {
+            try {
+              el = document.querySelector(`[name="${CSS.escape(q.name)}"]`);
+            } catch (e) {}
+          }
+          if (el) {
+            node = this.sdk.wrap(el);
+          }
+        }
+      }
+
+      q.node = node;
+
+      // Sync metadata and options if missing
+      if (q.id && this.sdk.registry?.findById) {
+        const reg = this.sdk.registry.findById(q.id);
+        if (reg) {
+          if (!q.metadata) q.metadata = reg.metadata;
+          if (!q.options || q.options.length === 0) q.options = reg.options;
+          if (!q.type && reg.type) q.type = reg.type;
         }
       }
     });
@@ -360,12 +477,16 @@ export class ActionEngine {
     const textFields = questions.filter((q) => {
       const type = (q.type || '').toLowerCase();
       const tagName = (q.tagName || '').toLowerCase();
-      return !['radio', 'checkbox', 'file'].includes(type) && tagName !== 'select';
+      return (
+        !['radio', 'checkbox', 'select'].includes(type) &&
+        tagName !== 'select' &&
+        isResolvableFieldType(type)
+      );
     });
     const choiceFields = questions.filter((q) => {
       const type = (q.type || '').toLowerCase();
       const tagName = (q.tagName || '').toLowerCase();
-      return ['radio', 'checkbox', 'file'].includes(type) || tagName === 'select';
+      return ['radio', 'checkbox', 'select'].includes(type) || tagName === 'select';
     });
 
     if (textFields.length > 0) {
@@ -382,6 +503,25 @@ export class ActionEngine {
     // Process sequentially for better UI feedback and to avoid race conditions
     for (let i = 0; i < questions.length; i++) {
       const q = questions[i];
+      const type = (q.type || '').toLowerCase();
+
+      // Skip non-resolvable fields (search, autocomplete, file, etc.)
+      if (!isResolvableFieldType(type) || q.status === 'detected' || q.resolvable === false) {
+        console.log(
+          `[ActionEngine] Skipping non-resolvable field ${i + 1}/${questions.length}: ${q.text} (${type})`
+        );
+        solved++;
+        results.push({ id: q.id, success: true, answer: 'Omitido (Solo detección)' });
+        onProgress?.({
+          status: 'step',
+          index: i + 1,
+          total: questions.length,
+          id: q.id,
+          success: true,
+          answer: 'Omitido (Solo detección)',
+        });
+        continue;
+      }
 
       try {
         console.log(`[ActionEngine] Solving field ${i + 1}/${questions.length}: ${q.text}`);
@@ -391,9 +531,8 @@ export class ActionEngine {
         let answerValue = '';
 
         if (result && !result.error) {
-          const type = (q.type || '').toLowerCase();
           const tagName = (q.tagName || '').toLowerCase();
-          const isChoice = ['radio', 'checkbox', 'file'].includes(type) || tagName === 'select';
+          const isChoice = ['radio', 'checkbox', 'select'].includes(type) || tagName === 'select';
 
           if (isChoice) {
             success = await this._applyDecision(q.node, result);
@@ -480,9 +619,18 @@ export class ActionEngine {
   }
 
   private async _applySuggestion(node: CognilotNode, value: string) {
+    if (!node) {
+      console.warn('[ActionEngine] _applySuggestion called with null node');
+      return false;
+    }
     console.log(`[ActionEngine] Applying text: "${value}" to ${node.tagName}`);
     try {
       await node.setValue(value);
+      const raw = node.getRawNode<HTMLElement>();
+      if (raw && typeof raw.dispatchEvent === 'function') {
+        raw.dispatchEvent(new Event('input', { bubbles: true }));
+        raw.dispatchEvent(new Event('change', { bubbles: true }));
+      }
       return true;
     } catch (e) {
       console.error('[ActionEngine] Failed to apply suggestion:', e);

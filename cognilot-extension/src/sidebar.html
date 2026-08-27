@@ -240,7 +240,26 @@
           </div>
 
           <!-- Main Header Nav -->
-          <div id="nav-header-main" style="display: flex; gap: 4px; margin-right: 4px">
+          <div id="nav-header-main" style="display: flex; gap: 4px; margin-right: 4px; align-items: center">
+            <!-- Shortcuts Help Button -->
+            <button id="shortcuts-help-btn" class="icon-btn" title="Atajos de teclado">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <circle cx="12" cy="12" r="10"></circle>
+                <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
+                <line x1="12" y1="17" x2="12.01" y2="17"></line>
+              </svg>
+            </button>
+
             <!-- Expand Button -->
             <button id="expand-btn" class="icon-btn" title="Open Web App">
               <svg
@@ -259,6 +278,40 @@
                 <line x1="10" y1="14" x2="21" y2="3"></line>
               </svg>
             </button>
+          </div>
+        </div>
+
+        <!-- Shortcuts Quick Popover (Hidden by default) -->
+        <div id="shortcuts-popover" class="shortcuts-popover" style="display: none">
+          <div class="shortcuts-popover-header">
+            <span class="shortcuts-popover-title">Atajos de Teclado</span>
+            <button id="shortcuts-popover-close" class="shortcuts-popover-close" title="Cerrar">✕</button>
+          </div>
+          <div class="shortcuts-list popover-shortcuts-list">
+            <div class="shortcut-row">
+              <span class="shortcut-desc">Autocompletar formulario</span>
+              <span class="shortcut-keys"><kbd class="shortcut-kbd">Alt</kbd> + <kbd class="shortcut-kbd">/</kbd></span>
+            </div>
+            <div class="shortcut-row">
+              <span class="shortcut-desc">Modo Inspección manual</span>
+              <span class="shortcut-keys"><kbd class="shortcut-kbd">Ctrl</kbd> + <kbd class="shortcut-kbd">Shift</kbd> + <kbd class="shortcut-kbd">M</kbd></span>
+            </div>
+            <div class="shortcut-row">
+              <span class="shortcut-desc">Ver caja de sugerencias</span>
+              <span class="shortcut-keys"><kbd class="shortcut-kbd">Ctrl</kbd> + <kbd class="shortcut-kbd">Space</kbd></span>
+            </div>
+            <div class="shortcut-row">
+              <span class="shortcut-desc">Aceptar sugerencia IA</span>
+              <span class="shortcut-keys"><kbd class="shortcut-kbd">Tab</kbd></span>
+            </div>
+            <div class="shortcut-row">
+              <span class="shortcut-desc">Cancelar sugerencia</span>
+              <span class="shortcut-keys"><kbd class="shortcut-kbd">Esc</kbd></span>
+            </div>
+            <div class="shortcut-row">
+              <span class="shortcut-desc">Alternar portapapeles</span>
+              <span class="shortcut-keys"><kbd class="shortcut-kbd">Alt</kbd> + <kbd class="shortcut-kbd">C</kbd></span>
+            </div>
           </div>
         </div>
       </header>
@@ -304,6 +357,36 @@
                 <!-- User & assistant messages flow here -->
               </div>
 
+              <!-- Middle Void HUD (VS Code Style Shortcuts HUD in "Aqui" area) -->
+              <div id="home-idle-hud" class="home-idle-hud" style="display: flex">
+                <div class="shortcuts-watermark">
+                  <span class="shortcuts-watermark-icon">&gt; _</span>
+                  <span class="shortcuts-watermark-title">COGNILOT</span>
+                </div>
+                <div class="shortcuts-list">
+                  <div class="shortcut-row">
+                    <span class="shortcut-desc">Autocompletar</span>
+                    <span class="shortcut-keys"><kbd class="shortcut-kbd">Alt</kbd> + <kbd class="shortcut-kbd">/</kbd></span>
+                  </div>
+                  <div class="shortcut-row">
+                    <span class="shortcut-desc">Inspección</span>
+                    <span class="shortcut-keys"><kbd class="shortcut-kbd">Ctrl</kbd> + <kbd class="shortcut-kbd">Shift</kbd> + <kbd class="shortcut-kbd">M</kbd></span>
+                  </div>
+                  <div class="shortcut-row">
+                    <span class="shortcut-desc">Caja sugerencias</span>
+                    <span class="shortcut-keys"><kbd class="shortcut-kbd">Ctrl</kbd> + <kbd class="shortcut-kbd">Space</kbd></span>
+                  </div>
+                  <div class="shortcut-row">
+                    <span class="shortcut-desc">Aceptar sugerencia</span>
+                    <span class="shortcut-keys"><kbd class="shortcut-kbd">Tab</kbd></span>
+                  </div>
+                  <div class="shortcut-row">
+                    <span class="shortcut-desc">Cancelar sugerencia</span>
+                    <span class="shortcut-keys"><kbd class="shortcut-kbd">Esc</kbd></span>
+                  </div>
+                </div>
+              </div>
+
               <!-- Debug Console -->
               <div
                 id="debug-log"
@@ -336,7 +419,7 @@
                     <button
                       id="reset-engine-btn"
                       class="inspect-btn"
-                      title="Reset detection"
+                      title="Re-escanear página"
                       style="padding: 4px"
                     >
                       <svg
@@ -357,7 +440,7 @@
                     <button
                       id="manual"
                       class="inspect-btn"
-                      title="Inspect/Change Form"
+                      title="Modo Inspección manual (Ctrl + Shift + M)"
                       style="padding: 4px 8px"
                     >
                       <svg
@@ -438,13 +521,6 @@
                         >
                           Identifying page title...
                         </p>
-                        <!-- Internal Status Filters (Pills) -->
-                        <div
-                          id="chat-status-filters"
-                          style="display: flex; gap: 4px; margin-top: 2px"
-                        >
-                          <!-- Injected by sidebar.ts -->
-                        </div>
                       </div>
                       <button
                         id="chat-context-collapse-btn"
@@ -500,14 +576,14 @@
                     id="chat-input-placeholder"
                     style="
                       color: var(--text-secondary);
-                      font-size: 12px;
-                      opacity: 0.5;
+                      font-size: 11px;
+                      opacity: 0.55;
                       font-style: italic;
-                      padding: 2px 0;
+                      padding: 4px 0;
                       display: block;
                     "
                   >
-                    Detecting form fields...
+                    Esperando detección de formulario...
                   </div>
 
                   <!-- Bottom Row: Model + Send -->
@@ -617,41 +693,15 @@
                         </div>
                       </div>
                     </div>
-                    <!-- Right: Send Button -->
+                    <!-- Right: Solve Button (Matches in-page floating trigger button) -->
                     <div id="chat-input-wrapper">
                       <button
                         id="chat-toggle-btn"
-                        title="Resolver formulario"
-                        style="
-                          background: var(--accent-color, #0e7490);
-                          border: none;
-                          border-radius: 50%;
-                          width: 28px;
-                          height: 28px;
-                          display: none;
-                          align-items: center;
-                          justify-content: center;
-                          cursor: pointer;
-                          color: white;
-                          transition: all 0.2s ease;
-                          padding: 0;
-                          flex-shrink: 0;
-                        "
+                        class="Cognilot-form-trigger-dot sidebar-solve-btn"
+                        title="Autocompletar formulario (Alt + /)"
+                        style="display: none"
                       >
-                        <svg
-                          width="14"
-                          height="14"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          stroke-width="2.5"
-                          stroke-linecap="round"
-                          stroke-linejoin="round"
-                          style="margin-left: 2px"
-                        >
-                          <line x1="5" y1="12" x2="19" y2="12"></line>
-                          <polyline points="12 5 19 12 12 19"></polyline>
-                        </svg>
+                        <div class="Cognilot-form-trigger-dot__inner"></div>
                       </button>
                     </div>
                   </div>
@@ -833,19 +883,6 @@
                         </div>
                         <label class="toggle">
                           <input type="checkbox" id="copilot-enabled" checked />
-                          <span class="toggle__slider"></span>
-                        </label>
-                      </div>
-                    </div>
-
-                    <div class="settings-card">
-                      <div class="settings-row">
-                        <div class="settings-info">
-                          <span class="settings-label">Auto-Open Suggestions Box</span>
-                          <span class="settings-desc">Show the suggestions box automatically on focus</span>
-                        </div>
-                        <label class="toggle">
-                          <input type="checkbox" id="copilot-show-floating-box" checked />
                           <span class="toggle__slider"></span>
                         </label>
                       </div>

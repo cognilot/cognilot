@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
 import { z } from 'zod';
 import { db } from '../db/client.js';
-import { userProfiles, aliases } from '../db/schema.js';
+import { userProfiles, aliases, users, usageCredits } from '../db/schema.js';
 import { eq, and, inArray } from 'drizzle-orm';
 import { authMiddleware } from '../middleware/auth.js';
 import { standardizeKeys } from '../services/standardizer.js';
@@ -12,6 +12,10 @@ export const profileRouter = new Hono<AuthEnv>();
 profileRouter.use('*', authMiddleware);
 
 // ── Schemas ───────────────────────────────────────────────────────────────────
+
+const patchPlanSchema = z.object({
+  plan: z.enum(['free', 'pro']),
+});
 
 const patchProfileSchema = z.object({
   dataLearned: z.record(z.unknown()).optional(),
@@ -40,6 +44,7 @@ const syncProfileSchema = z.object({
  * GET /api/profile
  * Returns the full profile for the authenticated user:
  * - User metadata (plan, email)
+ * - Daily usage credits info
  * - Learned AI data (dataLearned JSONB)
  * - All aliases
  */
@@ -59,17 +64,58 @@ profileRouter.get('/', async (c) => {
 
   const userAliases = await db.select().from(aliases).where(eq(aliases.userId, userId));
 
+  const today = new Date().toISOString().split('T')[0] as string;
+  const [usage] = await db
+    .select()
+    .from(usageCredits)
+    .where(and(eq(usageCredits.userId, userId), eq(usageCredits.date, today)));
+
+  const FREE_CREDITS_PER_DAY = Number(process.env['COGNILOT_FREE_CREDITS_PER_DAY'] ?? 50);
+
   return c.json({
     user: {
       id: user.id,
       email: user.email,
       plan: user.plan,
     },
+    usage: {
+      creditsUsed: usage?.creditsUsed ?? 0,
+      creditsLimit: FREE_CREDITS_PER_DAY,
+      resetsAt: `${today}T23:59:59Z`,
+    },
     profile: {
       dataLearned: profile?.dataLearned ?? {},
       onboardingCompleted: profile?.onboardingCompleted ?? null,
     },
     aliases: userAliases,
+  });
+});
+
+/**
+ * PATCH /api/profile/plan
+ * Switches user plan between 'free' and 'pro' (Dev / Testing mode).
+ */
+profileRouter.patch('/plan', zValidator('json', patchPlanSchema), async (c) => {
+  const userId = c.get('userId');
+  const { plan } = c.req.valid('json');
+
+  const [updatedUser] = await db
+    .update(users)
+    .set({ plan, updatedAt: new Date() })
+    .where(eq(users.id, userId))
+    .returning();
+
+  if (!updatedUser) {
+    return c.json({ error: 'Not Found', message: 'User record not found.' }, 404);
+  }
+
+  return c.json({
+    success: true,
+    user: {
+      id: updatedUser.id,
+      email: updatedUser.email,
+      plan: updatedUser.plan,
+    },
   });
 });
 
@@ -151,6 +197,12 @@ profileRouter.post('/sync', zValidator('json', syncProfileSchema), async (c) => 
   const sanitizeAndValidate = (key: string, rawVal: string): string | null => {
     const val = String(rawVal || '').trim();
     if (!val) return null;
+
+    // Discard any sensitive keys (passwords, PINs, tokens, CVVs) from global profile memory
+    if (/(password|contrase|clave|secret|pin|cvv|cvc|token|auth_token)/i.test(key)) {
+      console.warn(`[Profile/Sync] Discarding sensitive/password key from global profile:`, key);
+      return null;
+    }
 
     // Discard email values accidentally placed into name or username fields
     if (['full_name', 'first_name', 'last_name', 'username'].includes(key) && val.includes('@')) {

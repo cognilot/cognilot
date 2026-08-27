@@ -15,4 +15,5 @@ export interface FieldDetectionResponse {
   metadata: LabelMetadata;
   selector: string;
   node: CognilotNode;
+  groupNodes?: CognilotNode[];
 }

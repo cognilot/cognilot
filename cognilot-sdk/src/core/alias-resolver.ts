@@ -193,6 +193,14 @@ export class AliasResolver {
     const aliasKey = this.normalizeAliasKey(LabelUtil.normalizeText(label));
     if (!aliasKey) return false;
 
+    // Security Gate: Never persist passwords, PINs, secrets, or CVVs to global profile
+    if (
+      /(password|contrase|clave|secret|pin|cvv|cvc|token|auth_token)/i.test(`${aliasKey} ${label}`)
+    ) {
+      console.warn(`[AliasResolver] Blocked persistence of sensitive/password key: "${aliasKey}"`);
+      return false;
+    }
+
     const trimmedValue = String(value).trim();
     if (!trimmedValue) return false;
 
