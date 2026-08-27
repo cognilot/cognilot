@@ -1,0 +1,63 @@
+name: Database — Schema & Migrations Check
+
+on:
+  pull_request:
+    paths:
+      - 'cognilot-api/src/db/**'
+      - 'cognilot-api/drizzle.config.ts'
+      - '.github/workflows/db-migrations.yml'
+  push:
+    branches: [master]
+    paths:
+      - 'cognilot-api/src/db/**'
+      - 'cognilot-api/drizzle.config.ts'
+      - '.github/workflows/db-migrations.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: db-migrations-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify-schema:
+    name: Verify Drizzle Schema & Migrations
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Verify Schema TypeScript compilation
+        run: pnpm --filter @cognilot/api exec tsc --noEmit
+
+      - name: Check Migration Journal Integrity
+        run: |
+          node -e '
+            const fs = require("fs");
+            const journalPath = "./cognilot-api/src/db/migrations/meta/_journal.json";
+            if (!fs.existsSync(journalPath)) {
+              console.error("❌ Migration journal not found at " + journalPath);
+              process.exit(1);
+            }
+            const journal = JSON.parse(fs.readFileSync(journalPath, "utf8"));
+            console.log(`✅ Migration journal valid. Found ${journal.entries.length} migration entries.`);
+            for (const entry of journal.entries) {
+              const sqlPath = `./cognilot-api/src/db/migrations/${entry.tag}.sql`;
+              if (!fs.existsSync(sqlPath)) {
+                console.error(`❌ Missing SQL migration file: ${sqlPath}`);
+                process.exit(1);
+              }
+            }
+            console.log("✅ All SQL migration files verified against journal.");
+          '

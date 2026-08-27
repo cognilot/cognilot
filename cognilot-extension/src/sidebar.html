@@ -240,7 +240,10 @@
           </div>
 
           <!-- Main Header Nav -->
-          <div id="nav-header-main" style="display: flex; gap: 4px; margin-right: 4px; align-items: center">
+          <div
+            id="nav-header-main"
+            style="display: flex; gap: 4px; margin-right: 4px; align-items: center"
+          >
             <!-- Shortcuts Help Button -->
             <button id="shortcuts-help-btn" class="icon-btn" title="Atajos de teclado">
               <svg
@@ -285,20 +288,29 @@
         <div id="shortcuts-popover" class="shortcuts-popover" style="display: none">
           <div class="shortcuts-popover-header">
             <span class="shortcuts-popover-title">Atajos de Teclado</span>
-            <button id="shortcuts-popover-close" class="shortcuts-popover-close" title="Cerrar">✕</button>
+            <button id="shortcuts-popover-close" class="shortcuts-popover-close" title="Cerrar">
+              ✕
+            </button>
           </div>
           <div class="shortcuts-list popover-shortcuts-list">
             <div class="shortcut-row">
               <span class="shortcut-desc">Autocompletar formulario</span>
-              <span class="shortcut-keys"><kbd class="shortcut-kbd">Alt</kbd> + <kbd class="shortcut-kbd">/</kbd></span>
+              <span class="shortcut-keys"
+                ><kbd class="shortcut-kbd">Alt</kbd> + <kbd class="shortcut-kbd">/</kbd></span
+              >
             </div>
             <div class="shortcut-row">
               <span class="shortcut-desc">Modo Inspección manual</span>
-              <span class="shortcut-keys"><kbd class="shortcut-kbd">Ctrl</kbd> + <kbd class="shortcut-kbd">Shift</kbd> + <kbd class="shortcut-kbd">M</kbd></span>
+              <span class="shortcut-keys"
+                ><kbd class="shortcut-kbd">Ctrl</kbd> + <kbd class="shortcut-kbd">Shift</kbd> +
+                <kbd class="shortcut-kbd">M</kbd></span
+              >
             </div>
             <div class="shortcut-row">
               <span class="shortcut-desc">Ver caja de sugerencias</span>
-              <span class="shortcut-keys"><kbd class="shortcut-kbd">Ctrl</kbd> + <kbd class="shortcut-kbd">Space</kbd></span>
+              <span class="shortcut-keys"
+                ><kbd class="shortcut-kbd">Ctrl</kbd> + <kbd class="shortcut-kbd">Space</kbd></span
+              >
             </div>
             <div class="shortcut-row">
               <span class="shortcut-desc">Aceptar sugerencia IA</span>
@@ -310,7 +322,9 @@
             </div>
             <div class="shortcut-row">
               <span class="shortcut-desc">Alternar portapapeles</span>
-              <span class="shortcut-keys"><kbd class="shortcut-kbd">Alt</kbd> + <kbd class="shortcut-kbd">C</kbd></span>
+              <span class="shortcut-keys"
+                ><kbd class="shortcut-kbd">Alt</kbd> + <kbd class="shortcut-kbd">C</kbd></span
+              >
             </div>
           </div>
         </div>
@@ -366,15 +380,24 @@
                 <div class="shortcuts-list">
                   <div class="shortcut-row">
                     <span class="shortcut-desc">Autocompletar</span>
-                    <span class="shortcut-keys"><kbd class="shortcut-kbd">Alt</kbd> + <kbd class="shortcut-kbd">/</kbd></span>
+                    <span class="shortcut-keys"
+                      ><kbd class="shortcut-kbd">Alt</kbd> + <kbd class="shortcut-kbd">/</kbd></span
+                    >
                   </div>
                   <div class="shortcut-row">
                     <span class="shortcut-desc">Inspección</span>
-                    <span class="shortcut-keys"><kbd class="shortcut-kbd">Ctrl</kbd> + <kbd class="shortcut-kbd">Shift</kbd> + <kbd class="shortcut-kbd">M</kbd></span>
+                    <span class="shortcut-keys"
+                      ><kbd class="shortcut-kbd">Ctrl</kbd> +
+                      <kbd class="shortcut-kbd">Shift</kbd> +
+                      <kbd class="shortcut-kbd">M</kbd></span
+                    >
                   </div>
                   <div class="shortcut-row">
                     <span class="shortcut-desc">Caja sugerencias</span>
-                    <span class="shortcut-keys"><kbd class="shortcut-kbd">Ctrl</kbd> + <kbd class="shortcut-kbd">Space</kbd></span>
+                    <span class="shortcut-keys"
+                      ><kbd class="shortcut-kbd">Ctrl</kbd> +
+                      <kbd class="shortcut-kbd">Space</kbd></span
+                    >
                   </div>
                   <div class="shortcut-row">
                     <span class="shortcut-desc">Aceptar sugerencia</span>
@@ -627,11 +650,12 @@
                           ></path>
                           <circle cx="12" cy="12" r="3"></circle>
                         </svg>
+                      </button>
                       <button
                         id="sidebar-clipboard-toggle"
                         class="icon-btn"
                         title="Usar contexto de portapapeles (DESACTIVADO)"
-                        style="opacity: 0.6; transition: all 0.2s; margin-right: 4px;"
+                        style="opacity: 0.6; transition: all 0.2s; margin-right: 4px"
                       >
                         <svg
                           width="16"
@@ -643,7 +667,9 @@
                           stroke-linecap="round"
                           stroke-linejoin="round"
                         >
-                          <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path>
+                          <path
+                            d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"
+                          ></path>
                           <rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect>
                         </svg>
                       </button>
@@ -687,7 +713,11 @@
                           >
                             Anthropic Claude 3 (BYOK)
                           </div>
-                          <div class="model-option" data-value="byok-groq" data-label="GPT-OSS 120B">
+                          <div
+                            class="model-option"
+                            data-value="byok-groq"
+                            data-label="GPT-OSS 120B"
+                          >
                             Groq GPT-OSS 120B (BYOK)
                           </div>
                         </div>

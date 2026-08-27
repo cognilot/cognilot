@@ -271,6 +271,16 @@ export class MockSDK {
       detect: vi.fn().mockResolvedValue({ questions: [] }),
       getFieldMetadata: vi.fn(),
     };
+    this.registry = {
+      findById: vi.fn(),
+      findBySelector: vi.fn(),
+      findByNode: vi.fn(),
+      getAll: vi.fn().mockReturnValue([]),
+      getPending: vi.fn().mockReturnValue([]),
+      updateResolution: vi.fn(),
+      markFailed: vi.fn(),
+      register: vi.fn(),
+    };
     this.suggestion = {
       handleTrigger: vi.fn(),
     };
