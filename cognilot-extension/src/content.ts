@@ -708,7 +708,7 @@ import { Modules, init as initModules } from './index';
     }
   });
 
-  // ─── Global Shortcut Listener: Alt + / or Alt + \ ──────────
+  // ─── Global Shortcut Listener: Alt + / (Autofill) and Ctrl + Shift + M (Inspect) ──────────
   window.addEventListener(
     'keydown',
     (e: KeyboardEvent) => {
@@ -730,6 +730,33 @@ import { Modules, init as initModules } from './index';
         const api = (window as unknown as { CognilotAPI?: { solveAll(): unknown } }).CognilotAPI;
         if (api?.solveAll) {
           api.solveAll();
+        }
+        return;
+      }
+
+      const isInspectShortcut =
+        (e.ctrlKey || e.metaKey) &&
+        e.shiftKey &&
+        (e.key === 'M' || e.key === 'm' || e.code === 'KeyM');
+
+      if (isInspectShortcut) {
+        e.preventDefault();
+        Logger.info(`⌨️ Global shortcut Ctrl+Shift+M triggered from content.ts`);
+        const api = (
+          window as unknown as {
+            CognilotAPI?: {
+              enableInspector(): unknown;
+              inspectorActive?: boolean;
+              disableInspector(): unknown;
+            };
+          }
+        ).CognilotAPI;
+        if (api) {
+          if (api.inspectorActive && api.disableInspector) {
+            api.disableInspector();
+          } else if (api.enableInspector) {
+            api.enableInspector();
+          }
         }
       }
     },

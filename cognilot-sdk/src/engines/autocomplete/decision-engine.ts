@@ -23,31 +23,42 @@ export class DecisionEngine {
    */
   async handleTrigger(node: CognilotNode): Promise<DecisionResponse | { error: string } | null> {
     // 1. Validation
-    const fieldType = node.type || '';
+    const fieldType = (node.type || '').toLowerCase();
     const tagName = node.tagName.toLowerCase();
-    const isChoice = ['radio', 'checkbox', 'file'].includes(fieldType) || tagName === 'select';
+    const isChoice = ['radio', 'checkbox'].includes(fieldType) || tagName === 'select';
 
     if (!isChoice) {
       return {
-        error: 'Field is not a selection type. DecisionEngine handles only choices.',
+        error:
+          'Field is not a supported selection type. DecisionEngine handles only choices (radio, checkbox, select).',
       };
     }
 
     // 2. Re-use Auto-Detection Data
     let fieldMetadata: FieldDetectionResponse | null = null;
     const lastDetection = this.sdk.detection.lastResult;
+    const rawNode = node.getRawNode();
 
-    if (lastDetection) {
-      fieldMetadata =
-        lastDetection.questions.find((q) => q.node.getRawNode() === node.getRawNode()) || null;
+    const matchesQuestion = (q: FieldDetectionResponse) => {
+      if (q.node.getRawNode() === rawNode) return true;
+      if (Array.isArray(q.groupNodes)) {
+        return q.groupNodes.some((gn) => gn.getRawNode?.() === rawNode || (gn as any) === rawNode);
+      }
+      if (q.name && node.name && q.name === node.name) return true;
+      return false;
+    };
+
+    if (lastDetection && Array.isArray(lastDetection.questions)) {
+      fieldMetadata = lastDetection.questions.find(matchesQuestion) || null;
     }
 
     // 3. Optional: On-demand detection if missing
     if (!fieldMetadata) {
       console.log(`[DecisionEngine] No auto-detection match. Performing on-demand scan...`);
       const result = await this.sdk.detection.detect(node);
-      fieldMetadata =
-        result.questions.find((q) => q.node.getRawNode() === node.getRawNode()) || null;
+      if (result && Array.isArray(result.questions)) {
+        fieldMetadata = result.questions.find(matchesQuestion) || null;
+      }
     }
 
     if (!fieldMetadata) return null;
@@ -156,9 +167,11 @@ export class DecisionEngine {
     const storageResult = storage ? await storage.get('Cognilot_decisions_cache') : null;
     const cachedDecisions = storageResult?.Cognilot_decisions_cache || storageResult || {};
 
-    // 1. Filter out fields that are already in session cache or alias cache
+    // 1. Filter out fields that are not supported choices, or are already in session cache or alias cache
     const pendingFields = [];
     for (const field of fields) {
+      const type = (field.type || '').toLowerCase();
+      if (!['radio', 'checkbox', 'select'].includes(type)) continue;
       if (cachedDecisions[field.id || '']) continue;
 
       // Check Alias Cache

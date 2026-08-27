@@ -1,6 +1,6 @@
 import { CognilotNode, PlatformAdapter } from '../../platforms/interface';
 import { FieldDetectionResponse } from '../../contracts/field-detection-response';
-import { FieldRegistryEntry } from '../../contracts/field-registry-entry';
+import { FieldRegistryEntry, isResolvableFieldType } from '../../contracts/field-registry-entry';
 import { FormScopeInfo } from '../../contracts/form-scope-info';
 import { FieldCollector } from './field-collector';
 import { LabelExtractor } from './label-extractor';
@@ -306,6 +306,7 @@ export class DetectionEngine {
           metadata,
           selector: this.extractor.buildFallbackSelector(primaryEl),
           node: primaryEl,
+          groupNodes: groupElements,
           belongsToForm: false,
           formScopeId: null,
           resolution: null,
@@ -344,9 +345,10 @@ export class DetectionEngine {
         usedIds.add(uniqueId);
 
         let resolution: any = null;
-        let status: 'pending' | 'resolved' = 'pending';
+        const isResolvable = isResolvableFieldType(cleanType);
+        let status: 'pending' | 'resolved' | 'detected' = isResolvable ? 'pending' : 'detected';
 
-        if (cleanType === 'password') {
+        if (isResolvable && cleanType === 'password') {
           const chars =
             'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*()_+~`|}{[]:;?><,./-=';
           let generatedPwd = '';
@@ -383,6 +385,7 @@ export class DetectionEngine {
           formScopeId: null,
           resolution,
           status,
+          resolvable: isResolvable,
         });
       }
     }
@@ -501,6 +504,12 @@ export class DetectionEngine {
     for (const q of this._cache.result.questions) {
       // 1. Direct node identity
       if (q.node && q.node.getRawNode() === rawElement) return q;
+      // 1b. Group nodes identity (radios/checkboxes)
+      if (Array.isArray(q.groupNodes)) {
+        for (const gn of q.groupNodes) {
+          if (gn && (gn.getRawNode?.() === rawElement || (gn as any) === rawElement)) return q;
+        }
+      }
       // 2. CSS selector match
       if (q.selector && rawElement.matches?.(q.selector)) {
         try {
@@ -511,6 +520,13 @@ export class DetectionEngine {
       if (q.ref_id && rawElement.id && rawElement.id === q.ref_id) return q;
       // 4. name attribute match
       if (q.name && rawElement.name && rawElement.name === q.name) return q;
+      if (
+        typeof rawElement.getAttribute === 'function' &&
+        q.name &&
+        rawElement.getAttribute('name') === q.name
+      ) {
+        return q;
+      }
     }
     return null;
   }

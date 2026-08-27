@@ -35,9 +35,17 @@ export class FieldRegistry {
    */
   register(entry: FieldRegistryEntry): void {
     this._entries.set(entry.id, entry);
-    const rawNode = entry.node?.getRawNode?.();
-    if (rawNode) {
+    const rawNode = entry.node?.getRawNode?.() || (entry.node as any);
+    if (rawNode && typeof rawNode === 'object') {
       this._nodeIndex.set(rawNode, entry.id);
+    }
+    if (Array.isArray(entry.groupNodes)) {
+      for (const gNode of entry.groupNodes) {
+        const gRaw = gNode?.getRawNode?.() || (gNode as any);
+        if (gRaw && typeof gRaw === 'object') {
+          this._nodeIndex.set(gRaw, entry.id);
+        }
+      }
     }
   }
 
@@ -90,8 +98,25 @@ export class FieldRegistry {
    */
   findByNode(rawElement: object): FieldRegistryEntry | null {
     const id = this._nodeIndex.get(rawElement);
-    if (!id) return null;
-    return this._entries.get(id) ?? null;
+    if (id) {
+      return this._entries.get(id) ?? null;
+    }
+
+    // Fallback for radio / checkbox: if clicked element has matching name
+    if (rawElement && typeof (rawElement as any).getAttribute === 'function') {
+      const type = ((rawElement as any).getAttribute('type') || '').toLowerCase();
+      const name = (rawElement as any).getAttribute('name');
+      if ((type === 'radio' || type === 'checkbox') && name) {
+        for (const entry of this._entries.values()) {
+          if (entry.name === name || (entry.type === type && entry.name === name)) {
+            this._nodeIndex.set(rawElement, entry.id);
+            return entry;
+          }
+        }
+      }
+    }
+
+    return null;
   }
 
   /**

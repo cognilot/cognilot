@@ -12,6 +12,7 @@ import { fetchSuggestion } from '../services/autocomplete_service';
 import { refineText } from '../services/refinement_service';
 import { CredentialsService } from '../services/credentials_service';
 import { readClipboardDirect } from '../utils/clipboard';
+import { EligibilityLib } from '../lib/eligibility_lib';
 
 interface ListenerEntry {
   type: string;
@@ -34,11 +35,7 @@ function paintSiblingGhostTexts(focusedElement: HTMLElement): void {
     const siblings = sdk.registry.getByFormScope(entry.formScopeId);
     for (const sibling of siblings) {
       const siblingEl = sibling.node?.getRawNode?.() as HTMLElement | null;
-      if (siblingEl && siblingEl !== focusedElement) {
-        const isPwd =
-          (siblingEl as HTMLInputElement).type === 'password' ||
-          siblingEl.getAttribute('type') === 'password';
-
+      if (siblingEl) {
         const isChoice =
           sibling.type === 'radio' ||
           sibling.type === 'checkbox' ||
@@ -51,7 +48,11 @@ function paintSiblingGhostTexts(focusedElement: HTMLElement): void {
               sibling.resolution.options || [sibling.resolution.value]
             );
           }
-        } else if (sibling.resolution && sibling.resolution.value) {
+        } else if (siblingEl !== focusedElement && sibling.resolution && sibling.resolution.value) {
+          const isPwd =
+            (siblingEl as HTMLInputElement).type === 'password' ||
+            siblingEl.getAttribute('type') === 'password';
+
           // Guard: Never paint email values onto password fields
           if (isPwd && sibling.resolution.value.includes('@')) {
             continue;
@@ -97,7 +98,20 @@ function updateUI(element: HTMLElement, suggestion: SuggestionState): void {
     return;
   }
 
-  GhostUI.paint(element, suggestion);
+  const isChoice =
+    (element as HTMLInputElement).type === 'radio' ||
+    (element as HTMLInputElement).type === 'checkbox' ||
+    element.tagName.toLowerCase() === 'select';
+
+  if (isChoice) {
+    if (suggestion.options && suggestion.options.length > 0) {
+      GhostUI.paintChoiceGhost(element, suggestion.options);
+    } else if (suggestion.value) {
+      GhostUI.paintChoiceGhost(element, [suggestion.value]);
+    }
+  } else {
+    GhostUI.paint(element, suggestion);
+  }
 
   if (!suggestion.isError) {
     paintSiblingGhostTexts(element);
@@ -141,20 +155,24 @@ function clearUI(element: HTMLElement, keepCache = false, skipSiblings = false):
   }
 }
 
-async function handleAutocomplete(element: HTMLElement): Promise<void> {
+async function handleAutocomplete(element: HTMLElement, forceShowHint = false): Promise<void> {
   if (element._blockCognilotTrigger) return;
+
+  const isChoice =
+    element.tagName === 'SELECT' ||
+    (element as HTMLInputElement).type === 'radio' ||
+    (element as HTMLInputElement).type === 'checkbox';
+
+  if (!isChoice && !EligibilityLib.isEligibleForTrigger(element, true)) {
+    return;
+  }
 
   const now = Date.now();
   if (_lastProcessed.element === element && now - _lastProcessed.time < 300) return;
   _lastProcessed = { element, time: now };
 
-  const sdk = window.Cognilot?.SDK;
-  const settingsAdapter = sdk?.Core?.Registry?.getAdapter('settings');
-  const settings = settingsAdapter ? await settingsAdapter.getSettings() : {};
-  const showFloatingBox = settings?.copilotSuggestions?.showFloatingBox !== false;
-
   const loadingTimeout: any = setTimeout(() => {
-    updateUI(element, { isLoading: true, options: [], _isHintHidden: !showFloatingBox });
+    updateUI(element, { isLoading: true, options: [], _isHintHidden: !forceShowHint });
   }, 150);
 
   try {
@@ -213,7 +231,7 @@ async function handleAutocomplete(element: HTMLElement): Promise<void> {
         _allOptions: isPassword
           ? options
           : Array.from(new Set([...savedEmails, ...((suggestion as any)._allOptions || options)])),
-        _isHintHidden: !showFloatingBox,
+        _isHintHidden: !forceShowHint,
         isNoMatch: !hasValidOption,
       } as any;
       element._CognilotSuggestion = state;
@@ -244,7 +262,7 @@ async function handleAutocomplete(element: HTMLElement): Promise<void> {
         isNoMatch: options.length === 0,
         options,
         _allOptions: options,
-        _isHintHidden: !showFloatingBox,
+        _isHintHidden: !forceShowHint,
       };
       element._CognilotSuggestion = emptyState;
       updateUI(element, emptyState);
@@ -261,7 +279,7 @@ async function handleAutocomplete(element: HTMLElement): Promise<void> {
       isError: true,
       error: friendlyError,
       options: [],
-      _isHintHidden: !showFloatingBox,
+      _isHintHidden: !forceShowHint,
     };
     element._CognilotSuggestion = errorState;
     updateUI(element, errorState);
@@ -505,8 +523,8 @@ function handleKeyboard(e: KeyboardEvent): void {
     return;
   }
 
-  // TOGGLE HINT UI: Ctrl + Space
-  if (e.code === 'Space' && e.ctrlKey) {
+  // TOGGLE HINT UI: Ctrl + Space / Cmd + Space
+  if (e.code === 'Space' && (e.ctrlKey || e.metaKey)) {
     e.preventDefault();
     const sdk = window.Cognilot?.SDK;
     const matchedField = sdk?.facade?.matchField(element) || null;
@@ -515,13 +533,13 @@ function handleKeyboard(e: KeyboardEvent): void {
     if (isFormContext) {
       if (suggestion) {
         if (suggestion.isError) {
-          handleAutocomplete(element);
+          handleAutocomplete(element, true);
         } else {
           suggestion._isHintHidden = !suggestion._isHintHidden;
           updateUI(element, suggestion);
         }
       } else {
-        handleAutocomplete(element);
+        handleAutocomplete(element, true);
       }
     } else {
       clearUI(element);
@@ -658,7 +676,7 @@ export function init(): void {
     const el = e.target as HTMLElement;
     const isTextField = ['INPUT', 'TEXTAREA'].includes(el.tagName);
 
-    if (isTextField && !el._blockCognilotTrigger) {
+    if (isTextField && !el._blockCognilotTrigger && EligibilityLib.isEligibleForTrigger(el, true)) {
       const sdk = window.Cognilot?.SDK;
       const matchedField = sdk?.facade?.matchField(el) || null;
       const isFormContext = !!matchedField;
@@ -778,7 +796,22 @@ export function init(): void {
     }
   }) as EventListener;
 
+  const changeHandler = ((e: Event): void => {
+    const el = e.target as HTMLElement;
+    if (!el || (el.tagName !== 'INPUT' && el.tagName !== 'SELECT')) return;
+    const type = (el.getAttribute('type') || '').toLowerCase();
+    const isChoice = type === 'radio' || type === 'checkbox' || el.tagName === 'SELECT';
+    if (!isChoice || el._blockCognilotTrigger) return;
+
+    const sdk = window.Cognilot?.SDK;
+    const matchedField = sdk?.facade?.matchField(el) || null;
+    if (matchedField) {
+      handleAutocomplete(el);
+    }
+  }) as EventListener;
+
   document.addEventListener('focus', focusHandler, true);
+  document.addEventListener('change', changeHandler, true);
   document.addEventListener('keydown', keydownHandler, true);
   document.addEventListener('input', inputHandler, true);
   document.addEventListener('blur', learningHandler, true);
@@ -808,6 +841,7 @@ export function init(): void {
 
   _listeners.push(
     { type: 'focus', fn: focusHandler },
+    { type: 'change', fn: changeHandler },
     { type: 'keydown', fn: keydownHandler },
     { type: 'input', fn: inputHandler },
     { type: 'blur', fn: learningHandler },

@@ -1,6 +1,6 @@
 import { CognilotSDK } from '../../index';
 import { PlatformAdapter, CognilotNode } from '../../platforms/interface';
-import { FieldRegistryEntry } from '../../contracts/field-registry-entry';
+import { FieldRegistryEntry, isResolvableFieldType } from '../../contracts/field-registry-entry';
 
 /**
  * ActionEngine
@@ -45,7 +45,13 @@ export class ActionEngine {
 
     const type = (node.type || '').toLowerCase();
     const tagName = node.tagName.toLowerCase();
-    const isChoice = ['radio', 'checkbox', 'file', 'select'].includes(type) || tagName === 'select';
+    const isCombobox = (node as any).getAttribute?.('role') === 'combobox';
+
+    if (!isResolvableFieldType(type) || isCombobox) {
+      return { error: `Field is detection-only (${type || 'combobox'}) and cannot be resolved` };
+    }
+
+    const isChoice = ['radio', 'checkbox', 'select'].includes(type) || tagName === 'select';
 
     console.log(`[ActionEngine] Trigger: ${tagName}[type="${type}"] isChoice=${isChoice}`);
 
@@ -227,13 +233,18 @@ export class ActionEngine {
       `[ActionEngine] Prefetching ${pendingFields.length} pending field(s) in scope "${formScopeId}"...`
     );
 
-    // Separate by engine type
+    // Separate by engine type (resolvable only)
     const textFields = pendingFields
-      .filter((f) => !['radio', 'checkbox', 'file', 'select'].includes(f.type))
+      .filter(
+        (f) =>
+          !['radio', 'checkbox', 'select'].includes(f.type) &&
+          isResolvableFieldType(f.type) &&
+          f.resolvable !== false
+      )
       .map((f) => ({ node: f.node, metadata: f.metadata }));
 
     const choiceFields = pendingFields.filter((f) =>
-      ['radio', 'checkbox', 'file', 'select'].includes(f.type)
+      ['radio', 'checkbox', 'select'].includes(f.type)
     );
 
     // Fire batch requests (fire & forget from the caller's perspective)
@@ -245,7 +256,12 @@ export class ActionEngine {
           this.sdk.suggestion.prefetchBatch(textFields as any, options).then(() => {
             // After batch resolves, mark registry entries as resolved
             this._syncBatchResultsToRegistry(
-              pendingFields.filter((f) => !['radio', 'checkbox', 'file', 'select'].includes(f.type))
+              pendingFields.filter(
+                (f) =>
+                  !['radio', 'checkbox', 'select'].includes(f.type) &&
+                  isResolvableFieldType(f.type) &&
+                  f.resolvable !== false
+              )
             );
           })
         );
@@ -255,7 +271,7 @@ export class ActionEngine {
         batchPromises.push(
           this.sdk.decision.prefetchBatch(choiceFields as any).then(() => {
             this._syncDecisionBatchResultsToRegistry(
-              pendingFields.filter((f) => ['radio', 'checkbox', 'file', 'select'].includes(f.type))
+              pendingFields.filter((f) => ['radio', 'checkbox', 'select'].includes(f.type))
             );
           })
         );
@@ -461,12 +477,16 @@ export class ActionEngine {
     const textFields = questions.filter((q) => {
       const type = (q.type || '').toLowerCase();
       const tagName = (q.tagName || '').toLowerCase();
-      return !['radio', 'checkbox', 'file'].includes(type) && tagName !== 'select';
+      return (
+        !['radio', 'checkbox', 'select'].includes(type) &&
+        tagName !== 'select' &&
+        isResolvableFieldType(type)
+      );
     });
     const choiceFields = questions.filter((q) => {
       const type = (q.type || '').toLowerCase();
       const tagName = (q.tagName || '').toLowerCase();
-      return ['radio', 'checkbox', 'file'].includes(type) || tagName === 'select';
+      return ['radio', 'checkbox', 'select'].includes(type) || tagName === 'select';
     });
 
     if (textFields.length > 0) {
@@ -483,6 +503,25 @@ export class ActionEngine {
     // Process sequentially for better UI feedback and to avoid race conditions
     for (let i = 0; i < questions.length; i++) {
       const q = questions[i];
+      const type = (q.type || '').toLowerCase();
+
+      // Skip non-resolvable fields (search, autocomplete, file, etc.)
+      if (!isResolvableFieldType(type) || q.status === 'detected' || q.resolvable === false) {
+        console.log(
+          `[ActionEngine] Skipping non-resolvable field ${i + 1}/${questions.length}: ${q.text} (${type})`
+        );
+        solved++;
+        results.push({ id: q.id, success: true, answer: 'Omitido (Solo detección)' });
+        onProgress?.({
+          status: 'step',
+          index: i + 1,
+          total: questions.length,
+          id: q.id,
+          success: true,
+          answer: 'Omitido (Solo detección)',
+        });
+        continue;
+      }
 
       try {
         console.log(`[ActionEngine] Solving field ${i + 1}/${questions.length}: ${q.text}`);
@@ -492,9 +531,8 @@ export class ActionEngine {
         let answerValue = '';
 
         if (result && !result.error) {
-          const type = (q.type || '').toLowerCase();
           const tagName = (q.tagName || '').toLowerCase();
-          const isChoice = ['radio', 'checkbox', 'file'].includes(type) || tagName === 'select';
+          const isChoice = ['radio', 'checkbox', 'select'].includes(type) || tagName === 'select';
 
           if (isChoice) {
             success = await this._applyDecision(q.node, result);

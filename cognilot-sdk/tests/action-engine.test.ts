@@ -86,4 +86,37 @@ describe('ActionEngine', () => {
       source: 'ai',
     });
   });
+
+  it('should skip non-resolvable fields during executeBatch without failure', async () => {
+    const searchNode = new MockNode('INPUT', '', { id: 'q', name: 'q', type: 'search' });
+    const autoNode = new MockNode('INPUT', '', { id: 'combo', name: 'combo', role: 'combobox' });
+
+    const questions = [
+      {
+        id: 'q',
+        type: 'search',
+        text: 'Search Site',
+        node: searchNode,
+        status: 'detected',
+        resolvable: false,
+      },
+      {
+        id: 'combo',
+        type: 'autocomplete',
+        text: 'Category',
+        node: autoNode,
+        status: 'detected',
+        resolvable: false,
+      },
+    ];
+
+    const result = await engine.executeBatch(questions);
+
+    expect(result.success).toBe(true);
+    expect(result.summary.solved).toBe(2);
+    expect(result.results).toEqual([
+      { id: 'q', success: true, answer: 'Omitido (Solo detección)' },
+      { id: 'combo', success: true, answer: 'Omitido (Solo detección)' },
+    ]);
+  });
 });

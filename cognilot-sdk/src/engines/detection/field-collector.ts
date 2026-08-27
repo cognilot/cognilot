@@ -100,7 +100,15 @@ export class FieldCollector {
 
         const primary = groupElements[0] || element;
         detectedFields.push(
-          this._buildFieldDTO(primary, fieldLabel, fieldRef, cleanType, groupOptions, metadata)
+          this._buildFieldDTO(
+            primary,
+            fieldLabel,
+            fieldRef,
+            cleanType,
+            groupOptions,
+            metadata,
+            groupElements
+          )
         );
         return;
       }
@@ -206,7 +214,8 @@ export class FieldCollector {
     fieldRef: any,
     type: string,
     options: any[],
-    metadata: LabelMetadata
+    metadata: LabelMetadata,
+    groupNodes?: CognilotNode[]
   ): FieldDetectionResponse {
     return {
       text: label,
@@ -222,6 +231,7 @@ export class FieldCollector {
       metadata: metadata,
       selector: this.labelExtractor.buildFallbackSelector(el),
       node: el,
+      ...(groupNodes && groupNodes.length > 0 ? { groupNodes } : {}),
     };
   }
 

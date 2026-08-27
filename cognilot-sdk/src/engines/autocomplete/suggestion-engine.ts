@@ -1,6 +1,7 @@
 import { CognilotSDK } from '../../index';
 import { PlatformAdapter, CognilotNode } from '../../platforms/interface';
 import { LabelExtractor, LabelMetadata } from '../detection/label-extractor';
+import { isResolvableFieldType } from '../../contracts/field-registry-entry';
 
 export interface SuggestionRequest {
   field: LabelMetadata;
@@ -38,13 +39,20 @@ export class SuggestionEngine {
    * Handles a field trigger (e.g., focus or click) to fetch suggestions.
    */
   async handleTrigger(node: CognilotNode, options: any = {}) {
-    // 1. Validation (Strictly text fields)
-    const fieldType = node.type || '';
+    // 1. Validation (Strictly resolvable text fields)
+    const fieldType = (node.type || '').toLowerCase();
     const tagName = node.tagName.toLowerCase();
+    const isCombobox = (node as any).getAttribute?.('role') === 'combobox';
 
-    if (['radio', 'checkbox', 'file'].includes(fieldType) || tagName === 'select') {
+    if (['radio', 'checkbox'].includes(fieldType) || tagName === 'select') {
       return {
         error: 'Field is not textual. SuggestionEngine handles only text/inputs.',
+      };
+    }
+
+    if (!isResolvableFieldType(fieldType) || isCombobox) {
+      return {
+        error: `Field is detection-only (${fieldType || 'combobox'}) and cannot be resolved with AI suggestions.`,
       };
     }
 
@@ -465,6 +473,14 @@ export class SuggestionEngine {
     // 2. Filter items that are NOT in cache and NOT resolvable locally
     const pendingItems = [];
     for (const item of items) {
+      const fieldType = (
+        (item.node as any)?.type ||
+        (item.node as any)?.tagName ||
+        ''
+      ).toLowerCase();
+      const isCombobox = (item.node as any)?.getAttribute?.('role') === 'combobox';
+      if (!isResolvableFieldType(fieldType) || isCombobox) continue;
+
       const fieldIdentifier =
         (item.node as any).id ||
         (item.node as any).getAttribute('name') ||

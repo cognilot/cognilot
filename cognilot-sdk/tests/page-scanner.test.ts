@@ -113,6 +113,38 @@ describe('PageScanner', () => {
     expect(fields[0].resolution?.source).toBe('ai');
   });
 
+  it('should mark autocomplete, file, and search fields as detected and skip local resolution', async () => {
+    const searchNode = new MockNode('INPUT', '', { type: 'search' });
+    const fileNode = new MockNode('INPUT', '', { type: 'file' });
+    const autoNode = new MockNode('INPUT', '', { role: 'combobox' });
+
+    const searchField = { id: 'search-1', node: searchNode, type: 'search', status: 'pending' };
+    const fileField = { id: 'file-1', node: fileNode, type: 'file', status: 'pending' };
+    const autoField = { id: 'auto-1', node: autoNode, type: 'autocomplete', status: 'pending' };
+
+    sdk.detection.scanAllFields.mockReturnValue({
+      fields: [searchField, fileField, autoField],
+      formScopes: [],
+    });
+
+    // Even if alias resolve mock returns success, page scanner must not resolve non-resolvable fields
+    sdk.alias.resolve.mockResolvedValue({
+      success: true,
+      suggestion: { options: ['Learned Value'] },
+    });
+
+    await scanner.scanOnPageLoad();
+
+    const fields = registry.getAll();
+    expect(fields.length).toBe(3);
+
+    for (const f of fields) {
+      expect(f.status).toBe('detected');
+      expect(f.resolvable).toBe(false);
+      expect(f.resolution).toBeNull();
+    }
+  });
+
   it('should stop observer when stopObserving is called', () => {
     const disconnectSpy = vi.fn();
     (global as any).MutationObserver = class {

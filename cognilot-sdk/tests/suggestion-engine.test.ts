@@ -204,6 +204,25 @@ describe('SuggestionEngine', () => {
     expect(result.value).toBe('resolved-from-ai@email.com');
   });
 
+  it('should reject detection-only fields like search, file, and combobox', async () => {
+    const searchNode = new MockNode('INPUT', '', { type: 'search' });
+    const fileNode = new MockNode('INPUT', '', { type: 'file' });
+    const comboNode = new MockNode('INPUT', '', { role: 'combobox' });
+
+    const searchRes = await engine.handleTrigger(searchNode);
+    const fileRes = await engine.handleTrigger(fileNode);
+    const comboRes = await engine.handleTrigger(comboNode);
+
+    expect(searchRes).toHaveProperty('error');
+    expect((searchRes as any).error).toContain('detection-only');
+
+    expect(fileRes).toHaveProperty('error');
+    expect((fileRes as any).error).toContain('detection-only');
+
+    expect(comboRes).toHaveProperty('error');
+    expect((comboRes as any).error).toContain('detection-only');
+  });
+
   describe('handleRefine', () => {
     it('should retrieve refined text from API and NOT call confirmSuggestion', async () => {
       // 1. Arrange

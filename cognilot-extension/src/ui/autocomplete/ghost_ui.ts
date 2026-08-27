@@ -244,12 +244,6 @@ export function paint(element: HTMLElement, suggestion: SuggestionState): void {
       backgroundSize: `${gradientWidth}px 100%`,
       backgroundRepeat: 'no-repeat',
       backgroundPosition: 'left top',
-      WebkitMaskImage: isTextarea
-        ? 'linear-gradient(to bottom, #000 80%, transparent 100%)'
-        : 'linear-gradient(to right, #000 82%, transparent 100%)',
-      maskImage: isTextarea
-        ? 'linear-gradient(to bottom, #000 80%, transparent 100%)'
-        : 'linear-gradient(to right, #000 82%, transparent 100%)',
     });
 
     Object.assign(ghost.style, {

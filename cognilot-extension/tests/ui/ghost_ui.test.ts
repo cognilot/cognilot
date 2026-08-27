@@ -46,6 +46,7 @@ describe('GhostUI', () => {
 
     expect(textSpan).toBeTruthy();
     expect(textSpan.textContent).toBe('john.doe@example.com');
+    expect(textSpan.style.webkitMaskImage || textSpan.style.maskImage || '').toBe('');
 
     expect(tabBadge).toBeTruthy();
     expect(tabBadge.textContent).toBe('Tab');

@@ -41,6 +41,30 @@ function repositionAll(): void {
   }
 }
 
+function getShortcutLabel(): string {
+  const isMac =
+    typeof navigator !== 'undefined' &&
+    (/Mac|iPod|iPhone|iPad/.test(navigator.platform) || /Macintosh/.test(navigator.userAgent));
+  return isMac ? '⌥ /' : 'Alt + /';
+}
+
+function updateTooltipContent(
+  tooltipEl: HTMLElement,
+  fieldCount: number,
+  isSolving: boolean
+): void {
+  if (isSolving) {
+    tooltipEl.innerHTML = `<span class="Cognilot-tooltip-action">Resolviendo formulario...</span>`;
+  } else {
+    const shortcut = getShortcutLabel();
+    tooltipEl.innerHTML = `
+      <span class="Cognilot-tooltip-action">Autocompletar formulario</span>
+      <span class="Cognilot-tooltip-fields">(${fieldCount})</span>
+      <kbd class="Cognilot-tooltip-kbd">${shortcut}</kbd>
+    `;
+  }
+}
+
 export function showFormTrigger(
   container: HTMLElement,
   fieldCount: number,
@@ -54,7 +78,7 @@ export function showFormTrigger(
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.className = 'Cognilot-form-trigger-dot';
-    btn.setAttribute('aria-label', 'Cognilot Solve All');
+    btn.setAttribute('aria-label', 'Cognilot Autocompletar');
 
     const innerDot = document.createElement('div');
     innerDot.className = 'Cognilot-form-trigger-dot__inner';
@@ -91,9 +115,9 @@ export function showFormTrigger(
   inst.fieldCount = fieldCount;
   inst.onSolve = onSolve;
 
-  const tooltipEl = inst.btn.querySelector('.Cognilot-form-trigger-tooltip');
+  const tooltipEl = inst.btn.querySelector<HTMLElement>('.Cognilot-form-trigger-tooltip');
   if (tooltipEl) {
-    tooltipEl.textContent = `> solve_all.sh (${fieldCount} campos)`;
+    updateTooltipContent(tooltipEl, fieldCount, false);
   }
 
   repositionAll();
@@ -102,14 +126,13 @@ export function showFormTrigger(
 export function setSolving(isSolving: boolean, targetContainer?: HTMLElement): void {
   for (const [container, inst] of _instances.entries()) {
     if (!targetContainer || targetContainer === container) {
+      const tooltipEl = inst.btn.querySelector<HTMLElement>('.Cognilot-form-trigger-tooltip');
       if (isSolving) {
         inst.btn.classList.add('Cognilot-form-trigger-dot--solving');
-        const tooltipEl = inst.btn.querySelector('.Cognilot-form-trigger-tooltip');
-        if (tooltipEl) tooltipEl.textContent = `> solving...`;
+        if (tooltipEl) updateTooltipContent(tooltipEl, inst.fieldCount, true);
       } else {
         inst.btn.classList.remove('Cognilot-form-trigger-dot--solving');
-        const tooltipEl = inst.btn.querySelector('.Cognilot-form-trigger-tooltip');
-        if (tooltipEl) tooltipEl.textContent = `> solve_all.sh (${inst.fieldCount} campos)`;
+        if (tooltipEl) updateTooltipContent(tooltipEl, inst.fieldCount, false);
       }
     }
   }

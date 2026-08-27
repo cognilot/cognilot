@@ -1,6 +1,10 @@
 import { CognilotSDK } from '../../index';
 import { FieldRegistry } from '../../core/field-registry';
-import { FieldRegistryEntry, FieldResolution } from '../../contracts/field-registry-entry';
+import {
+  FieldRegistryEntry,
+  FieldResolution,
+  isResolvableFieldType,
+} from '../../contracts/field-registry-entry';
 import { FormScopeInfo } from '../../contracts/form-scope-info';
 
 /**
@@ -73,10 +77,16 @@ export class PageScanner {
 
       // ── Step 2 & 3: Resolve locally and register ────────────────────────────
       for (const field of fields) {
-        const resolution = await this._resolveFieldLocally(field);
-        if (resolution) {
-          field.resolution = resolution;
-          field.status = 'resolved';
+        if (!isResolvableFieldType(field.type) || field.resolvable === false) {
+          field.status = 'detected';
+          field.resolvable = false;
+          field.resolution = null;
+        } else {
+          const resolution = await this._resolveFieldLocally(field);
+          if (resolution) {
+            field.resolution = resolution;
+            field.status = 'resolved';
+          }
         }
         // status remains 'pending' if no local match was found
         this.registry.register(field);
@@ -166,9 +176,13 @@ export class PageScanner {
    * Returns null if no local match is found (field will be marked 'pending').
    */
   private async _resolveFieldLocally(field: FieldRegistryEntry): Promise<FieldResolution | null> {
+    const type = (field.type || '').toLowerCase();
+    if (!isResolvableFieldType(type) || field.resolvable === false) {
+      return null;
+    }
+
     // ── Priority 1: Existing value (skip radio/checkbox — their .value is
     //    the HTML value attribute, not user input) ──────────────────────────
-    const type = (field.type || '').toLowerCase();
     const isChoice = type === 'radio' || type === 'checkbox';
     if (!isChoice) {
       const existingValue = (field.node as any).value?.trim?.() ?? '';
@@ -565,10 +579,16 @@ export class PageScanner {
 
     console.log(`[PageScanner] Found ${newFields.length} new field(s).`);
     for (const field of newFields) {
-      const resolution = await this._resolveFieldLocally(field);
-      if (resolution) {
-        field.resolution = resolution;
-        field.status = 'resolved';
+      if (!isResolvableFieldType(field.type) || field.resolvable === false) {
+        field.status = 'detected';
+        field.resolvable = false;
+        field.resolution = null;
+      } else {
+        const resolution = await this._resolveFieldLocally(field);
+        if (resolution) {
+          field.resolution = resolution;
+          field.status = 'resolved';
+        }
       }
       this.registry.register(field);
     }

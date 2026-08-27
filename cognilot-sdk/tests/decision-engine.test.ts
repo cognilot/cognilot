@@ -69,15 +69,19 @@ describe('DecisionEngine', () => {
     expect(result).toBeNull();
   });
 
-  it('should refuse to handle non-choice fields', async () => {
+  it('should refuse to handle non-choice fields and file inputs', async () => {
     // 1. Arrange
     const textInput = new MockNode('INPUT', '', { type: 'text', name: 'user' });
+    const fileInput = new MockNode('INPUT', '', { type: 'file', name: 'resume' });
 
     // 2. Act
-    const result = await engine.handleTrigger(textInput);
+    const textResult = await engine.handleTrigger(textInput);
+    const fileResult = await engine.handleTrigger(fileInput);
 
     // 3. Assert
-    expect(result).toHaveProperty('error');
-    expect((result as any).error).toContain('handles only choices');
+    expect(textResult).toHaveProperty('error');
+    expect((textResult as any).error).toContain('handles only choices');
+    expect(fileResult).toHaveProperty('error');
+    expect((fileResult as any).error).toContain('handles only choices');
   });
 });

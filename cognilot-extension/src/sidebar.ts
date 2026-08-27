@@ -548,44 +548,9 @@ class CognilotSidebar {
   }
 
   renderStatusFilters() {
+    // Mode filter is now cleanly integrated directly into the carousel header
     const container = document.getElementById('chat-status-filters');
-    if (!container) return;
-
-    // 2. Mode Cycling Button (Modo, Escritura, Opciones)
-    const modeOptions = [
-      { id: 'all', label: 'Modo' },
-      { id: 'escritura', label: 'Escritura' },
-      { id: 'opciones', label: 'Opciones' },
-    ];
-    const currentModeOpt = modeOptions.find((o) => o.id === this.activeMode) || modeOptions[0];
-
-    container.innerHTML = `
-      <button id="cycle-mode-btn" class="status-pill" 
-              style="
-                font-size: 8px; 
-                padding: 2px 8px; 
-                border-radius: 10px; 
-                border: 1px solid ${this.activeMode !== 'all' ? 'var(--accent-color)' : 'var(--border-color)'}; 
-                background: ${this.activeMode !== 'all' ? 'var(--accent-color)' : 'rgba(0,0,0,0.02)'}; 
-                color: ${this.activeMode !== 'all' ? 'white' : 'var(--text-secondary)'}; 
-                cursor: pointer; 
-                font-weight: 700;
-                text-transform: uppercase;
-                transition: all 0.2s ease;
-              ">
-        ${currentModeOpt.label}
-      </button>
-    `;
-
-    // Listeners for Mode Button
-    document.getElementById('cycle-mode-btn')?.addEventListener('click', (e) => {
-      e.stopPropagation();
-      const currentIndex = modeOptions.findIndex((o) => o.id === this.activeMode);
-      const nextIndex = (currentIndex + 1) % modeOptions.length;
-      this.activeMode = modeOptions[nextIndex].id;
-      this.renderStatusFilters();
-      this.updateContextPreview();
-    });
+    if (container) container.innerHTML = '';
   }
 
   getFilteredQuestions() {
@@ -636,18 +601,36 @@ class CognilotSidebar {
         pre.style.display = 'flex';
         if (placeholder) placeholder.style.display = 'none';
 
-        // Expand footer and input container to fill vertical space when forms are active
+        // Check if context preview is currently collapsed
+        const isCollapsed = text.style.display === 'none';
+        const idleHud = document.getElementById('home-idle-hud');
         const footer = document.getElementById('chat-footer');
         const inputContainer = document.getElementById('chat-input-container');
-        if (footer) {
-          footer.style.flex = '1';
-          footer.style.overflow = 'hidden';
-          footer.style.display = 'flex';
-          footer.style.flexDirection = 'column';
-        }
-        if (inputContainer) {
-          inputContainer.style.flex = '1';
-          inputContainer.style.overflow = 'hidden';
+
+        if (isCollapsed) {
+          // When collapsed, show HUD in upper void and shrink card
+          if (idleHud) idleHud.style.display = 'flex';
+          if (footer) {
+            footer.style.flex = '0 0 auto';
+            footer.style.height = 'auto';
+          }
+          if (inputContainer) {
+            inputContainer.style.flex = '0 0 auto';
+            inputContainer.style.height = 'auto';
+          }
+        } else {
+          // When expanded, give full vertical space to context preview and hide HUD
+          if (idleHud) idleHud.style.display = 'none';
+          if (footer) {
+            footer.style.flex = '1';
+            footer.style.overflow = 'hidden';
+            footer.style.display = 'flex';
+            footer.style.flexDirection = 'column';
+          }
+          if (inputContainer) {
+            inputContainer.style.flex = '1';
+            inputContainer.style.overflow = 'hidden';
+          }
         }
 
         // 1. Render filter buttons (Formularios / Aislados) and internal status filters
@@ -668,6 +651,25 @@ class CognilotSidebar {
             const labelStr = q.text || q.label || q.question || `Field ${i + 1}`;
             const cleanLabel = labelStr.replace(/\n/g, ' ').replace(/\s+/g, ' ').trim();
 
+            const NON_RESOLVABLE_TYPES = new Set([
+              'autocomplete',
+              'file',
+              'search',
+              'range',
+              'color',
+              'date',
+              'datetime-local',
+              'month',
+              'week',
+              'time',
+              'iframe-input',
+            ]);
+            const isNonResolvable =
+              NON_RESOLVABLE_TYPES.has(type.toLowerCase()) ||
+              q.status === 'detected' ||
+              q.status === 'unsupported' ||
+              q.resolvable === false;
+
             const isChoice = type === 'radio' || type === 'checkbox' || type === 'select';
             const qOptions = Array.isArray(q.options) ? q.options : [];
 
@@ -676,8 +678,8 @@ class CognilotSidebar {
             const hasResolution = !!q.resolution?.success;
             const isPreFilled = q.resolution?.source === 'pre-filled';
             const isMem = hasResolution && !isPreFilled;
-            const hasAnswer = !hasResolution && !!q.answer;
-            const isPendingIA = !hasResolution && !q.answer;
+            const hasAnswer = !hasResolution && !isNonResolvable && !!q.answer;
+            const isPendingIA = !hasResolution && !q.answer && !isNonResolvable;
             const memKey = q.resolution?.memoryKey || null;
             const isAlias = q.resolution?.source === 'alias_cache';
             const memOptions = q.resolution?.options || [];
@@ -691,7 +693,9 @@ class CognilotSidebar {
             let headerBadge = '';
             let resolvedValue = null;
 
-            if (q.resolution?.success) {
+            if (isNonResolvable) {
+              headerBadge = `<span style="font-size: 8px; font-weight: 700; color: var(--text-secondary); background: rgba(0,0,0,0.05); padding: 0 4px; border-radius: 3px; border: 1px solid var(--border-color); white-space: nowrap;">DETECT</span>`;
+            } else if (q.resolution?.success) {
               resolvedValue = q.resolution.value;
               const source = q.resolution.source;
               if (source === 'pre-filled') {
@@ -742,7 +746,13 @@ class CognilotSidebar {
               `;
 
             // ── Value rendering (color-coded by state) ────────────────────
-            if (isChoice && qOptions.length > 0) {
+            if (isNonResolvable) {
+              entryHtml += `
+                             <div style="font-size: 10px; color: var(--text-secondary); font-style: italic; opacity: 0.6; padding-left: 2px;">
+                                 Solo detección
+                             </div>
+                           `;
+            } else if (isChoice && qOptions.length > 0) {
               const optsHtml = qOptions
                 .map((o, idx) => {
                   const label = o.text || o.label || String(o.value || o);
@@ -834,12 +844,35 @@ class CognilotSidebar {
             }
             const activeForm = sortedForms[this.carouselIndex];
 
+            const modeOptions = [
+              { id: 'all', label: 'Modo' },
+              { id: 'escritura', label: 'Escritura' },
+              { id: 'opciones', label: 'Opciones' },
+            ];
+            const currentModeOpt =
+              modeOptions.find((o) => o.id === this.activeMode) || modeOptions[0];
+
             finalHtml = `
               <div style="background: rgba(0,0,0,0.02); border: 1px solid var(--border-color); border-radius: 8px; padding: 12px; height: 100%; display: flex; flex-direction: column;">
                 <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; padding-bottom: 8px; border-bottom: 1px solid var(--divider-color); flex-shrink: 0;">
-                  <div id="active-form-header" data-selector="${activeForm.formSelector || ''}" style="display: flex; align-items: center; gap: 8px; cursor: pointer; transition: opacity 0.2s ease;">
+                  <div id="active-form-header" data-selector="${activeForm.formSelector || ''}" style="display: flex; align-items: center; gap: 6px; cursor: pointer; transition: opacity 0.2s ease;">
                     <span style="font-size: 12px; font-weight: 700; color: var(--text-primary);">${activeForm.formLabel}</span>
                     <span style="font-size: 9px; font-weight: 700; color: var(--accent-color); background: rgba(var(--accent-rgb), 0.1); padding: 1px 6px; border-radius: 4px; border: 1px solid rgba(var(--accent-rgb), 0.2);">[ ${this.carouselIndex + 1} / ${sortedForms.length} ]</span>
+                    <button id="carousel-mode-btn" class="status-pill" title="Filtrar por tipo de campo (Modo, Escritura, Opciones)"
+                            style="
+                              font-size: 8px; 
+                              padding: 1px 7px; 
+                              border-radius: 8px; 
+                              border: 1px solid ${this.activeMode !== 'all' ? 'var(--accent-color)' : 'var(--border-color)'}; 
+                              background: ${this.activeMode !== 'all' ? 'var(--accent-color)' : 'rgba(255,255,255,0.04)'}; 
+                              color: ${this.activeMode !== 'all' ? 'white' : 'var(--text-secondary)'}; 
+                              cursor: pointer; 
+                              font-weight: 700;
+                              text-transform: uppercase;
+                              transition: all 0.2s ease;
+                            ">
+                      ${currentModeOpt.label}
+                    </button>
                   </div>
 
                   <div style="display: flex; gap: 4px; align-items: center;">
@@ -868,17 +901,31 @@ class CognilotSidebar {
             }
           });
 
-          // Wire click focus for form header
+          // Wire click focus for form header (excluding mode button)
           const formHeader = document.getElementById('active-form-header');
           if (formHeader) {
             const selector = formHeader.getAttribute('data-selector');
             if (selector) {
-              formHeader.style.cursor = 'pointer';
-              formHeader.addEventListener('click', () => {
+              formHeader.addEventListener('click', (e) => {
+                if ((e.target as HTMLElement)?.id === 'carousel-mode-btn') return;
                 this.safeSendMessage('sidebarFocusField', { selector });
               });
             }
           }
+
+          // Wire mode button listener
+          document.getElementById('carousel-mode-btn')?.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const modeOptions = [
+              { id: 'all', label: 'Modo' },
+              { id: 'escritura', label: 'Escritura' },
+              { id: 'opciones', label: 'Opciones' },
+            ];
+            const currentIndex = modeOptions.findIndex((o) => o.id === this.activeMode);
+            const nextIndex = (currentIndex + 1) % modeOptions.length;
+            this.activeMode = modeOptions[nextIndex].id;
+            this.updateContextPreview();
+          });
 
           // Wire Carousel Arrow Click Listeners
           document.getElementById('carousel-prev-btn')?.addEventListener('click', (e) => {
@@ -901,6 +948,8 @@ class CognilotSidebar {
       } else {
         pre.style.display = 'none';
         if (placeholder) placeholder.style.display = 'block';
+        const idleHud = document.getElementById('home-idle-hud');
+        if (idleHud) idleHud.style.display = 'flex';
 
         // Revert footer expansion when no forms are loaded
         const footer = document.getElementById('chat-footer');
@@ -988,13 +1037,46 @@ class CognilotSidebar {
   toggleContextPreview() {
     const text = document.getElementById('chat-context-text');
     const btn = document.getElementById('chat-context-collapse-btn');
+    const footer = document.getElementById('chat-footer');
+    const inputContainer = document.getElementById('chat-input-container');
+    const idleHud = document.getElementById('home-idle-hud');
     if (!text || !btn) return;
 
     const isCollapsed = text.style.display === 'none';
-    text.style.display = isCollapsed ? 'block' : 'none';
 
-    // Rotate icon: 180deg when collapsed (pointing down)
-    btn.style.transform = isCollapsed ? 'rotate(0deg)' : 'rotate(180deg)';
+    if (isCollapsed) {
+      // Expand back to full height: give full vertical space to context preview and hide HUD
+      text.style.display = 'block';
+      if (footer) {
+        footer.style.flex = '1';
+        footer.style.height = '';
+      }
+      if (inputContainer) {
+        inputContainer.style.flex = '1';
+        inputContainer.style.height = '';
+      }
+      if (idleHud) {
+        idleHud.style.display = 'none';
+      }
+      btn.style.transform = 'rotate(0deg)';
+      btn.title = 'Colapsar formulario';
+    } else {
+      // Collapse height down: card shrinks to header + bottom bar only, and reveal HUD above
+      text.style.display = 'none';
+      if (footer) {
+        footer.style.flex = '0 0 auto';
+        footer.style.height = 'auto';
+      }
+      if (inputContainer) {
+        inputContainer.style.flex = '0 0 auto';
+        inputContainer.style.height = 'auto';
+      }
+      if (idleHud) {
+        idleHud.style.display = 'flex';
+      }
+      btn.style.transform = 'rotate(180deg)';
+      btn.title = 'Expandir formulario';
+    }
 
     if (window.Cognilot?.Logger) {
       window.Cognilot.Logger.debug(`Context preview ${isCollapsed ? 'expanded' : 'collapsed'}`);
@@ -1029,28 +1111,34 @@ class CognilotSidebar {
       hasFieldsToSolve
     );
 
-    let titleMsg = 'Solve detected fields';
-    if (!isDetected || this.detectedFieldCount === 0) {
-      titleMsg = 'No form detected to solve';
+    const isMac =
+      typeof navigator !== 'undefined' &&
+      (/Mac|iPod|iPhone|iPad/.test(navigator.platform) || /Macintosh/.test(navigator.userAgent));
+    const shortcutLabel = isMac ? '⌥ /' : 'Alt + /';
+
+    let titleMsg = `Autocompletar formulario (${shortcutLabel})`;
+    if (this.solveActive) {
+      titleMsg = 'Resolviendo formulario...';
+    } else if (!isDetected || this.detectedFieldCount === 0) {
+      titleMsg = 'No se detectó ningún formulario para resolver';
     } else if (!hasContextPreview) {
-      titleMsg = 'No form context loaded';
+      titleMsg = 'No hay contexto de formulario cargado';
     } else if (!hasFieldsToSolve) {
-      titleMsg = 'No fields to solve';
+      titleMsg = 'No hay campos pendientes de resolver';
     }
 
     if (solveTriggerBtn) {
-      solveTriggerBtn.disabled = !canSolve;
+      solveTriggerBtn.disabled = !canSolve || this.solveActive;
       solveTriggerBtn.title = titleMsg;
-      solveTriggerBtn.style.opacity = solveTriggerBtn.disabled ? '0.3' : '1';
-      solveTriggerBtn.style.cursor = solveTriggerBtn.disabled ? 'not-allowed' : 'pointer';
+
+      if (this.solveActive) {
+        solveTriggerBtn.classList.add('Cognilot-form-trigger-dot--solving');
+      } else {
+        solveTriggerBtn.classList.remove('Cognilot-form-trigger-dot--solving');
+      }
 
       // Strict visibility: only show if a form was actually detected on the page
       solveTriggerBtn.style.display = isDetected ? 'flex' : 'none';
-
-      solveTriggerBtn.style.background = canSolve ? 'var(--accent-color)' : 'rgba(0,0,0,0.15)';
-      solveTriggerBtn.style.boxShadow = canSolve
-        ? '0 2px 8px rgba(var(--accent-rgb, 14, 116, 144), 0.35)'
-        : 'none';
 
       // Update pointer-events for total blocking
       solveTriggerBtn.style.pointerEvents =
@@ -1116,10 +1204,6 @@ class CognilotSidebar {
 
   updateUIWithSettings() {
     this.setToggle('copilot-enabled', this.currentSettings.copilotSuggestions?.enabled);
-    this.setToggle(
-      'copilot-show-floating-box',
-      this.currentSettings.copilotSuggestions?.showFloatingBox !== false
-    );
     this.setToggle(
       'copilot-learn-fields',
       this.currentSettings.copilotSuggestions?.learnCustomFields
@@ -1194,10 +1278,6 @@ class CognilotSidebar {
       await settingsAdapter.updateSetting(
         'copilotSuggestions.enabled',
         getChecked('copilot-enabled')
-      );
-      await settingsAdapter.updateSetting(
-        'copilotSuggestions.showFloatingBox',
-        getChecked('copilot-show-floating-box')
       );
       await settingsAdapter.updateSetting(
         'copilotSuggestions.learnCustomFields',
@@ -1846,6 +1926,83 @@ class CognilotSidebar {
       this.handleClearProfile();
     });
 
+    // Set platform-aware shortcut titles for Inspect and Refresh
+    const isMac =
+      typeof navigator !== 'undefined' &&
+      (/Mac|iPod|iPhone|iPad/.test(navigator.platform) || /Macintosh/.test(navigator.userAgent));
+    const inspectShortcut = isMac ? '⌘ Shift M' : 'Ctrl + Shift + M';
+    const manualBtn = document.getElementById('manual');
+    if (manualBtn) {
+      manualBtn.title = `Modo Inspección manual (${inspectShortcut})`;
+    }
+    const resetBtn = document.getElementById('reset-engine-btn');
+    if (resetBtn) {
+      resetBtn.title = 'Re-escanear página';
+    }
+
+    // Shortcuts Quick Help Button & Popover
+    const shortcutsBtn = document.getElementById('shortcuts-help-btn');
+    const shortcutsPopover = document.getElementById('shortcuts-popover');
+    const shortcutsCloseBtn = document.getElementById('shortcuts-popover-close');
+
+    if (shortcutsBtn && shortcutsPopover) {
+      shortcutsBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const isHidden =
+          shortcutsPopover.style.display === 'none' || !shortcutsPopover.style.display;
+        shortcutsPopover.style.display = isHidden ? 'block' : 'none';
+      });
+
+      shortcutsCloseBtn?.addEventListener('click', (e) => {
+        e.stopPropagation();
+        shortcutsPopover.style.display = 'none';
+      });
+
+      document.addEventListener('click', (e) => {
+        if (
+          !shortcutsPopover.contains(e.target as Node) &&
+          e.target !== shortcutsBtn &&
+          !shortcutsBtn.contains(e.target as Node)
+        ) {
+          shortcutsPopover.style.display = 'none';
+        }
+      });
+    }
+
+    // Global Keydown listener inside Sidebar frame
+    window.addEventListener('keydown', (e: KeyboardEvent) => {
+      const isAutofill =
+        e.altKey &&
+        (e.key === '/' || e.code === 'Slash' || e.key === '\\' || e.code === 'Backslash');
+      if (isAutofill) {
+        e.preventDefault();
+        const solveBtn = document.getElementById('chat-toggle-btn') as HTMLButtonElement | null;
+        if (solveBtn && !solveBtn.disabled && solveBtn.style.display !== 'none') {
+          this.handleCognilot();
+        }
+        return;
+      }
+
+      const isInspect =
+        (e.ctrlKey || e.metaKey) &&
+        e.shiftKey &&
+        (e.key === 'M' || e.key === 'm' || e.code === 'KeyM');
+      if (isInspect) {
+        e.preventDefault();
+        this.handleManualSelection();
+        return;
+      }
+
+      if (e.key === '?' && !['INPUT', 'TEXTAREA'].includes((e.target as HTMLElement)?.tagName)) {
+        e.preventDefault();
+        if (shortcutsPopover) {
+          const isHidden =
+            shortcutsPopover.style.display === 'none' || !shortcutsPopover.style.display;
+          shortcutsPopover.style.display = isHidden ? 'block' : 'none';
+        }
+      }
+    });
+
     chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       if (request.action === 'pageScanComplete') {
         // M5: Guard — only react if the scan is from our current tab
@@ -2242,10 +2399,25 @@ class CognilotSidebar {
     const pre = document.getElementById('chat-context-preview');
     const text = document.getElementById('chat-context-text');
     const placeholder = document.getElementById('chat-input-placeholder');
-    const dashboard = document.getElementById('detection-dashboard');
+    const idleHud = document.getElementById('home-idle-hud');
+    const footer = document.getElementById('chat-footer');
+    const inputContainer = document.getElementById('chat-input-container');
 
     if (pre) pre.style.display = 'none';
     if (placeholder) placeholder.style.display = 'block';
+    if (idleHud) idleHud.style.display = 'flex';
+
+    if (footer) {
+      footer.style.flex = '';
+      footer.style.overflow = '';
+      footer.style.display = '';
+      footer.style.flexDirection = '';
+    }
+    if (inputContainer) {
+      inputContainer.style.flex = '';
+      inputContainer.style.overflow = '';
+    }
+
     if (text) {
       text.innerHTML = 'No context';
     }
@@ -2404,7 +2576,6 @@ class CognilotSidebar {
     // Auto-Save toggles
     [
       'copilot-enabled',
-      'copilot-show-floating-box',
       'copilot-learn-fields',
       'copilot-use-profile-context',
       'byok-enabled',

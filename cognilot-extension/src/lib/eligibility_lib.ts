@@ -22,10 +22,13 @@ const INELIGIBLE_TYPES = [
   'reset',
   'time',
   'week',
+  'search',
+  'autocomplete',
 ];
 
 function isEligibleElement(element: HTMLElement): boolean {
   if (!element || element._blockCognilotTrigger) return false;
+  if (element.getAttribute('role') === 'combobox') return false;
 
   const tagName = element.tagName.toUpperCase();
   if (!ELIGIBLE_TAGS.includes(tagName)) return false;

@@ -115,9 +115,30 @@ export function processDetection(
             const status = q.status;
 
             const type = (q.type || '').toLowerCase();
+            const NON_RESOLVABLE = new Set([
+              'autocomplete',
+              'file',
+              'search',
+              'range',
+              'color',
+              'date',
+              'datetime-local',
+              'month',
+              'week',
+              'time',
+              'iframe-input',
+            ]);
+            const isNonResolvable =
+              NON_RESOLVABLE.has(type) ||
+              q.status === 'detected' ||
+              q.status === 'unsupported' ||
+              q.resolvable === false;
             const isChoice = type === 'radio' || type === 'checkbox';
 
-            if (!isChoice) {
+            if (isNonResolvable) {
+              // Detection-only field: standard neutral detected style, no AI pending violet outline
+              el.classList.add('Cognilot-detected-field');
+            } else if (!isChoice) {
               if (resolution?.source === 'existing_value') {
                 // Pre-filled: subtle grey outline
                 el.classList.add('Cognilot-field-prefilled');
@@ -135,6 +156,8 @@ export function processDetection(
                 // Pending/Needing AI/Guide: violet outline
                 el.classList.add('Cognilot-field-pending');
               }
+            } else if (status === 'resolved' && resolution?.value) {
+              GhostUI.paintChoiceGhost(el as HTMLElement, resolution.options || [resolution.value]);
             }
 
             const labelEl = findLabelElement(el as HTMLElement, q.text as string);
@@ -215,11 +238,30 @@ export function paintResolvedFieldsFromRegistry(container: HTMLElement | null): 
     const isPreFilled = resolution?.source === 'existing_value';
     const isResolved = field.status === 'resolved' && !!resolution?.value && !isPreFilled;
 
+    const NON_RESOLVABLE = new Set([
+      'autocomplete',
+      'file',
+      'search',
+      'range',
+      'color',
+      'date',
+      'datetime-local',
+      'month',
+      'week',
+      'time',
+      'iframe-input',
+    ]);
+    const isNonResolvable =
+      NON_RESOLVABLE.has(type) ||
+      field.status === 'detected' ||
+      field.status === 'unsupported' ||
+      field.resolvable === false;
+
     // ── Paint the label with the correct semantic color ───────────────
     const labelEl = findLabelElement(el, field.text);
     if (labelEl) {
       labelEl.classList.add('Cognilot-detected-label'); // cyan baseline
-      if (isResolved) {
+      if (isResolved || isNonResolvable) {
         labelEl.classList.remove('Cognilot-label-ai');
       } else if (!isPreFilled) {
         // Pending field — needs AI → violet
@@ -242,109 +284,7 @@ export function paintResolvedFieldsFromRegistry(container: HTMLElement | null): 
           ? resolution!.options.map(String)
           : [String(resolution!.value)];
 
-      const inputName = (el as HTMLInputElement).name;
-      let groupInputs: HTMLInputElement[] = [];
-      const searchRoot: ParentNode = container ?? document;
-
-      if (inputName) {
-        const groupSelector = `input[type="${type}"][name="${CSS.escape(inputName)}"]`;
-        groupInputs = Array.from(searchRoot.querySelectorAll<HTMLInputElement>(groupSelector));
-      }
-
-      // Fallback if name is missing or query returned <= 1 input: look in parent group container
-      if (groupInputs.length <= 1) {
-        const parentGroup = el.closest(
-          'fieldset, [role="group"], .group, [data-controller*="choice"]'
-        );
-        if (parentGroup) {
-          groupInputs = Array.from(
-            parentGroup.querySelectorAll<HTMLInputElement>(`input[type="${type}"]`)
-          );
-        }
-      }
-
-      if (groupInputs.length === 0) {
-        groupInputs = [el as HTMLInputElement];
-      }
-
-      groupInputs.forEach((input, index) => {
-        const inputVal = (input.value || '').toLowerCase().trim();
-        const inputId = (input.id || '').toLowerCase().trim();
-
-        // 1. Direct value match
-        let isMatch = resolvedVals.some((v) => String(v).toLowerCase().trim() === inputVal);
-
-        // 2. Registry options match (text / value / index mapping)
-        if (!isMatch && field.options && Array.isArray(field.options)) {
-          const opt = field.options.find(
-            (o: any) =>
-              String(o.value || '')
-                .toLowerCase()
-                .trim() === inputVal ||
-              (inputId &&
-                String(o.value || '')
-                  .toLowerCase()
-                  .trim() === inputId) ||
-              o.index === index
-          );
-          if (opt) {
-            isMatch = resolvedVals.some((v) => {
-              const valStr = String(v).toLowerCase().trim();
-              const optText = String(opt.text || '')
-                .toLowerCase()
-                .trim();
-              const optVal = String(opt.value || '')
-                .toLowerCase()
-                .trim();
-              return (
-                valStr === optText ||
-                valStr === optVal ||
-                valStr.normalize('NFD').replace(/[\u0300-\u036f]/g, '') ===
-                  optText.normalize('NFD').replace(/[\u0300-\u036f]/g, '') ||
-                valStr.normalize('NFD').replace(/[\u0300-\u036f]/g, '') ===
-                  optVal.normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-              );
-            });
-          }
-        }
-
-        // 3. Live DOM label text match
-        if (!isMatch) {
-          const labelEl =
-            (input.closest('label') as HTMLElement) ??
-            (input.id ? document.querySelector(`label[for="${CSS.escape(input.id)}"]`) : null) ??
-            input.parentElement;
-          if (labelEl) {
-            const labelText = (labelEl.textContent || '').toLowerCase().trim();
-            isMatch = resolvedVals.some((v) => {
-              const valStr = String(v).toLowerCase().trim();
-              return (
-                valStr === labelText ||
-                valStr.normalize('NFD').replace(/[\u0300-\u036f]/g, '') ===
-                  labelText.normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-              );
-            });
-          }
-        }
-
-        if (!isMatch) return;
-
-        // Find the label element associated with the input
-        const labelEl =
-          (input.closest('label') as HTMLElement) ??
-          (input.id ? document.querySelector(`label[for="${CSS.escape(input.id)}"]`) : null) ??
-          input.nextElementSibling; // Fallback to sibling label if next to it
-
-        if (labelEl && labelEl.tagName === 'LABEL') {
-          labelEl.classList.add('Cognilot-radio-label-mem');
-        } else {
-          // Fallback to parent element wrapper if no label tag is found
-          const wrapper = (input.closest('label') as HTMLElement) ?? input.parentElement;
-          if (wrapper && wrapper !== container) {
-            wrapper.classList.add('Cognilot-radio-mem');
-          }
-        }
-      });
+      GhostUI.paintChoiceGhost(el, resolvedVals);
     } else {
       // Text-like input: subtle cyan border + ghost-text gradient overlay
       el.classList.add('Cognilot-field-resolved');
@@ -461,6 +401,12 @@ export function clear(): void {
   document
     .querySelectorAll('.Cognilot-radio-label-mem')
     .forEach((node) => node.classList.remove('Cognilot-radio-label-mem'));
+  document
+    .querySelectorAll('.Cognilot-ghost-choice-highlight')
+    .forEach((node) => node.classList.remove('Cognilot-ghost-choice-highlight'));
+  document
+    .querySelectorAll('.Cognilot-ghost-choice-label-highlight')
+    .forEach((node) => node.classList.remove('Cognilot-ghost-choice-label-highlight'));
   document
     .querySelectorAll('.Cognilot-ghost-active')
     .forEach((node) => GhostUI.clear(node as HTMLElement));
