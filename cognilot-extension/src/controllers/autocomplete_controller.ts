@@ -39,7 +39,19 @@ function paintSiblingGhostTexts(focusedElement: HTMLElement): void {
           (siblingEl as HTMLInputElement).type === 'password' ||
           siblingEl.getAttribute('type') === 'password';
 
-        if (sibling.resolution && sibling.resolution.value) {
+        const isChoice =
+          sibling.type === 'radio' ||
+          sibling.type === 'checkbox' ||
+          siblingEl.tagName.toLowerCase() === 'select';
+
+        if (isChoice) {
+          if (sibling.resolution && sibling.resolution.value) {
+            GhostUI.paintChoiceGhost(
+              siblingEl,
+              sibling.resolution.options || [sibling.resolution.value]
+            );
+          }
+        } else if (sibling.resolution && sibling.resolution.value) {
           // Guard: Never paint email values onto password fields
           if (isPwd && sibling.resolution.value.includes('@')) {
             continue;
@@ -87,7 +99,7 @@ function updateUI(element: HTMLElement, suggestion: SuggestionState): void {
 
   GhostUI.paint(element, suggestion);
 
-  if (!suggestion.isLoading && !suggestion.isError) {
+  if (!suggestion.isError) {
     paintSiblingGhostTexts(element);
   }
 
@@ -239,9 +251,15 @@ async function handleAutocomplete(element: HTMLElement): Promise<void> {
     }
   } catch (error) {
     clearTimeout(loadingTimeout);
+    const rawMsg = (error as Error).message || '';
+    const isRateLimit = /429|too many requests|rate limit/i.test(rawMsg);
+    const friendlyError = isRateLimit
+      ? 'Cuota diaria alcanzada (50 créditos)'
+      : rawMsg || 'Error de red';
+
     const errorState: SuggestionState = {
       isError: true,
-      error: (error as Error).message || 'Error de red',
+      error: friendlyError,
       options: [],
       _isHintHidden: !showFloatingBox,
     };
@@ -448,6 +466,31 @@ async function handleSmartPaste(element: HTMLElement): Promise<void> {
 }
 
 function handleKeyboard(e: KeyboardEvent): void {
+  // AUTOFILL FORM (GLOBAL SHORTCUT): Alt + / or Alt + \
+  const isAutofillShortcut =
+    e.altKey &&
+    (e.key === '/' ||
+      e.code === 'Slash' ||
+      e.key === '\\' ||
+      e.code === 'Backslash' ||
+      e.key === 'º' ||
+      e.code === 'IntlBackslash' ||
+      e.key === '|' ||
+      e.key === '¿' ||
+      e.key === '?');
+
+  if (isAutofillShortcut) {
+    e.preventDefault();
+    console.log(
+      `[AutocompleteController] ⌨️ Alt + ${e.key} shortcut intercepted: AutoFilling Form!`
+    );
+    const api = (window as unknown as { CognilotAPI?: { solveAll(): unknown } }).CognilotAPI;
+    if (api?.solveAll) {
+      api.solveAll();
+    }
+    return;
+  }
+
   const element = e.target as HTMLElement;
   const suggestion = element._CognilotSuggestion;
 
@@ -745,12 +788,18 @@ export function init(): void {
     const formScopeId = e.detail?.formScopeId;
     if (!formScopeId) return;
 
+    console.log(
+      `[AutocompleteController] ⚡ Batch prefetch completed for formScope: "${formScopeId}"`
+    );
     const activeEl = document.activeElement as HTMLElement;
     if (activeEl && ['INPUT', 'TEXTAREA'].includes(activeEl.tagName)) {
       const sdk = window.Cognilot?.SDK;
       const activeEntry = sdk?.registry?.findByNode(activeEl);
       if (activeEntry && activeEntry.formScopeId === formScopeId) {
         paintSiblingGhostTexts(activeEl);
+        console.log(
+          `[AutocompleteController] 🎨 Sibling ghost texts painted for formScope: "${formScopeId}"`
+        );
       }
     }
   }) as EventListener;

@@ -121,7 +121,7 @@ export function paint(element: HTMLElement, suggestion: SuggestionState): void {
   const activeText = suggestion.isLoading
     ? hasUserText
       ? ''
-      : 'Loading...'
+      : '· · ·'
     : Array.isArray(suggestion.options)
       ? suggestion.options[suggestion._activeIndex || 0] || ''
       : '';
@@ -141,13 +141,29 @@ export function paint(element: HTMLElement, suggestion: SuggestionState): void {
   if (suggestion.type === 'example') {
     ghost.classList.add('Cognilot-ghost-example');
   }
+  if (suggestion.isLoading) {
+    ghost.classList.add('Cognilot-ghost-loading');
+    element.classList.add('Cognilot-field-loading');
+  } else {
+    element.classList.remove('Cognilot-field-loading');
+  }
+
+  const textSpan = document.createElement('span');
+  textSpan.className = 'Cognilot-ghost-text';
+  ghost.appendChild(textSpan);
+
+  const tabBadge = document.createElement('span');
+  tabBadge.className = 'Cognilot-ghost-tab-badge';
+  tabBadge.textContent = 'Tab';
+  tabBadge.style.display = 'none';
+  ghost.appendChild(tabBadge);
 
   const isPassword =
     (element as HTMLInputElement).type === 'password' ||
     element.getAttribute('type') === 'password';
 
   const rawGhostPart = hasUserText ? activeText.slice(userText.length) : activeText;
-  ghost.textContent =
+  textSpan.textContent =
     isPassword && rawGhostPart && !suggestion.isLoading
       ? '•'.repeat(Math.max(1, rawGhostPart.length))
       : rawGhostPart;
@@ -158,6 +174,7 @@ export function paint(element: HTMLElement, suggestion: SuggestionState): void {
   const syncGhost = (): void => {
     if (!element._CognilotGhost) return;
 
+    const isFocused = document.activeElement === element;
     const rect = element.getBoundingClientRect();
     const styles = window.getComputedStyle(element);
 
@@ -194,7 +211,7 @@ export function paint(element: HTMLElement, suggestion: SuggestionState): void {
     const liveText = suggestion.isLoading
       ? (inputEl.value || '').trim().length > 0
         ? ''
-        : 'Loading...'
+        : '· · ·'
       : Array.isArray(suggestion.options)
         ? suggestion.options[suggestion._activeIndex || 0] || ''
         : '';
@@ -206,7 +223,11 @@ export function paint(element: HTMLElement, suggestion: SuggestionState): void {
         ? '•'.repeat(Math.max(1, displayGhostPart.length))
         : displayGhostPart;
 
-    ghost.textContent = maskedOrRealGhost;
+    textSpan.textContent = maskedOrRealGhost;
+
+    // Show Tab badge only on focused input when suggestion has non-empty text
+    const showBadge = isFocused && !suggestion.isLoading && maskedOrRealGhost.trim().length > 0;
+    tabBadge.style.display = showBadge ? 'inline-flex' : 'none';
 
     const measuredTextWidth = measureTextWidth(maskedOrRealGhost, styles);
     const gradientWidth = Math.min(availableWidth, Math.max(96, measuredTextWidth));
@@ -219,21 +240,7 @@ export function paint(element: HTMLElement, suggestion: SuggestionState): void {
         paddingTop +
         Math.max(0, (contentHeight - safeLineHeight) / 2);
 
-    Object.assign(ghost.style, {
-      left: `${Math.max(rect.left + window.scrollX + borderLeft + paddingLeft + Math.max(0, textIndent), caretLeft)}px`,
-      top: `${ghostTop}px`,
-      width: `${Math.max(20, availableWidth - Math.max(0, caret.x - (borderLeft + paddingLeft + Math.max(0, textIndent))))}px`,
-      maxHeight: isTextarea ? `${maxLines * safeLineHeight}px` : `${safeLineHeight}px`,
-      fontFamily: styles.fontFamily,
-      fontSize: styles.fontSize,
-      fontWeight: styles.fontWeight,
-      fontStyle: styles.fontStyle,
-      letterSpacing: styles.letterSpacing,
-      lineHeight: styles.lineHeight,
-      textAlign: styles.textAlign,
-      whiteSpace: isTextarea ? 'pre-wrap' : 'nowrap',
-      wordBreak: isTextarea ? 'break-word' : 'normal',
-      overflowWrap: isTextarea ? 'anywhere' : 'normal',
+    Object.assign(textSpan.style, {
       backgroundSize: `${gradientWidth}px 100%`,
       backgroundRepeat: 'no-repeat',
       backgroundPosition: 'left top',
@@ -245,10 +252,107 @@ export function paint(element: HTMLElement, suggestion: SuggestionState): void {
         : 'linear-gradient(to right, #000 82%, transparent 100%)',
     });
 
+    Object.assign(ghost.style, {
+      left: `${Math.max(rect.left + window.scrollX + borderLeft + paddingLeft + Math.max(0, textIndent), caretLeft)}px`,
+      top: `${ghostTop}px`,
+      maxWidth: `${Math.max(20, availableWidth - Math.max(0, caret.x - (borderLeft + paddingLeft + Math.max(0, textIndent))))}px`,
+      maxHeight: isTextarea ? `${maxLines * safeLineHeight}px` : `${safeLineHeight}px`,
+      fontFamily: styles.fontFamily,
+      fontSize: styles.fontSize,
+      fontWeight: styles.fontWeight,
+      fontStyle: styles.fontStyle,
+      letterSpacing: styles.letterSpacing,
+      lineHeight: styles.lineHeight,
+      textAlign: styles.textAlign,
+      whiteSpace: isTextarea ? 'pre-wrap' : 'nowrap',
+      wordBreak: isTextarea ? 'break-word' : 'normal',
+      overflowWrap: isTextarea ? 'anywhere' : 'normal',
+    });
+
     element._CognilotGhostRaf = requestAnimationFrame(syncGhost);
   };
 
-  element._CognilotGhostRaf = requestAnimationFrame(syncGhost);
+  syncGhost();
+}
+
+export function paintChoiceGhost(element: HTMLElement, resolvedValues: string[]): void {
+  if (!element || !Array.isArray(resolvedValues) || resolvedValues.length === 0) return;
+  const doc = element.ownerDocument || document;
+  const tagName = (element.tagName || '').toLowerCase();
+  const type = (element.getAttribute('type') || '').toLowerCase();
+
+  let inputs: HTMLInputElement[] = [];
+  if (tagName === 'input' && (type === 'radio' || type === 'checkbox')) {
+    const name = element.getAttribute('name');
+    if (name) {
+      const form = element.closest('form') || doc;
+      inputs = Array.from(form.querySelectorAll(`input[name="${CSS.escape(name)}"]`));
+    } else {
+      inputs = [element as HTMLInputElement];
+    }
+  } else {
+    inputs = Array.from(element.querySelectorAll('input[type="radio"], input[type="checkbox"]'));
+  }
+
+  const normalize = (str: string) =>
+    str
+      .toLowerCase()
+      .trim()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '');
+
+  const normTargetVals = resolvedValues.map((v) => normalize(String(v)));
+
+  for (const input of inputs) {
+    const val = input.value || '';
+    const labelEl =
+      (input.closest('label') as HTMLElement | null) ??
+      (input.id
+        ? (doc.querySelector(`label[for="${CSS.escape(input.id)}"]`) as HTMLElement | null)
+        : null) ??
+      input.parentElement;
+
+    const labelText = labelEl?.textContent || '';
+    const normVal = normalize(val);
+    const normLabel = normalize(labelText);
+
+    const isMatch = normTargetVals.some(
+      (tv) =>
+        tv === normVal ||
+        tv === normLabel ||
+        (tv.length >= 3 && normLabel.includes(tv)) ||
+        (normLabel.length >= 3 && tv.includes(normLabel))
+    );
+
+    if (isMatch && !input.checked) {
+      input.classList.add('Cognilot-ghost-choice-highlight');
+      if (labelEl) labelEl.classList.add('Cognilot-ghost-choice-label-highlight');
+    } else {
+      input.classList.remove('Cognilot-ghost-choice-highlight');
+      if (labelEl) labelEl.classList.remove('Cognilot-ghost-choice-label-highlight');
+    }
+  }
+}
+
+export function clearChoiceGhost(element: HTMLElement): void {
+  if (!element) return;
+  const doc = element.ownerDocument || document;
+  const tagName = (element.tagName || '').toLowerCase();
+  const type = (element.getAttribute('type') || '').toLowerCase();
+
+  let container: HTMLElement = element;
+  if (tagName === 'input' && (type === 'radio' || type === 'checkbox')) {
+    const name = element.getAttribute('name');
+    if (name) {
+      container = (element.closest('form') as HTMLElement) || (doc.body as HTMLElement);
+    }
+  }
+
+  const highlightedInputs = container.querySelectorAll('.Cognilot-ghost-choice-highlight');
+  highlightedInputs.forEach((el) => el.classList.remove('Cognilot-ghost-choice-highlight'));
+
+  const highlightedLabels = container.querySelectorAll('.Cognilot-ghost-choice-label-highlight');
+  highlightedLabels.forEach((el) => el.classList.remove('Cognilot-ghost-choice-label-highlight'));
 }
 
 export function clear(element: HTMLElement): void {
@@ -262,7 +366,9 @@ export function clear(element: HTMLElement): void {
     delete element._CognilotGhost;
   }
 
+  clearChoiceGhost(element);
   element.classList.remove('Cognilot-ghost-active');
+  element.classList.remove('Cognilot-field-loading');
 }
 
 export const GhostUI = {
@@ -270,5 +376,7 @@ export const GhostUI = {
   measureTextWidth,
   getCaretCoordinates,
   paint,
+  paintChoiceGhost,
+  clearChoiceGhost,
   clear,
 };

@@ -704,6 +704,8 @@ class CognilotSidebar {
                 headerBadge = `<span style="font-size: 8px; font-weight: 700; color: #8b5cf6; background: rgba(139,92,246,0.08); padding: 0 4px; border-radius: 3px; border: 1px solid rgba(139,92,246,0.2); white-space: nowrap;">ALIAS</span>`;
               } else if (source === 'local_generator') {
                 headerBadge = `<span style="font-size: 8px; font-weight: 700; color: #10b981; background: rgba(16,185,129,0.08); padding: 0 4px; border-radius: 3px; border: 1px solid rgba(16,185,129,0.2); white-space: nowrap;">KEY</span>`;
+              } else if (source === 'ai') {
+                headerBadge = `<span style="font-size: 8px; font-weight: 700; color: #8b5cf6; background: rgba(139,92,246,0.08); padding: 0 4px; border-radius: 3px; border: 1px solid rgba(139,92,246,0.2); white-space: nowrap;">IA</span>`;
               }
             } else if (q.answer) {
               resolvedValue = q.answer;
@@ -855,33 +857,25 @@ class CognilotSidebar {
 
           text.innerHTML = finalHtml;
 
-          // Wire hover highlights for fields
+          // Wire click focus for fields (no disruptive hover scrolling)
           text.querySelectorAll('.cognilot-field-card').forEach((card: any) => {
             const selector = card.getAttribute('data-selector');
             if (selector) {
-              card.addEventListener('mouseenter', () => {
-                card.style.backgroundColor = 'var(--divider-color)';
-                this.safeSendMessage('sidebarHoverField', { selector });
-              });
-              card.addEventListener('mouseleave', () => {
-                card.style.backgroundColor = 'transparent';
-                this.safeSendMessage('sidebarUnhoverField', { selector });
+              card.style.cursor = 'pointer';
+              card.addEventListener('click', () => {
+                this.safeSendMessage('sidebarFocusField', { selector });
               });
             }
           });
 
-          // Wire hover highlights for form header
+          // Wire click focus for form header
           const formHeader = document.getElementById('active-form-header');
           if (formHeader) {
             const selector = formHeader.getAttribute('data-selector');
             if (selector) {
-              formHeader.addEventListener('mouseenter', () => {
-                formHeader.style.opacity = '0.7';
-                this.safeSendMessage('sidebarHoverField', { selector });
-              });
-              formHeader.addEventListener('mouseleave', () => {
-                formHeader.style.opacity = '1';
-                this.safeSendMessage('sidebarUnhoverField', { selector });
+              formHeader.style.cursor = 'pointer';
+              formHeader.addEventListener('click', () => {
+                this.safeSendMessage('sidebarFocusField', { selector });
               });
             }
           }
@@ -1030,7 +1024,6 @@ class CognilotSidebar {
 
     const canSolve = !!(
       isDetected &&
-      !isAlreadySolved &&
       hasContextPreview &&
       this.detectedFieldCount > 0 &&
       hasFieldsToSolve
@@ -1039,8 +1032,6 @@ class CognilotSidebar {
     let titleMsg = 'Solve detected fields';
     if (!isDetected || this.detectedFieldCount === 0) {
       titleMsg = 'No form detected to solve';
-    } else if (isAlreadySolved) {
-      titleMsg = 'Form already solved';
     } else if (!hasContextPreview) {
       titleMsg = 'No form context loaded';
     } else if (!hasFieldsToSolve) {
@@ -2089,8 +2080,12 @@ class CognilotSidebar {
   }
 
   handleRegistryData(fields) {
+    this.detectedFieldCount = fields.length;
     const questions = fields.map((f) => ({
       id: f.id,
+      name: f.name,
+      selector: f.selector,
+      metadata: f.metadata,
       text: f.text || f.name,
       label: f.text || f.name,
       type: f.type,
@@ -2283,17 +2278,7 @@ class CognilotSidebar {
     const assistantEl = this._assistantMsgEl || document.getElementById('solve-response');
 
     if (data.status === 'batch_start') {
-      if (infoText) infoText.innerHTML = 'Resolviendo formulario...';
-      if (assistantEl) {
-        assistantEl.innerHTML = `
-                <div class="status-message-chip">
-                  <span>Resolviendo ${data.total} campos</span>
-                  <svg class="arrow-icon" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
-                    <polyline points="9 18 15 12 9 6"></polyline>
-                  </svg>
-                </div>
-              `;
-      }
+      if (infoText) infoText.innerHTML = `Resolviendo formulario (${data.total} campos)...`;
     } else if (data.status === 'step') {
       // Update the context questions with the answer
       if (this.currentChatContext?.questions) {
@@ -2305,76 +2290,7 @@ class CognilotSidebar {
           this.currentChatContext.questions[qIndex].applied = true;
         }
       }
-      // Update assistant message — accumulate, never erase previous results
-      if (assistantEl) {
-        const qIndex = data.index - 1;
-        const question = this.currentChatContext?.questions?.[qIndex];
-        const labelStr = (
-          question?.text ||
-          question?.label ||
-          question?.question ||
-          `Campo ${data.index}`
-        )
-          .replace(/\n/g, ' ')
-          .trim();
-
-        const isNetworkError =
-          data.error?.toLowerCase().includes('network') ||
-          data.error?.toLowerCase().includes('fetch') ||
-          data.error?.toLowerCase().includes('failed to fetch');
-        const isNoData =
-          data.error?.toLowerCase().includes('not found') ||
-          data.error?.toLowerCase().includes('no match');
-
-        const answer =
-          data.answer ||
-          (data.success
-            ? 'Completado'
-            : isNetworkError
-              ? 'Servicio no disponible'
-              : isNoData
-                ? 'Sin datos'
-                : 'No proporcionado');
-        const answerStyle = data.success
-          ? 'background: var(--main-gradient); -webkit-background-clip: text; -webkit-text-fill-color: transparent; font-weight: 700;'
-          : 'color: var(--danger-color); font-weight: 600; opacity: 0.9;';
-
-        let current = assistantEl.innerHTML;
-
-        // On first step or log, clear the initial loader if present
-        if (current.includes('🚀')) current = '';
-
-        const checkmark = data.success
-          ? `<span style="color: var(--success-color); font-weight: 700; margin-left: 4px; font-size: 11px;">✓</span>`
-          : `<span style="color: var(--danger-color); font-weight: 700; margin-left: 4px;">❌</span>`;
-
-        // Formatting: N. Label: Answer (Mirroring context preview style)
-        const fieldHtml = `
-                <div style="margin-bottom: 4px; display: flex; gap: 6px; align-items: flex-start; animation: fadeIn 0.3s ease;">
-                    <span style="font-size: 10px; color: var(--accent-color); font-weight: 700; min-width: 14px;">${data.index}.</span>
-                    <div style="flex: 1;">
-                        <span style="font-size: 12px; color: var(--text-primary); font-weight: 500;">${labelStr}:</span>
-                        <span style="${answerStyle} font-size: 11px; margin-left: 4px;">${answer}</span>
-                        ${checkmark}
-                    </div>
-                </div>
-              `;
-
-        // Only append if this index hasn't been added yet (prevent duplicates)
-        if (!current.includes(`>${data.index}.</span>`)) {
-          assistantEl.innerHTML = current + fieldHtml;
-        } else {
-          // Update existing entry if needed (for retries)
-          const regex = new RegExp(
-            `<div style="margin-bottom: 4px;.*?<span.*?>${data.index}.</span>.*?</div>`,
-            's'
-          );
-          assistantEl.innerHTML = current.replace(regex, fieldHtml);
-        }
-      }
-      // Scroll chat
-      const chatMessages = document.getElementById('chat-messages');
-      if (chatMessages) chatMessages.scrollTop = chatMessages.scrollHeight;
+      this.updateContextPreview();
     } else if (data.status === 'log') {
       if (assistantEl) {
         let current = assistantEl.innerHTML;
@@ -2679,28 +2595,12 @@ class CognilotSidebar {
 
     if (questions.length === 0) return;
 
-    // 2. Show inline loading overlay inside the existing context-text panel
-    const contextText = document.getElementById('chat-context-text');
-    if (contextText) {
-      contextText.innerHTML = `
-        <div id="solve-inline-container" style="padding: 4px 0;">
-          <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 10px; padding-bottom: 8px; border-bottom: 1px solid var(--border-color);">
-            <svg class="solve-spinner" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--accent-color)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/>
-              <path d="M21 3v5h-5"/>
-            </svg>
-            <span style="font-size: 10px; font-weight: 600; color: var(--accent-color); text-transform: uppercase; letter-spacing: 0.5px;">Resolviendo ${questions.length} campo${questions.length !== 1 ? 's' : ''}...</span>
-          </div>
-          <div id="solve-response"></div>
-        </div>
-      `;
-    }
-
-    // 3. Wire the progress target to the inline container
-    this._assistantMsgEl = document.getElementById('solve-response');
-
-    // 4. Disable solve button while solving
+    // 2. Disable solve button while solving and update status bar
     this.updatePrimarySolveButtonState(false);
+    const infoText = document.getElementById('info-text');
+    if (infoText) {
+      infoText.innerHTML = `<span style="color:var(--accent-color);">Resolviendo ${questions.length} campos...</span>`;
+    }
 
     let clipboardData = null;
     if (this.useClipboardContext) {
@@ -2718,13 +2618,12 @@ class CognilotSidebar {
         clipboardData: clipboardData,
       });
 
-      if (!response.success) {
-        if (this._assistantMsgEl) {
-          this._assistantMsgEl.innerHTML = `<span style="color:var(--danger-color);">❌ Error: ${response.error || 'No se pudo iniciar'}</span>`;
-        }
+      if (!response?.success) {
+        console.error('[Sidebar] solveAll error:', response?.error);
       }
     } finally {
       this.solveActive = false;
+      this.updateContextPreview();
       this.updatePrimarySolveButtonState(
         !!(
           this.formDetection &&

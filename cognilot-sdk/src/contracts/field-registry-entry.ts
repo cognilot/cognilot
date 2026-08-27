@@ -19,12 +19,13 @@ export interface FieldResolution {
 
   /**
    * Where the resolution came from:
-   * - 'alias_cache'    → matched from the user's learned alias cache
-   * - 'profile_cache'  → matched from the user's profile data
-   * - 'ai'             → returned by the Cognilot AI backend
-   * - 'existing_value' → field already had a value when the page was scanned
+   * - 'alias_cache'       → matched from the user's learned alias cache
+   * - 'profile_cache'     → matched from the user's profile data
+   * - 'ai'                → returned by the Cognilot AI backend
+   * - 'existing_value'    → field already had a value when the page was scanned
+   * - 'credentials_vault' → matched from the user's saved domain credentials
    */
-  source: 'alias_cache' | 'profile_cache' | 'ai' | 'existing_value';
+  source: 'alias_cache' | 'profile_cache' | 'ai' | 'existing_value' | 'credentials_vault';
 
   /**
    * The underlying memory profile key (e.g. 'country', 'degree', 'given_name')

@@ -375,6 +375,69 @@ export class PageScanner {
       }
     }
 
+    // ── Priority 5: Persistent / Session AI Cache ──────────────────────────
+    // If the field was already resolved by AI previously on this domain,
+    // reuse the cached result across page reloads without making another AI call.
+    try {
+      const storage = this.sdk.adapters?.storage;
+      if (storage) {
+        const globalContext = this.sdk.platform.getGlobalContext();
+        const domain = (globalContext?.location?.hostname || '').toLowerCase();
+        const rawNode = field.node?.getRawNode?.() as any;
+        const attrName =
+          rawNode && typeof rawNode.getAttribute === 'function'
+            ? rawNode.getAttribute('name')
+            : null;
+        const id = field.id;
+        const name = field.name || attrName;
+        const text = field.text || field.metadata?.label;
+
+        if (isChoice) {
+          const decisionsResult = await storage.get('Cognilot_decisions_cache');
+          const cachedDecisions =
+            decisionsResult?.Cognilot_decisions_cache || decisionsResult || {};
+          const candidateKeys = [id, name, text, field.selector].filter(Boolean) as string[];
+
+          for (const k of candidateKeys) {
+            const dec = cachedDecisions[k];
+            if (dec && (dec.selected_values?.length || dec.value)) {
+              const resVal = dec.selected_values?.[0] || dec.value || 'Selected';
+              return {
+                value: String(resVal),
+                options: dec.selected_values || [String(resVal)],
+                source: 'ai',
+              };
+            }
+          }
+        } else {
+          const suggestionsResult = await storage.get('Cognilot_suggestions_cache');
+          const cachedSuggestions =
+            suggestionsResult?.Cognilot_suggestions_cache || suggestionsResult || {};
+          const candidateKeys = [
+            id ? `${domain}::${id}` : null,
+            name ? `${domain}::${name}` : null,
+            text ? `${domain}::${text}` : null,
+            id || null,
+            name || null,
+            text || null,
+          ].filter(Boolean) as string[];
+
+          for (const k of candidateKeys) {
+            const sug = cachedSuggestions[k];
+            if (sug && sug.value) {
+              return {
+                value: sug.value,
+                options: sug.options || [sug.value],
+                source: 'ai',
+              };
+            }
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('[PageScanner] AI cache resolution error:', e);
+    }
+
     return null;
   }
 
@@ -399,6 +462,19 @@ export class PageScanner {
           fieldCount: this.registry.getByFormScope(s.id).length,
         })),
       });
+
+      const globalCtx = this.sdk.platform.getGlobalContext() as any;
+      const win = globalCtx?.window || globalCtx;
+      if (win && typeof win.dispatchEvent === 'function' && typeof CustomEvent === 'function') {
+        win.dispatchEvent(
+          new CustomEvent('cognilot-scan-complete', {
+            detail: {
+              formScopes,
+              summary,
+            },
+          })
+        );
+      }
     } catch (e) {
       // Messaging may not be available in all environments (e.g. tests)
       console.warn('[PageScanner] Could not notify sidebar:', e);

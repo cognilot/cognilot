@@ -209,11 +209,17 @@ export class DecisionEngine {
     // 2. Multi-field payload
     const payload = {
       provider: actionsProvider,
-      questions: pendingFields.map((f) => ({
-        id: f.id,
-        label: f.text,
-        type: f.type,
-        options: f.options,
+      questions: pendingFields.map((f, idx) => ({
+        id: f.id || f.name || f.ref_id || f.text || `choice-field-${idx + 1}`,
+        label: f.text || f.metadata?.label || '',
+        type: f.type || 'radio',
+        options: Array.isArray(f.options)
+          ? f.options.map((opt: any) =>
+              typeof opt === 'string'
+                ? { text: opt, value: opt }
+                : { text: opt?.text || opt?.value || '', value: opt?.value || opt?.text || '' }
+            )
+          : [],
       })),
     };
 
@@ -224,12 +230,28 @@ export class DecisionEngine {
         'DecisionEngine'
       );
       if (response && response.ok && response.results) {
-        for (const f of pendingFields) {
-          const decision = response.results[f.id || ''];
-          if (decision) {
+        console.log('[DecisionEngine] <== Batch Response Received from AI:', response.results);
+        for (let i = 0; i < pendingFields.length; i++) {
+          const f = pendingFields[i];
+          const qId = f.id || f.name || f.ref_id || f.text || `choice-field-${i + 1}`;
+          const decision =
+            response.results[qId] ||
+            response.results[f.id || ''] ||
+            response.results[f.name || ''] ||
+            response.results[f.text || ''];
+
+          if (decision && decision.selected_values && decision.selected_values.length > 0) {
+            console.log(
+              `[DecisionEngine] 💡 Prefetched decision for "${f.text || f.metadata?.label || qId}":`,
+              decision.selected_values
+            );
             decision.ghost_indices = decision.selected_indices || [];
             decision.source = (response as any).meta?.model || 'llm';
-            cachedDecisions[f.id || ''] = decision;
+            if (f.id) cachedDecisions[f.id] = decision;
+            if (qId) cachedDecisions[qId] = decision;
+            if (f.text) cachedDecisions[f.text] = decision;
+            if (f.name) cachedDecisions[f.name] = decision;
+            if (f.metadata?.label) cachedDecisions[f.metadata.label] = decision;
           }
         }
       }

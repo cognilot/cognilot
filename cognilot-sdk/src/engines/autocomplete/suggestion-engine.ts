@@ -151,7 +151,7 @@ export class SuggestionEngine {
 
       // Persistent Storage check (Survives Refresh)
       if (storage) {
-        const storageResult = await (storage as any).get('Cognilot_suggestions_cache', 'session');
+        const storageResult = await (storage as any).get('Cognilot_suggestions_cache');
         const persistentCache = storageResult?.Cognilot_suggestions_cache || storageResult || {};
         if (persistentCache[cacheKey]) {
           console.log(
@@ -306,18 +306,11 @@ export class SuggestionEngine {
               }
 
               if (storage) {
-                const storageResult = await (storage as any).get(
-                  'Cognilot_suggestions_cache',
-                  'session'
-                );
+                const storageResult = await (storage as any).get('Cognilot_suggestions_cache');
                 const persistentCache =
                   storageResult?.Cognilot_suggestions_cache || storageResult || {};
                 persistentCache[cacheKey] = finalRes;
-                await (storage as any).set(
-                  'Cognilot_suggestions_cache',
-                  persistentCache,
-                  'session'
-                );
+                await (storage as any).set('Cognilot_suggestions_cache', persistentCache);
               }
 
               return finalRes;
@@ -453,8 +446,23 @@ export class SuggestionEngine {
     const globalContext = this.platform.getGlobalContext();
     const domain = globalContext?.location?.hostname || 'unknown';
     const storage = this.sdk.adapters?.storage;
+    // 1. Prime requestCache from persistent storage if available
+    let persistentCache: any = {};
+    if (storage) {
+      try {
+        const stored = await (storage as any).get('Cognilot_suggestions_cache');
+        persistentCache = stored?.Cognilot_suggestions_cache || stored || {};
+        for (const [k, v] of Object.entries(persistentCache)) {
+          if (!this.requestCache.has(k)) {
+            this.requestCache.set(k, v);
+          }
+        }
+      } catch (e) {
+        console.warn('[SuggestionEngine] Failed to read persistent cache in prefetchBatch:', e);
+      }
+    }
 
-    // 1. Filter items that are NOT in cache and NOT resolvable locally
+    // 2. Filter items that are NOT in cache and NOT resolvable locally
     const pendingItems = [];
     for (const item of items) {
       const fieldIdentifier =
@@ -464,7 +472,12 @@ export class SuggestionEngine {
         'unknown';
       const cacheKey = `${domain}::${fieldIdentifier}`;
 
-      if (!options?.clipboard && this.requestCache.has(cacheKey)) continue;
+      if (
+        !options?.clipboard &&
+        (this.requestCache.has(cacheKey) || this.requestCache.has(fieldIdentifier))
+      ) {
+        continue;
+      }
 
       if (
         (item.node as any).type === 'password' ||
@@ -601,6 +614,7 @@ export class SuggestionEngine {
       );
 
       if (response && response.ok) {
+        console.log(`[SuggestionEngine] <== Batch Response Received from AI:`, response.results);
         // 1. Handle Standardized Profile (Piggyback Learning)
         if (response.standardized_profile && this.sdk.profile) {
           await this.sdk.profile.updateFromStandardizedData(response.standardized_profile);
@@ -610,12 +624,37 @@ export class SuggestionEngine {
         // 2. Extract results
         if (response.results) {
           const storageResult = storage
-            ? await (storage as any).get('Cognilot_suggestions_cache', 'session')
+            ? await (storage as any).get('Cognilot_suggestions_cache')
             : null;
           const persistentCache = storageResult?.Cognilot_suggestions_cache || storageResult || {};
 
           for (const p of pendingItems) {
-            const suggestion = response.results[p.key] || response.results[p.fieldIdentifier];
+            const rawNode = p.item.node as any;
+            const nodeAttr =
+              typeof rawNode?.getAttribute === 'function' ? rawNode.getAttribute('name') : null;
+            const id = rawNode?.id;
+            const name = rawNode?.name || nodeAttr;
+            const label = p.item.metadata?.label;
+
+            const candidateLookupKeys = [
+              p.key,
+              p.fieldIdentifier,
+              id ? `${domain}::${id}` : null,
+              name ? `${domain}::${name}` : null,
+              label ? `${domain}::${label}` : null,
+              id || null,
+              name || null,
+              label || null,
+            ].filter(Boolean) as string[];
+
+            let suggestion: any = null;
+            for (const ck of candidateLookupKeys) {
+              if (response.results[ck]) {
+                suggestion = response.results[ck];
+                break;
+              }
+            }
+
             if (suggestion) {
               const options = Array.isArray(suggestion) ? suggestion : suggestion.options || [];
               const value =
@@ -625,27 +664,38 @@ export class SuggestionEngine {
                     ? suggestion.value
                     : suggestion;
 
-              if (value !== undefined && value !== null) {
-                const { labelElement, ...cleanMetadata } = p.item.metadata;
+              if (value !== undefined && value !== null && value !== '') {
+                console.log(
+                  `[SuggestionEngine] 💡 Prefetched suggestion for "${label || p.fieldIdentifier}": "${value}"`
+                );
+                const { labelElement, ...cleanMetadata } = (p.item.metadata || {}) as any;
+                const placeholder =
+                  typeof rawNode?.getAttribute === 'function'
+                    ? rawNode.getAttribute('placeholder') || ''
+                    : '';
+
                 const result = {
                   success: true,
                   value,
                   options: options.length > 0 ? options : [value],
                   field: {
                     ...cleanMetadata,
-                    placeholder: (p.item.node as any).getAttribute('placeholder') || '',
+                    placeholder,
                   },
                   source: (response as any).meta?.model || provider,
                   type: suggestion.type || 'discrete',
                 };
-                this.requestCache.set(p.key, result);
-                if (persistentCache) persistentCache[p.key] = result;
+
+                candidateLookupKeys.forEach((k) => this.requestCache.set(k, result));
+                if (persistentCache) {
+                  candidateLookupKeys.forEach((k) => (persistentCache[k] = result));
+                }
               }
             }
           }
 
           if (storage && Object.keys(persistentCache).length > 0) {
-            await (storage as any).set('Cognilot_suggestions_cache', persistentCache, 'session');
+            await (storage as any).set('Cognilot_suggestions_cache', persistentCache);
           }
         }
       }

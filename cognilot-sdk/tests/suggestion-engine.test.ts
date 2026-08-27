@@ -94,8 +94,7 @@ describe('SuggestionEngine', () => {
     // 3. Assert
     expect(storage.set).toHaveBeenCalledWith(
       'Cognilot_suggestions_cache',
-      expect.objectContaining({ 'localhost::city-id': expect.any(Object) }),
-      'session'
+      expect.objectContaining({ 'localhost::city-id': expect.any(Object) })
     );
   });
 

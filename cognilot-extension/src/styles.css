@@ -127,17 +127,67 @@
   z-index: 2147483646;
   pointer-events: none;
   overflow: hidden;
+  display: inline-flex;
+  align-items: center;
+  white-space: nowrap;
+  opacity: 0.86;
+}
+
+.Cognilot-ghost-overlay.Cognilot-ghost-example {
+  opacity: 0.42 !important;
+}
+
+.Cognilot-ghost-overlay.Cognilot-ghost-loading {
+  opacity: 0.5 !important;
+  animation: Cognilot-pulse 1.5s ease-in-out infinite alternate;
+}
+
+.Cognilot-ghost-text {
   background: var(--Cognilot-main-gradient);
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
   -webkit-text-fill-color: transparent;
   text-rendering: optimizeLegibility;
-  opacity: 0.86;
+  font-family: inherit;
+  font-size: inherit;
+  font-weight: inherit;
+  font-style: inherit;
+  letter-spacing: inherit;
+  line-height: inherit;
+  white-space: inherit;
+  word-break: inherit;
+  overflow-wrap: inherit;
+  display: inline;
 }
 
-.Cognilot-ghost-overlay.Cognilot-ghost-example {
-  opacity: 0.42 !important;
+/* Tab keyboard shortcut badge rendered at the end of active ghost text */
+.Cognilot-ghost-tab-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: 6px;
+  padding: 1px 5px;
+  font-family:
+    Inter,
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    sans-serif;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.2;
+  color: var(--Cognilot-main-primary);
+  background: rgba(6, 182, 212, 0.12);
+  border: 1px solid rgba(6, 182, 212, 0.35);
+  border-radius: 4px;
+  box-shadow: 0 0 6px rgba(6, 182, 212, 0.15);
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  user-select: none;
+  vertical-align: middle;
+  flex-shrink: 0;
+  pointer-events: none;
 }
 
 /* Terminal-style Block Cursor */
@@ -193,8 +243,163 @@
   outline: 2px dashed #06b6d4 !important;
   box-shadow: 0 0 0 4px rgba(6, 182, 212, 0.25) !important;
   background-color: rgba(6, 182, 212, 0.08) !important;
+  transition: all 0.15s ease;
+}
+
+/* Ghost visual highlights for resolved radio and checkbox decisions */
+.Cognilot-ghost-choice-highlight {
+  outline: 2px dashed rgba(168, 85, 247, 0.85) !important;
+  outline-offset: 3px !important;
+  box-shadow: 0 0 10px rgba(168, 85, 247, 0.45) !important;
+  accent-color: #a855f7 !important;
   transition:
-    outline 0.15s ease,
-    box-shadow 0.15s ease;
-  z-index: 2147483645 !important;
+    outline 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.Cognilot-ghost-choice-label-highlight {
+  border: 1px dashed rgba(168, 85, 247, 0.6) !important;
+  background: rgba(168, 85, 247, 0.08) !important;
+  box-shadow: 0 0 12px rgba(168, 85, 247, 0.15) !important;
+  border-radius: 4px;
+  padding: 1px 4px;
+  transition:
+    background 0.2s ease,
+    border 0.2s ease;
+}
+
+/* ─── Minimal Circular Form Trigger Dot (SolveAll) ─── */
+.Cognilot-form-trigger-dot {
+  position: absolute;
+  z-index: 2147483645;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: #080808;
+  border: 1px solid rgba(139, 92, 246, 0.45);
+  box-shadow:
+    0 4px 14px rgba(0, 0, 0, 0.4),
+    0 0 10px rgba(139, 92, 246, 0.2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+  margin: 0;
+  transition:
+    transform 0.2s cubic-bezier(0.16, 1, 0.3, 1),
+    box-shadow 0.2s cubic-bezier(0.16, 1, 0.3, 1),
+    border-color 0.2s ease,
+    opacity 0.25s ease;
+  user-select: none;
+  font-family: inherit;
+  outline: none;
+}
+
+.Cognilot-form-trigger-dot:hover {
+  transform: scale(1.1);
+  border-color: rgba(6, 182, 212, 0.8);
+  box-shadow:
+    0 4px 18px rgba(0, 0, 0, 0.5),
+    0 0 14px rgba(6, 182, 212, 0.35);
+}
+
+.Cognilot-form-trigger-dot:active {
+  transform: scale(0.95);
+}
+
+.Cognilot-form-trigger-dot__inner {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--Cognilot-main-gradient);
+  box-shadow: 0 0 6px rgba(139, 92, 246, 0.6);
+  pointer-events: none;
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.Cognilot-form-trigger-dot:hover .Cognilot-form-trigger-dot__inner {
+  transform: scale(1.15);
+  box-shadow: 0 0 8px rgba(6, 182, 212, 0.8);
+}
+
+.Cognilot-form-trigger-dot--solving .Cognilot-form-trigger-dot__inner {
+  animation: Cognilot-spin-pulse 1s linear infinite;
+}
+
+@keyframes Cognilot-spin-pulse {
+  0% {
+    transform: scale(0.85);
+    opacity: 0.6;
+  }
+  50% {
+    transform: scale(1.25);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(0.85);
+    opacity: 0.6;
+  }
+}
+
+/* Tooltip for Form Trigger Dot */
+.Cognilot-form-trigger-tooltip {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  right: 0;
+  background: rgba(10, 10, 10, 0.94);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(139, 92, 246, 0.35);
+  border-radius: 6px;
+  padding: 4px 8px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 11px;
+  font-weight: 600;
+  color: #f8fafc;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transform: translateY(4px);
+  transition:
+    opacity 0.15s ease,
+    transform 0.15s ease;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+  z-index: 2147483646;
+}
+
+.Cognilot-form-trigger-dot:hover .Cognilot-form-trigger-tooltip {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* ─── Field Loading Breathing Halo ─── */
+.Cognilot-field-loading {
+  box-shadow: 0 0 0 2px rgba(139, 92, 246, 0.35) !important;
+  animation: Cognilot-pulse 1.5s ease-in-out infinite alternate !important;
+}
+
+/* ─── Sidepanel Click Focus Pulse ─── */
+.Cognilot-field-click-pulse {
+  animation: Cognilot-focus-pulse 1.2s cubic-bezier(0.16, 1, 0.3, 1) forwards !important;
+}
+
+@keyframes Cognilot-focus-pulse {
+  0% {
+    outline: 2px solid #06b6d4 !important;
+    box-shadow: 0 0 0 6px rgba(6, 182, 212, 0.45) !important;
+    background-color: rgba(6, 182, 212, 0.12) !important;
+  }
+  70% {
+    outline: 2px solid #8b5cf6 !important;
+    box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.25) !important;
+    background-color: rgba(139, 92, 246, 0.05) !important;
+  }
+  100% {
+    outline: 2px solid transparent !important;
+    box-shadow: 0 0 0 0 transparent !important;
+    background-color: transparent !important;
+  }
 }

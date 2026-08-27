@@ -74,6 +74,45 @@ describe('PageScanner', () => {
     expect(fields[0].resolution?.source).toBe('alias_cache');
   });
 
+  it('should resolve fields from persistent AI cache across page reloads', async () => {
+    const node1 = new MockNode('INPUT');
+    const field1 = {
+      id: 'field-ai-1',
+      node: node1,
+      type: 'text',
+      status: 'pending',
+    };
+
+    sdk.adapters.storage = {
+      get: vi.fn().mockImplementation((key: string) => {
+        if (key === 'Cognilot_suggestions_cache') {
+          return {
+            'localhost::field-ai-1': {
+              value: 'Cached AI Answer',
+              options: ['Cached AI Answer'],
+              source: 'ai',
+            },
+          };
+        }
+        return {};
+      }),
+      set: vi.fn(),
+    };
+
+    sdk.detection.scanAllFields.mockReturnValue({
+      fields: [field1],
+      formScopes: [],
+    });
+
+    await scanner.scanOnPageLoad();
+
+    const fields = registry.getAll();
+    expect(fields.length).toBe(1);
+    expect(fields[0].status).toBe('resolved');
+    expect(fields[0].resolution?.value).toBe('Cached AI Answer');
+    expect(fields[0].resolution?.source).toBe('ai');
+  });
+
   it('should stop observer when stopObserving is called', () => {
     const disconnectSpy = vi.fn();
     (global as any).MutationObserver = class {

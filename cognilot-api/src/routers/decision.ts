@@ -7,7 +7,7 @@ import { userProfiles } from '../db/schema.js';
 import { eq } from 'drizzle-orm';
 import { authMiddleware } from '../middleware/auth.js';
 import { rateLimiterMiddleware } from '../middleware/rate-limiter.js';
-import { createGroqClient } from '../services/llm.js';
+import { createGroqClient, parseLLMJsonResponse } from '../services/llm.js';
 import type { AuthEnv } from '../types/hono.js';
 
 export const decisionRouter = new Hono<AuthEnv>();
@@ -16,14 +16,14 @@ decisionRouter.use('*', authMiddleware);
 decisionRouter.use('*', rateLimiterMiddleware);
 
 const decisionQuestionSchema = z.object({
-  id: z.string(),
-  label: z.string(),
-  type: z.string(),
-  options: z.array(z.any()).optional(),
+  id: z.string().optional().default(''),
+  label: z.string().optional().default(''),
+  type: z.string().optional().default('radio'),
+  options: z.array(z.any()).optional().default([]),
 });
 
 const batchDecisionSchema = z.object({
-  questions: z.array(decisionQuestionSchema).min(1).max(20),
+  questions: z.array(decisionQuestionSchema).min(1).max(50),
   provider: z.string().optional(),
   user_context: z.any().optional(),
 });
@@ -91,8 +91,7 @@ No explanations, no markdown block wrappers. Return raw JSON.`;
     ]);
 
     const content = typeof response.content === 'string' ? response.content.trim() : '{}';
-    const jsonMatch = content.match(/\{[\s\S]*\}/);
-    const results = jsonMatch ? JSON.parse(jsonMatch[0]) : {};
+    const results = parseLLMJsonResponse<Record<string, any>>(content, {});
 
     // Standardize results to ensure selected_indices and selected_values arrays exist
     const standardizedResults: Record<string, any> = {};

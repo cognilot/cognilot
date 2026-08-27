@@ -28,6 +28,7 @@ import {
 } from './toolbar_ui';
 import { CursorUI } from '../autocomplete/cursor_ui';
 import { GhostUI } from '../autocomplete/ghost_ui';
+import { FormTriggerUI } from './form_trigger_ui';
 import { DetectionPayload } from '../../lib/detection_payload';
 
 let _selectedContainer: HTMLElement | null = null;
@@ -158,6 +159,15 @@ export function processDetection(
         focused.classList.contains('Cognilot-detected-field'))
     ) {
       CursorUI.paint(focused);
+    }
+
+    if (_selectedContainer && _currentBatch.length > 0) {
+      FormTriggerUI.showFormTrigger(_selectedContainer, _currentBatch.length, () => {
+        const api = (window as unknown as { CognilotAPI?: { solveAll(): unknown } }).CognilotAPI;
+        if (api?.solveAll) {
+          api.solveAll();
+        }
+      });
     }
   }
 }
@@ -358,6 +368,7 @@ export function setSelectedContainer(el: HTMLElement | null): void {
   _selectedContainer = el || null;
   if (!el) {
     removeSpotlightBackdrop();
+    FormTriggerUI.removeFormTrigger();
     return;
   }
 
@@ -392,6 +403,15 @@ export function setSelectedContainer(el: HTMLElement | null): void {
     const backdrop = getSpotlightBackdrop();
     if (backdrop) backdrop.style.opacity = '1';
   });
+
+  if (_currentBatch.length > 0) {
+    FormTriggerUI.showFormTrigger(el, _currentBatch.length, () => {
+      const api = (window as unknown as { CognilotAPI?: { solveAll(): unknown } }).CognilotAPI;
+      if (api?.solveAll) {
+        api.solveAll();
+      }
+    });
+  }
 }
 
 function restoreSelectedContainer(el: HTMLElement): void {
@@ -457,6 +477,7 @@ export function clear(): void {
   setLastHighlighted(null);
   removeSpotlightBackdrop();
   hideToolbar();
+  FormTriggerUI.removeFormTrigger();
 }
 
 // Re-export sub-module functions for unified access
@@ -488,4 +509,5 @@ export const InspectorUI = {
   setButtonsDisabled,
   setManualSelectMode,
   updateActionButtons,
+  FormTriggerUI,
 };

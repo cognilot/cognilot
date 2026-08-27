@@ -142,13 +142,8 @@ export class DetectionEngine {
     // 2. Collect ALL fields within that scope
     const allQuestions = this.collector.collectCandidateFields(root!, radialContext!);
 
-    // 3. Filter results based on plan
-    const filteredQuestions = isFreePlan
-      ? allQuestions.filter((q) => {
-          const type = (q.type || '').toLowerCase();
-          return !(['radio', 'checkbox', 'file'].includes(type) || type.startsWith('select'));
-        })
-      : allQuestions;
+    // 3. Keep all fields without plan restriction for testing and full functionality
+    const filteredQuestions = allQuestions;
 
     // 4. Significance Check & Deduplication
     const seenKeys = new Set<string>();

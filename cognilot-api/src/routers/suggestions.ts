@@ -7,7 +7,7 @@ import { userProfiles } from '../db/schema.js';
 import { eq } from 'drizzle-orm';
 import { authMiddleware } from '../middleware/auth.js';
 import { rateLimiterMiddleware } from '../middleware/rate-limiter.js';
-import { createGroqClient } from '../services/llm.js';
+import { createGroqClient, parseLLMJsonResponse } from '../services/llm.js';
 import type { AuthEnv } from '../types/hono.js';
 
 export const suggestionsRouter = new Hono<AuthEnv>();
@@ -382,13 +382,26 @@ No explanations, no markdown code block wrappers (e.g. \`\`\`json). Return raw J
       ]);
       content = typeof response.content === 'string' ? response.content.trim() : '{}';
     }
-    const jsonMatch = content.match(/\{[\s\S]*\}/);
-    const results = jsonMatch ? JSON.parse(jsonMatch[0]) : {};
+    const results = parseLLMJsonResponse<Record<string, any>>(content, {});
 
     // Standardize results into the { [key]: { value, options, type } } format expected by SuggestionEngine
     const standardizedResults: Record<string, any> = {};
     for (const q of questions) {
-      const resVal = results[q.key];
+      const keyWithoutDomain = q.key.includes('::') ? q.key.split('::').slice(1).join('::') : q.key;
+      const resVal =
+        results[q.key] ??
+        results[keyWithoutDomain] ??
+        (q.field.id ? results[q.field.id] : undefined) ??
+        (q.field.name ? results[q.field.name] : undefined) ??
+        (q.field.label ? results[q.field.label] : undefined) ??
+        Object.entries(results).find(
+          ([k]) =>
+            k.toLowerCase() === q.key.toLowerCase() ||
+            k.toLowerCase() === keyWithoutDomain.toLowerCase() ||
+            k.toLowerCase().endsWith(keyWithoutDomain.toLowerCase()) ||
+            keyWithoutDomain.toLowerCase().endsWith(k.toLowerCase())
+        )?.[1];
+
       let val = '';
       let isExample = true;
 
