@@ -18,9 +18,6 @@ concurrency:
   group: db-migrations-${{ github.ref }}
   cancel-in-progress: true
 
-env:
-  PNPM_VERSION: 9
-
 jobs:
   verify-schema:
     name: Verify Drizzle Schema & Migrations
@@ -31,8 +28,6 @@ jobs:
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
-        with:
-          version: ${{ env.PNPM_VERSION }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
