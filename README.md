@@ -66,15 +66,19 @@ pnpm --filter @cognilot/sdk build
   _(Escucha por defecto en `http://localhost:8000`)_
 
 - **Para levantar el Dashboard de Next.js:**
+
   ```bash
   pnpm --filter @cognilot/web dev
   ```
+
   _(Escucha por defecto en `http://localhost:3000`)_
 
 - **Para la extensión de navegador (modo desarrollo con recarga automática):**
+
   ```bash
   pnpm --filter @cognilot/extension dev
   ```
+
   _(Inicia el servidor de HMR en `http://localhost:5183` — la extensión se carga descomprimida desde `cognilot-extension/dist/`)_
 
   > Para probarla localmente: abre `chrome://extensions`, activa **Modo desarrollador**, haz clic en **Cargar descomprimida** y selecciona la carpeta `cognilot-extension/dist/`.
