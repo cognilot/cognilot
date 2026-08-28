@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { MemoryForm } from '@/components/memory/MemoryForm';
 import { MemorySidebar } from '@/components/memory/MemorySidebar';
 import { flattenDataLearned, normalizeDataLearned, promoteLearnedValue } from '@/utils/dataLearned';
-import { profileService } from '@/services/profile.service';
+import { memoryService } from '@/services/memory.service';
 import { extensionBridge } from '@/utils/extensionBridge';
 import { DocLayout } from '@/components/layout/DocLayout';
 
@@ -19,14 +19,15 @@ interface UserInfo {
   plan: string;
 }
 
-interface ProfileData {
-  dataLearned: Record<string, string[]>;
+interface MemoryData {
+  data: Record<string, string[]>;
+  dataLearned?: Record<string, string[]>;
   onboardingCompleted: boolean | null;
 }
 
 /**
  * Memory Page Component
- * Renders the terminal-style interface to view and edit the user's AI-learned brain profile.
+ * Renders the terminal-style interface to view and edit the user's AI-learned brain memory.
  */
 export default function MemoryPage() {
   const [loading, setLoading] = useState(true);
@@ -55,7 +56,7 @@ export default function MemoryPage() {
       if (!session) return;
 
       const apiBase = process.env['NEXT_PUBLIC_API_URL'] || '';
-      const response = await fetch(`${apiBase}/api/profile`, {
+      const response = await fetch(`${apiBase}/api/memory`, {
         headers: {
           Authorization: `Bearer ${session.access_token}`,
         },
@@ -68,11 +69,11 @@ export default function MemoryPage() {
       const data = await response.json();
       setUser(data.user);
 
-      const dbProfile = data.profile as ProfileData;
-      const dataLearned = dbProfile?.dataLearned || {};
+      const memRecord = (data.memory || data.profile) as MemoryData;
+      const memoryData = memRecord?.data || memRecord?.dataLearned || {};
 
       // Flatten learned data for easy form binding
-      const flatLearned = flattenDataLearned(dataLearned);
+      const flatLearned = flattenDataLearned(memoryData);
 
       // Seed standard metadata if not present
       const seedKeys = {
@@ -81,15 +82,15 @@ export default function MemoryPage() {
       };
 
       Object.entries(seedKeys).forEach(([k, v]) => {
-        if (v && (!dataLearned[k] || dataLearned[k].length === 0)) {
-          dataLearned[k] = [v];
+        if (v && (!memoryData[k] || memoryData[k].length === 0)) {
+          memoryData[k] = [v];
           flatLearned[k] = v;
         }
       });
 
       const initialForm = {
         ...flatLearned,
-        data_learned: dataLearned,
+        data_learned: memoryData,
       };
 
       setFormData(initialForm);
@@ -98,14 +99,14 @@ export default function MemoryPage() {
 
       // Update local first-class extension cache too
       if (typeof window !== 'undefined') {
-        await profileService.updateProfile({
-          data_learned: dataLearned,
+        await memoryService.updateMemory({
+          data: memoryData,
           preferences: {},
         });
       }
     } catch (err) {
       console.error(err);
-      toast.error('Failed to load profile memory.');
+      toast.error('Failed to load memory.');
     } finally {
       setLoading(false);
     }
@@ -120,9 +121,9 @@ export default function MemoryPage() {
     const handleSync = (event: MessageEvent) => {
       if (event.data.type === 'Cognilot_CACHE_UPDATED') {
         const keys = event.data.keys || [];
-        if (keys.includes('Cognilot_profile_cache') || keys.includes('Cognilot_alias_cache')) {
+        if (keys.includes('Cognilot_memory_cache') || keys.includes('Cognilot_profile_cache')) {
           console.log('🔄 [Memory Page] Extension cache updated, refreshing view...');
-          profileService.clearCache();
+          memoryService.clearCache();
           void fetchProfile();
         }
       }
@@ -218,14 +219,14 @@ export default function MemoryPage() {
       }
 
       const apiBase = process.env['NEXT_PUBLIC_API_URL'] || '';
-      const response = await fetch(`${apiBase}/api/profile`, {
+      const response = await fetch(`${apiBase}/api/memory`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${session.access_token}`,
         },
         body: JSON.stringify({
-          dataLearned: learnedPayload,
+          data: learnedPayload,
         }),
       });
 
@@ -245,8 +246,8 @@ export default function MemoryPage() {
 
       // Sync extension cache
       if (typeof window !== 'undefined') {
-        await profileService.updateProfile({
-          data_learned: learnedPayload,
+        await memoryService.updateMemory({
+          data: learnedPayload,
           preferences: {},
         });
         extensionBridge.refreshProfileCache();

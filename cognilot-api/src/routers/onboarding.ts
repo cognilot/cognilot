@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import { ChatGroq } from '@langchain/groq';
 import { HumanMessage, SystemMessage } from '@langchain/core/messages';
 import { db } from '../db/client.js';
-import { userProfiles } from '../db/schema.js';
+import { memories } from '../db/schema.js';
 import { authMiddleware } from '../middleware/auth.js';
 import type { AuthEnv } from '../types/hono.js';
 import pdf from 'pdf-parse';
@@ -232,14 +232,14 @@ Rules:
     const parsedProfile = JSON.parse(jsonMatch[0]) as Record<string, unknown>;
     const mappedProfile = mapLLMJsonToDataLearned(parsedProfile);
 
-    // Save to user profile dataLearned
+    // Save to user memories
     await db
-      .insert(userProfiles)
-      .values({ userId, dataLearned: mappedProfile, cvRawText: cvText })
+      .insert(memories)
+      .values({ userId, data: mappedProfile, cvRawText: cvText })
       .onConflictDoUpdate({
-        target: userProfiles.userId,
+        target: memories.userId,
         set: {
-          dataLearned: mappedProfile,
+          data: mappedProfile,
           cvRawText: cvText,
           updatedAt: new Date(),
         },

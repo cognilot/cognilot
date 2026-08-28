@@ -86,7 +86,7 @@ export class ActionEngine {
                 success: true,
                 value: entry.resolution?.value ?? '',
                 options: entry.resolution?.options ?? [],
-                source: entry.resolution?.source ?? 'alias_cache',
+                source: entry.resolution?.source ?? 'memory',
                 field: entry.metadata,
                 type: 'discrete',
               }

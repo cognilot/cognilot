@@ -634,18 +634,23 @@ import { Modules, init as initModules } from './index';
       });
     } else if (data.type === 'Cognilot_LOGOUT') {
       chrome.runtime.sendMessage({ action: 'clearAuth' });
-    } else if (data.type === 'Cognilot_SAVE_PROFILE') {
+    } else if (data.type === 'Cognilot_SAVE_MEMORY' || data.type === 'Cognilot_SAVE_PROFILE') {
       chrome.runtime.sendMessage({
-        action: 'saveProfile',
+        action: 'saveMemory',
+        memory: data.payload,
         profile: data.payload,
       });
-    } else if (data.type === 'Cognilot_GET_PROFILE') {
-      chrome.runtime.sendMessage({ action: 'getProfile' }, (response: any) => {
+    } else if (data.type === 'Cognilot_GET_MEMORY' || data.type === 'Cognilot_GET_PROFILE') {
+      chrome.runtime.sendMessage({ action: 'getMemory' }, (response: any) => {
         if (response && response.success) {
+          const payload = response.memory || response.profile;
           window.postMessage(
             {
-              type: 'Cognilot_PROFILE_RESPONSE',
-              payload: response.profile,
+              type:
+                data.type === 'Cognilot_GET_MEMORY'
+                  ? 'Cognilot_MEMORY_RESPONSE'
+                  : 'Cognilot_PROFILE_RESPONSE',
+              payload,
             },
             '*'
           );
@@ -668,8 +673,11 @@ import { Modules, init as initModules } from './index';
           );
         }
       });
-    } else if (data.type === 'Cognilot_REFRESH_PROFILE') {
-      Logger.info('Received Cognilot_REFRESH_PROFILE sync request from web app.');
+    } else if (
+      data.type === 'Cognilot_REFRESH_MEMORY' ||
+      data.type === 'Cognilot_REFRESH_PROFILE'
+    ) {
+      Logger.info('Received Cognilot_REFRESH_MEMORY sync request from web app.');
     }
   });
 
@@ -678,10 +686,10 @@ import { Modules, init as initModules } from './index';
     if (areaName === 'local') {
       const updatedKeys = Object.keys(changes);
 
-      // Handle cache updates (existing logic)
+      // Handle cache updates
       if (
-        updatedKeys.includes('Cognilot_profile_cache') ||
-        updatedKeys.includes('Cognilot_alias_cache')
+        updatedKeys.includes('Cognilot_memory_cache') ||
+        updatedKeys.includes('Cognilot_profile_cache')
       ) {
         window.postMessage(
           {

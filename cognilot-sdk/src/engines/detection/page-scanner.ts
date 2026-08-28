@@ -289,78 +289,58 @@ export class PageScanner {
       return null;
     };
 
-    // ── Priority 2: Alias cache ────────────────────────────────────────────
+    // ── Priority 2: Memory cache (Seed dictionary + Direct keys) ──────────
     try {
-      // FieldDetectionResponse shape is a subset of FieldRegistryEntry, safe to cast
-      const aliasResult = await this.sdk.alias.resolve(field as any);
-      if (aliasResult?.success && aliasResult.suggestion?.options?.length) {
-        const memOpts = aliasResult.suggestion.options.map(String);
-        if (isChoice) {
-          const matched = matchChoiceValue(field.options, memOpts);
-          if (matched) {
+      if (this.sdk.memory) {
+        const memoryResult = await this.sdk.memory.resolve(field as any);
+        if (memoryResult?.success && memoryResult.suggestion?.options?.length) {
+          const memOpts = memoryResult.suggestion.options.map(String);
+          if (isChoice) {
+            const matched = matchChoiceValue(field.options, memOpts);
+            if (matched) {
+              return {
+                value: matched.value,
+                options: [matched.value],
+                source: 'memory',
+                memoryKey: memoryResult.memoryKey || null,
+              };
+            }
+          } else {
             return {
-              value: matched.value,
-              options: [matched.value],
-              source: 'alias_cache',
-              memoryKey: aliasResult.memoryKey || null,
+              value: memOpts[0],
+              options: memOpts,
+              source: 'memory',
+              memoryKey: memoryResult.memoryKey || null,
             };
           }
-        } else {
-          return {
-            value: memOpts[0],
-            options: memOpts,
-            source: 'alias_cache',
-            memoryKey: aliasResult.memoryKey || null,
-          };
         }
       }
     } catch (e) {
-      console.warn('[PageScanner] Alias resolution error:', e);
+      console.warn('[PageScanner] Memory resolution error:', e);
     }
 
-    // ── Priority 3: Profile cache ──────────────────────────────────────────
-    try {
-      const profileResult = await this.sdk.profile.resolve(field as any);
-      if (profileResult?.success && profileResult.suggestion?.options?.length) {
-        const memOpts = profileResult.suggestion.options.map(String);
-        if (isChoice) {
-          const matched = matchChoiceValue(field.options, memOpts);
-          if (matched) {
-            return {
-              value: matched.value,
-              options: [matched.value],
-              source: 'profile_cache',
-              memoryKey: profileResult.memoryKey || null,
-            };
-          }
-        } else {
-          return {
-            value: memOpts[0],
-            options: memOpts,
-            source: 'profile_cache',
-            memoryKey: profileResult.memoryKey || null,
-          };
-        }
-      }
-    } catch (e) {
-      console.warn('[PageScanner] Profile resolution error:', e);
-    }
-
-    // ── Priority 4: Option tanteo for choice fields ────────────────────────
+    // ── Priority 3: Option tanteo for choice fields ────────────────────────
     // When a radio/checkbox/select has predefined options, check if any
-    // option text matches a stored profile value (e.g. option "Perú" matches
-    // profile.country = ["Perú"]). This guesses the answer without AI.
+    // option text matches a stored memory value (e.g. option "Perú" matches
+    // memory.country = ["Perú"]). This guesses the answer without AI.
     if (isChoice) {
       const fieldOptions = Array.isArray(field.options) ? field.options : [];
       if (fieldOptions.length > 0) {
         try {
-          const storageResult = await this.sdk.adapters?.storage?.get('Cognilot_profile_cache');
-          const rawProfile = storageResult?.Cognilot_profile_cache || storageResult || {};
-          const dataLearned = rawProfile.data_learned || rawProfile;
+          const storageResult = await this.sdk.adapters?.storage?.get([
+            'Cognilot_memory_cache',
+            'Cognilot_profile_cache',
+          ]);
+          const rawMem =
+            storageResult?.Cognilot_memory_cache ||
+            storageResult?.Cognilot_profile_cache ||
+            storageResult ||
+            {};
+          const memData = rawMem.data || rawMem.data_learned || rawMem;
 
           // Map from memory string -> memoryKey
           const memToKey = new Map<string, string>();
-          for (const [key, val] of Object.entries(dataLearned)) {
+          for (const [key, val] of Object.entries(memData)) {
             if (Array.isArray(val)) {
               val.forEach((v) => {
                 if (v !== undefined && v !== null && v !== '') {

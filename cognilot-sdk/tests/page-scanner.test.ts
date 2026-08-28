@@ -71,7 +71,7 @@ describe('PageScanner', () => {
     expect(fields.length).toBe(1);
     expect(fields[0].status).toBe('resolved');
     expect(fields[0].resolution?.value).toBe('john.doe@example.com');
-    expect(fields[0].resolution?.source).toBe('alias_cache');
+    expect(fields[0].resolution?.source).toBe('memory');
   });
 
   it('should resolve fields from persistent AI cache across page reloads', async () => {

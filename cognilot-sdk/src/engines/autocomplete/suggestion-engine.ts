@@ -405,40 +405,21 @@ export class SuggestionEngine {
       return null;
     }
 
-    // 1. Check Alias Cache
-    if (this.sdk.alias) {
-      const localMatch = await this.sdk.alias.resolve(fieldDto);
-      if (localMatch && localMatch.success) {
-        console.log(`[SuggestionEngine] Alias Match Hit for "${metadata.label}"`);
+    // 1. Check Local Memory Cache (Seed patterns + Exact keys)
+    if (this.sdk.memory) {
+      const memoryMatch = await this.sdk.memory.resolve(fieldDto);
+      if (memoryMatch && memoryMatch.success) {
+        console.log(`[SuggestionEngine] Memory Match Hit for "${metadata.label}"`);
         return {
           success: true,
-          value: localMatch.suggestion.options?.[0] || '',
-          options: localMatch.suggestion.options || [localMatch.suggestion.options?.[0]],
+          value: memoryMatch.suggestion.options?.[0] || '',
+          options: memoryMatch.suggestion.options || [memoryMatch.suggestion.options?.[0]],
           field: {
             ...cleanMetadata,
             placeholder: (node as any).getAttribute('placeholder') || '',
           },
-          source: localMatch.suggestion.source || 'alias_cache',
-          type: localMatch.suggestion.type || 'discrete',
-        };
-      }
-    }
-
-    // 2. Check Profile Cache
-    if (this.sdk.profile) {
-      const profileMatch = await this.sdk.profile.resolve(fieldDto);
-      if (profileMatch && profileMatch.success) {
-        console.log(`[SuggestionEngine] Profile Match Hit for "${metadata.label}"`);
-        return {
-          success: true,
-          value: profileMatch.suggestion.options?.[0] || '',
-          options: profileMatch.suggestion.options || [profileMatch.suggestion.options?.[0]],
-          field: {
-            ...cleanMetadata,
-            placeholder: (node as any).getAttribute('placeholder') || '',
-          },
-          source: profileMatch.suggestion.source || 'profile_cache',
-          type: profileMatch.suggestion.type || 'discrete',
+          source: memoryMatch.suggestion.source || 'memory',
+          type: memoryMatch.suggestion.type || 'discrete',
         };
       }
     }
@@ -792,11 +773,11 @@ export class SuggestionEngine {
       return;
     }
 
-    if (label && this.sdk.alias) {
+    if (label && this.sdk.memory) {
       console.log(
-        `[SuggestionEngine] Learning alias for "${label}" -> "${value}" (skipSync=${skipSync})`
+        `[SuggestionEngine] Learning fact for "${label}" -> "${value}" (skipSync=${skipSync})`
       );
-      await this.sdk.alias.persistAlias(label, value, skipSync);
+      await this.sdk.memory.enqueueLearning(label, value, skipSync);
     }
 
     // Invalidate registry entry so the next trigger re-consults alias cache

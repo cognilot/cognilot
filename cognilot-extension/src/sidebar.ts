@@ -3154,16 +3154,20 @@ class CognilotSidebar {
     if (!list) return;
 
     try {
-      const data = await chrome.storage.local.get(['Cognilot_profile_cache']);
-      let profile = data.Cognilot_profile_cache || {};
+      const data = await chrome.storage.local.get([
+        'Cognilot_memory_cache',
+        'Cognilot_profile_cache',
+      ]);
+      let profile = data.Cognilot_memory_cache || data.Cognilot_profile_cache || {};
 
       // Fallback for nested legacy structure
-      if (
+      if (profile.data && typeof profile.data === 'object' && !Array.isArray(profile.data)) {
+        profile = profile.data;
+      } else if (
         profile.data_learned &&
         typeof profile.data_learned === 'object' &&
         !Array.isArray(profile.data_learned)
       ) {
-        // If it has 'data_learned' key and it's an object, it's likely the legacy ProfileResponse structure
         profile = profile.data_learned;
       }
 
@@ -3227,8 +3231,8 @@ class CognilotSidebar {
 
     try {
       await chrome.storage.local.remove([
+        'Cognilot_memory_cache',
         'Cognilot_profile_cache',
-        'Cognilot_alias_cache',
         'Cognilot_sync_queue',
         'Cognilot_preference_cache',
       ]);
@@ -3242,12 +3246,18 @@ class CognilotSidebar {
 
   async handleDeleteItem(key) {
     try {
-      const data = await chrome.storage.local.get(['Cognilot_profile_cache']);
-      const profile = data.Cognilot_profile_cache || {};
+      const data = await chrome.storage.local.get([
+        'Cognilot_memory_cache',
+        'Cognilot_profile_cache',
+      ]);
+      const profile = data.Cognilot_memory_cache || data.Cognilot_profile_cache || {};
 
       if (profile[key]) {
         delete profile[key];
-        await chrome.storage.local.set({ Cognilot_profile_cache: profile });
+        await chrome.storage.local.set({
+          Cognilot_memory_cache: profile,
+          Cognilot_profile_cache: profile,
+        });
         this.loadAndRenderLocalProfile();
       }
     } catch (error) {

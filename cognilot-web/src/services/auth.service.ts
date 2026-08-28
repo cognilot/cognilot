@@ -32,16 +32,14 @@ export const authService = {
   },
 
   async getCurrentUser(token?: string): Promise<User> {
-    // We still call our backend /profile to get the local profile data
-    // The ApiClient will automatically attach the Supabase JWT
-    const response = await api.get<any>('/profile', token);
+    const response = await api.get<any>('/memory', token);
 
-    // Map the /profile response to the expected User interface
     return {
-      id: response.user.id,
-      email: response.user.email,
-      plan: response.user.plan,
-      onboarding_completed: response.profile.onboardingCompleted || false,
+      id: response?.user?.id,
+      email: response?.user?.email,
+      plan: response?.user?.plan || 'free',
+      onboarding_completed:
+        response?.memory?.onboardingCompleted || response?.profile?.onboardingCompleted || false,
     } as User;
   },
 

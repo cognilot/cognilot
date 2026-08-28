@@ -3,23 +3,20 @@ import { FieldDetectionResponse } from '../contracts/field-detection-response';
 import { LabelUtil } from './label-util';
 
 /**
- * AliasResolver
- * Maps field labels to memory profile keys.
- * Resolution flow: alias label → memoryKey → values from profile_cache.
- *
- * The alias cache stores { label → { memoryKey } } mappings.
- * When resolving, it looks up the memoryKey in profile_cache to return actual values.
+ * MemoryResolver
+ * Unifies local memory resolution, multilingual seed matching, and sync queue persistence.
+ * Resolution flow: field label / identifier → seed dictionary / exact key → values from memory cache.
  */
-export class AliasResolver {
+export class MemoryResolver {
   private sdk: CognilotSDK;
   private _idleTimer: any = null;
+  private _learningLock = new Map<string, number>();
 
   /**
-   * Multilingual seed aliases — bootstraps label→memoryKey mapping without
-   * needing learned aliases. Each entry defines pattern words in multiple
-   * languages. The first matching entry (by textToMatch substring) wins.
+   * Multilingual seed dictionary — bootstraps label→memoryKey mapping without
+   * needing learned memory keys. Each entry defines pattern words in multiple languages.
    */
-  private static readonly SEED_ALIASES: Array<{
+  private static readonly SEED_DICTIONARY: Array<{
     memoryKey: string;
     patterns: string[];
   }> = [
@@ -101,14 +98,19 @@ export class AliasResolver {
     }
   }
 
+  /**
+   * Resolves a detected field against local memory cache using:
+   * 1. Multilingual seed dictionary.
+   * 2. Direct exact memory key matching.
+   */
   async resolve(field: FieldDetectionResponse) {
     const storage = this.sdk.adapters?.storage;
     if (!storage) return null;
 
-    const result = await storage.get(['Cognilot_alias_cache', 'Cognilot_profile_cache']);
-    const aliasCache = result?.Cognilot_alias_cache || {};
-    const profile = result?.Cognilot_profile_cache || {};
-    const flatProfile = profile.data_learned || profile || {};
+    const result = await storage.get(['Cognilot_memory_cache', 'Cognilot_profile_cache']);
+    const memCache =
+      result?.Cognilot_memory_cache || result?.Cognilot_profile_cache || result || {};
+    const flatMemory = memCache.data || memCache.data_learned || memCache || {};
 
     const normalizedLabel = LabelUtil.normalizeText(field.text);
     const normalizedName = LabelUtil.normalizeText(field.name || '');
@@ -118,17 +120,22 @@ export class AliasResolver {
     const textToMatch = [normalizedLabel, normalizedName, normalizedPlaceholder, normalizedId]
       .join(' ')
       .trim();
-    const exactParts = [
-      normalizedLabel,
-      normalizedName,
-      normalizedPlaceholder,
-      normalizedId,
-    ].filter((p) => p.length >= 2);
 
-    // 1. Direct label match (deprecated, skipped in KISS model)
-    // 2. Seed aliases (multilingual bootstrap dictionary against clean profile)
-    const seedResult = this._matchSeedAliases(textToMatch, flatProfile);
+    // Security Gate: Never resolve passwords or sensitive fields from global memory
+    const isSensitive = /(password|contrase|clave|secret|pin|cvv|cvc|token)/i.test(
+      `${textToMatch} ${field.type || ''}`
+    );
+    if (isSensitive || field.type === 'password') {
+      return null;
+    }
+
+    // 1. Match seed dictionary
+    const seedResult = this._matchSeedDictionary(textToMatch, flatMemory);
     if (seedResult) return seedResult;
+
+    // 2. Fallback to learned memory keys
+    const directResult = this._matchDirectMemoryKeys(textToMatch, flatMemory);
+    if (directResult) return directResult;
 
     return null;
   }
@@ -141,20 +148,15 @@ export class AliasResolver {
     return single ? [single] : [];
   }
 
-  /**
-   * Matches field text against the multilingual seed alias dictionary.
-   * Returns the first seed entry whose pattern appears in textToMatch,
-   * resolved against the profile cache.
-   */
-  private _matchSeedAliases(textToMatch: string, flatProfile: Record<string, unknown>) {
-    for (const entry of AliasResolver.SEED_ALIASES) {
+  private _matchSeedDictionary(textToMatch: string, flatMemory: Record<string, unknown>) {
+    for (const entry of MemoryResolver.SEED_DICTIONARY) {
       const matchingPattern = entry.patterns.find((pattern) => {
         const normPattern = LabelUtil.normalizeText(pattern);
         return normPattern.length >= 3 && textToMatch.includes(normPattern);
       });
       if (!matchingPattern) continue;
 
-      const raw = flatProfile[entry.memoryKey];
+      const raw = flatMemory[entry.memoryKey];
       const options = this._normalizeOptions(raw);
       if (options.length === 0) continue;
 
@@ -163,23 +165,66 @@ export class AliasResolver {
         suggestion: {
           options: options.slice(0, 5),
           type: 'discrete',
-          source: 'alias_cache',
+          source: 'memory',
         },
         memoryKey: entry.memoryKey,
-        reasoning: `Seed alias "${matchingPattern}" → memoryKey "${entry.memoryKey}" → ${options.length} value(s)`,
+        reasoning: `Seed "${matchingPattern}" → key "${entry.memoryKey}" → ${options.length} value(s)`,
       };
     }
     return null;
   }
 
-  private _learningLock = new Map<string, number>();
+  private _matchDirectMemoryKeys(textToMatch: string, flatMemory: Record<string, unknown>) {
+    const dataKeys = Object.keys(flatMemory).sort((a, b) => b.length - a.length);
+    const matchedValues: string[] = [];
+    let firstMatchedKey: string | undefined;
+
+    for (const key of dataKeys) {
+      if (
+        ['data', 'data_learned'].includes(key) ||
+        /(password|contrase|clave|secret|pin|cvv|cvc|token)/i.test(key)
+      )
+        continue;
+
+      const normalizedKey = LabelUtil.normalizeText(key).trim();
+      const baseKey = normalizedKey.replace(/_\d+$/, '');
+
+      if (
+        (textToMatch.includes(normalizedKey) || textToMatch.includes(baseKey)) &&
+        normalizedKey.length >= 3
+      ) {
+        if (!firstMatchedKey) firstMatchedKey = key;
+        const value = flatMemory[key];
+        const options = this._normalizeOptions(value);
+        for (const option of options) {
+          if (!matchedValues.includes(option)) {
+            matchedValues.push(option);
+          }
+        }
+      }
+    }
+
+    if (matchedValues.length > 0) {
+      return {
+        success: true,
+        suggestion: {
+          options: matchedValues.slice(0, 5),
+          type: 'discrete',
+          source: 'memory',
+        },
+        memoryKey: firstMatchedKey,
+        reasoning: `Direct Memory Key Match`,
+      };
+    }
+
+    return null;
+  }
 
   /**
    * When user confirms a suggestion, enqueue the raw label and value directly
    * into Cognilot_sync_queue for background LLM standardization.
-   * Under KISS, no raw keys are written locally to profile_cache or alias_cache.
    */
-  async persistAlias(label: string, value: string, skipSync = false) {
+  async enqueueLearning(label: string, value: string, skipSync = false) {
     const settings = this.sdk.adapters?.settings
       ? await (this.sdk.adapters.settings as any).getSettings()
       : {};
@@ -190,21 +235,23 @@ export class AliasResolver {
     const authenticated = auth ? await auth.isAuthenticated() : false;
     if (!authenticated) skipSync = true;
 
-    const aliasKey = this.normalizeAliasKey(LabelUtil.normalizeText(label));
-    if (!aliasKey) return false;
+    const memoryKey = this.normalizeKey(LabelUtil.normalizeText(label));
+    if (!memoryKey) return false;
 
-    // Security Gate: Never persist passwords, PINs, secrets, or CVVs to global profile
+    // Security Gate: Never persist passwords, PINs, secrets, or CVVs
     if (
-      /(password|contrase|clave|secret|pin|cvv|cvc|token|auth_token)/i.test(`${aliasKey} ${label}`)
+      /(password|contrase|clave|secret|pin|cvv|cvc|token|auth_token)/i.test(`${memoryKey} ${label}`)
     ) {
-      console.warn(`[AliasResolver] Blocked persistence of sensitive/password key: "${aliasKey}"`);
+      console.warn(
+        `[MemoryResolver] Blocked persistence of sensitive/password key: "${memoryKey}"`
+      );
       return false;
     }
 
     const trimmedValue = String(value).trim();
     if (!trimmedValue) return false;
 
-    const lockKey = `${aliasKey}:${trimmedValue.toLowerCase()}`;
+    const lockKey = `${memoryKey}:${trimmedValue.toLowerCase()}`;
     const now = Date.now();
     const lastLearn = this._learningLock.get(lockKey);
     if (lastLearn && now - lastLearn < 2000) return false;
@@ -213,18 +260,17 @@ export class AliasResolver {
     const storage = this.sdk.adapters?.storage;
     if (!storage) return false;
 
-    // Enqueue directly for backend sync (KISS: no local dirty writes)
     const result = await storage.get('Cognilot_sync_queue');
     let syncQueue = result?.Cognilot_sync_queue || [];
 
     const alreadyInQueue = syncQueue.some(
       (item: any) =>
-        item.label === aliasKey &&
+        item.label === memoryKey &&
         String(item.value).trim().toLowerCase() === trimmedValue.toLowerCase()
     );
 
     if (!alreadyInQueue) {
-      syncQueue.push({ label: aliasKey, value: trimmedValue, timestamp: now });
+      syncQueue.push({ label: memoryKey, value: trimmedValue, timestamp: now });
       if (syncQueue.length > 20) syncQueue = syncQueue.slice(-20);
       await storage.set({ Cognilot_sync_queue: syncQueue });
       if (!skipSync) {
@@ -235,11 +281,9 @@ export class AliasResolver {
     return true;
   }
 
-  /**
-   * Updates the local alias cache from API data (kept for backwards-compatibility).
-   */
-  async updateAliasCache(_aliases: Array<{ label: string; memoryKey: string }>) {
-    // No-op in KISS model: we don't store alias mappings in the client.
+  /** Backwards compatibility alias for enqueueLearning */
+  async persistAlias(label: string, value: string, skipSync = false) {
+    return this.enqueueLearning(label, value, skipSync);
   }
 
   private scheduleIdleSync() {
@@ -259,11 +303,10 @@ export class AliasResolver {
     const queue = await this.getSyncQueue();
     if (queue.length === 0) return;
 
-    // 1. Snapshot items to flush to avoid race conditions with incoming inputs
     const snapshot = [...queue];
 
     console.log(
-      `[AliasResolver] Flushing sync queue (${snapshot.length} items, keepalive=${keepalive})...`
+      `[MemoryResolver] Flushing sync queue (${snapshot.length} items, keepalive=${keepalive})...`
     );
 
     try {
@@ -276,23 +319,63 @@ export class AliasResolver {
       }));
 
       const response = await this.sdk.apiClient.request(
-        '/api/profile/sync',
+        '/api/memory/sync',
         { sync_queue: formattedQueue },
-        'AliasResolver',
+        'MemoryResolver',
         { keepalive }
       );
 
       if (response) {
-        // ── Update profile_cache with canonical dataLearned returned by server ──
-        if (response.profile?.dataLearned && this.sdk.profile) {
-          await this.sdk.profile.updateFromStandardizedData(response.profile.dataLearned);
+        const standardizedData =
+          response.memory?.data || response.profile?.dataLearned || response.data;
+        if (standardizedData) {
+          await this.updateFromStandardizedData(standardizedData);
         }
-        // Remove only the items we successfully flushed from the current queue
         await this.clearSyncQueue(snapshot);
       }
     } catch (e) {
-      console.warn('[AliasResolver] Failed to flush queue:', e);
+      console.warn('[MemoryResolver] Failed to flush queue:', e);
     }
+  }
+
+  async updateFromStandardizedData(standardizedData: Record<string, any>) {
+    const storage = this.sdk.adapters?.storage;
+    if (!storage || !standardizedData) return;
+
+    const result = await storage.get(['Cognilot_memory_cache', 'Cognilot_profile_cache']);
+    const mem = result?.Cognilot_memory_cache || result?.Cognilot_profile_cache || {};
+
+    for (const key in standardizedData) {
+      if (/(password|contrase|clave|secret|pin|cvv|cvc|token)/i.test(key)) continue;
+      const newValue = String(standardizedData[key]).trim();
+      if (!newValue) continue;
+
+      const oldValues = this._normalizeOptions(mem[key]);
+      const merged = [...new Set([newValue, ...oldValues])].slice(0, 5);
+      mem[key] = merged;
+    }
+
+    try {
+      await storage.set({
+        Cognilot_memory_cache: mem,
+        Cognilot_profile_cache: mem, // compatibility
+      });
+      console.log(`[MemoryResolver] ✅ Memory cache updated locally.`);
+    } catch (e) {
+      console.error(`[MemoryResolver] ❌ Failed to save updated memory:`, e);
+    }
+  }
+
+  async getMemory(): Promise<Record<string, any>> {
+    const storage = this.sdk.adapters?.storage;
+    if (!storage) return {};
+    const result = await storage.get(['Cognilot_memory_cache', 'Cognilot_profile_cache']);
+    return result?.Cognilot_memory_cache || result?.Cognilot_profile_cache || result || {};
+  }
+
+  /** Backwards compatibility alias */
+  async getProfile(): Promise<Record<string, any>> {
+    return this.getMemory();
   }
 
   async getSyncQueue() {
@@ -302,9 +385,6 @@ export class AliasResolver {
     return result?.Cognilot_sync_queue || [];
   }
 
-  /**
-   * Selectively clears flushed items from Cognilot_sync_queue to prevent race conditions.
-   */
   async clearSyncQueue(flushedItems?: any[]) {
     const storage = this.sdk.adapters?.storage;
     if (!storage) return;
@@ -328,7 +408,7 @@ export class AliasResolver {
     await storage.set({ Cognilot_sync_queue: remaining });
   }
 
-  private normalizeAliasKey(label: string): string {
+  private normalizeKey(label: string): string {
     if (!label) return '';
     let k = label.trim().toLowerCase();
     k = k.replace(/[\n\r]+/g, ' ');

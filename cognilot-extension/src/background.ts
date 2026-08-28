@@ -109,42 +109,8 @@ chrome.runtime.onMessageExternal.addListener(
         },
         () => {
           if (user) seedInitialProfile(user);
-
-          // Fetch resolved aliases from backend and populate local alias cache
-          chrome.storage.local.get(['Cognilot_alias_cache'], async (result) => {
-            const isUnp = !chrome.runtime.getManifest().update_url;
-            const backUrl = isUnp
-              ? 'http://localhost:8000'
-              : 'https://vague-felita-Cognilot-7f5d4232.koyeb.app';
-
-            try {
-              const res = await fetch(`${backUrl}/api/aliases/resolve`, {
-                headers: { Authorization: `Bearer ${accessToken}` },
-              });
-              if (res.ok) {
-                const data = await res.json();
-                const aliasCache: Record<string, { memoryKey: string }> = {};
-                for (const a of data.aliases || []) {
-                  const key = (a.label || '')
-                    .trim()
-                    .toLowerCase()
-                    .replace(/\s+/g, ' ')
-                    .substring(0, 80);
-                  if (key && a.memoryKey) {
-                    aliasCache[key] = { memoryKey: a.memoryKey };
-                  }
-                }
-                chrome.storage.local.set({ Cognilot_alias_cache: aliasCache });
-                console.log(
-                  `Background: synced ${Object.keys(aliasCache).length} aliases from backend.`
-                );
-              } else {
-                console.warn('Background: failed to fetch aliases:', res.statusText);
-              }
-            } catch (err) {
-              console.error('Background: alias sync error:', err);
-            }
-          });
+          // Saneamiento: eliminar clave obsoleta Cognilot_alias_cache
+          chrome.storage.local.remove(['Cognilot_alias_cache']);
 
           if (typeof sendResponse === 'function') sendResponse({ success: true });
         }
@@ -172,20 +138,29 @@ chrome.runtime.onMessageExternal.addListener(
       return true;
     }
 
-    if (request.action === 'getProfile') {
-      chrome.storage.local.get(['Cognilot_profile_cache'], (result) => {
+    if (request.action === 'getMemory' || request.action === 'getProfile') {
+      chrome.storage.local.get(['Cognilot_memory_cache', 'Cognilot_profile_cache'], (result) => {
+        const memoryData = result.Cognilot_memory_cache || result.Cognilot_profile_cache || {};
         sendResponse({
           success: true,
-          profile: result.Cognilot_profile_cache || {},
+          memory: memoryData,
+          profile: memoryData,
         });
       });
       return true;
     }
 
-    if (request.action === 'saveProfile') {
-      chrome.storage.local.set({ Cognilot_profile_cache: request.profile }, () => {
-        sendResponse({ success: true });
-      });
+    if (request.action === 'saveMemory' || request.action === 'saveProfile') {
+      const dataToSave = request.memory || request.profile || {};
+      chrome.storage.local.set(
+        {
+          Cognilot_memory_cache: dataToSave,
+          Cognilot_profile_cache: dataToSave,
+        },
+        () => {
+          sendResponse({ success: true });
+        }
+      );
       return true;
     }
 
@@ -484,18 +459,27 @@ chrome.runtime.onMessage.addListener(
         }
       );
       return true;
-    } else if (request.action === 'getProfile') {
-      chrome.storage.local.get(['Cognilot_profile_cache'], (result) => {
+    } else if (request.action === 'getMemory' || request.action === 'getProfile') {
+      chrome.storage.local.get(['Cognilot_memory_cache', 'Cognilot_profile_cache'], (result) => {
+        const memoryData = result.Cognilot_memory_cache || result.Cognilot_profile_cache || {};
         sendResponse({
           success: true,
-          profile: result.Cognilot_profile_cache || {},
+          memory: memoryData,
+          profile: memoryData,
         });
       });
       return true;
-    } else if (request.action === 'saveProfile') {
-      chrome.storage.local.set({ Cognilot_profile_cache: request.profile }, () => {
-        sendResponse({ success: true });
-      });
+    } else if (request.action === 'saveMemory' || request.action === 'saveProfile') {
+      const dataToSave = request.memory || request.profile || {};
+      chrome.storage.local.set(
+        {
+          Cognilot_memory_cache: dataToSave,
+          Cognilot_profile_cache: dataToSave,
+        },
+        () => {
+          sendResponse({ success: true });
+        }
+      );
       return true;
     } else if (request.action === 'getPreferences') {
       chrome.storage.local.get(['Cognilot_preference_cache'], (result) => {
@@ -726,53 +710,60 @@ async function handleProxyRequest(
   return result;
 }
 
-// ─── Profile Seeding ────────────────────────────────────────
+// ─── Memory / Profile Seeding ────────────────────────────────
 
-function seedInitialProfile(user: Record<string, unknown> | undefined | null): void {
+function seedInitialMemory(user: Record<string, unknown> | undefined | null): void {
   if (!user) return;
-  chrome.storage.local.get(['Cognilot_profile_cache'], (result) => {
-    const profile = (result.Cognilot_profile_cache || {}) as Record<string, string[]>;
+  chrome.storage.local.get(['Cognilot_memory_cache', 'Cognilot_profile_cache'], (result) => {
+    const memory = (result.Cognilot_memory_cache || result.Cognilot_profile_cache || {}) as Record<
+      string,
+      string[]
+    >;
     let changed = false;
 
-    if (user.email && (!profile.email || !profile.email.includes(user.email as string))) {
-      profile.email = profile.email || [];
-      if (!profile.email.includes(user.email as string)) {
-        profile.email.push(user.email as string);
+    if (user.email && (!memory.email || !memory.email.includes(user.email as string))) {
+      memory.email = memory.email || [];
+      if (!memory.email.includes(user.email as string)) {
+        memory.email.push(user.email as string);
         changed = true;
       }
     }
 
     if (user.email) {
       const emailStr = user.email as string;
-      profile.username = profile.username || [];
-      if (!profile.username.includes(emailStr)) {
-        profile.username.push(emailStr);
+      memory.username = memory.username || [];
+      if (!memory.username.includes(emailStr)) {
+        memory.username.push(emailStr);
         changed = true;
       }
     }
 
     if (user.given_name) {
-      profile.given_name = profile.given_name || [];
-      if (!profile.given_name.includes(user.given_name as string)) {
-        profile.given_name.push(user.given_name as string);
+      memory.given_name = memory.given_name || [];
+      if (!memory.given_name.includes(user.given_name as string)) {
+        memory.given_name.push(user.given_name as string);
         changed = true;
       }
     }
 
     if (user.family_name) {
-      profile.family_name = profile.family_name || [];
-      if (!profile.family_name.includes(user.family_name as string)) {
-        profile.family_name.push(user.family_name as string);
+      memory.family_name = memory.family_name || [];
+      if (!memory.family_name.includes(user.family_name as string)) {
+        memory.family_name.push(user.family_name as string);
         changed = true;
       }
     }
 
     if (changed) {
-      chrome.storage.local.set({ Cognilot_profile_cache: profile });
-      console.log('🌱 [Background] Initial profile seeded/updated from auth user', profile);
+      chrome.storage.local.set({
+        Cognilot_memory_cache: memory,
+        Cognilot_profile_cache: memory,
+      });
+      console.log('🌱 [Background] Initial memory seeded/updated from auth user', memory);
     }
   });
 }
+const seedInitialProfile = seedInitialMemory;
 
 // ─── Token Refresh ──────────────────────────────────────────
 
@@ -824,9 +815,9 @@ chrome.storage.onChanged.addListener(
   (changes: Record<string, chrome.storage.StorageChange>, areaName: string) => {
     if (areaName === 'local') {
       const relevantKeys = [
+        'Cognilot_memory_cache',
         'Cognilot_profile_cache',
         'Cognilot_preference_cache',
-        'Cognilot_alias_cache',
         'Cognilot_sync_queue',
       ];
       const changedKeys = Object.entries(changes)

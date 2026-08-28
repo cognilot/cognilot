@@ -74,11 +74,11 @@ export class DecisionEngine {
       }
     }
 
-    // 4.5 Alias Cache (Persistent Learned Matches)
-    if (this.sdk.alias) {
-      const localMatch = await (this.sdk as any).alias.resolve(fieldMetadata);
+    // 4.5 Memory Cache (Persistent Learned Matches)
+    if (this.sdk.memory) {
+      const localMatch = await this.sdk.memory.resolve(fieldMetadata);
       if (localMatch && localMatch.success) {
-        console.log(`[DecisionEngine] Alias Cache Hit for ${fieldMetadata.text}`);
+        console.log(`[DecisionEngine] Memory Cache Hit for ${fieldMetadata.text}`);
         const learnedOptions = localMatch.suggestion.options || [];
 
         // Map learned values back to indices in the current element
@@ -100,7 +100,7 @@ export class DecisionEngine {
             selected_indices,
             selected_values,
             ghost_indices: selected_indices,
-            source: 'alias',
+            source: 'memory',
           };
         }
       }
@@ -174,12 +174,12 @@ export class DecisionEngine {
       if (!['radio', 'checkbox', 'select'].includes(type)) continue;
       if (cachedDecisions[field.id || '']) continue;
 
-      // Check Alias Cache
-      if (this.sdk.alias) {
-        const aliasMatch = await (this.sdk as any).alias.resolve(field);
-        if (aliasMatch && aliasMatch.success) {
+      // Check Memory Cache
+      if (this.sdk.memory) {
+        const memoryMatch = await this.sdk.memory.resolve(field);
+        if (memoryMatch && memoryMatch.success) {
           // Map to indices and save to session cache (level 1)
-          const learnedOptions = aliasMatch.suggestion.options || [];
+          const learnedOptions = memoryMatch.suggestion.options || [];
           const selected_indices: number[] = [];
           const selected_values: string[] = [];
 
@@ -198,7 +198,7 @@ export class DecisionEngine {
               selected_indices,
               selected_values,
               ghost_indices: selected_indices,
-              source: 'alias',
+              source: 'memory',
             };
             continue;
           }
