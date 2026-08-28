@@ -246,25 +246,53 @@ export class DecisionEngine {
         console.log('[DecisionEngine] <== Batch Response Received from AI:', response.results);
         for (let i = 0; i < pendingFields.length; i++) {
           const f = pendingFields[i];
-          const qId = f.id || f.name || f.ref_id || f.text || `choice-field-${i + 1}`;
-          const decision =
-            response.results[qId] ||
-            response.results[f.id || ''] ||
-            response.results[f.name || ''] ||
-            response.results[f.text || ''];
+          const rawNode =
+            typeof (f as any).node?.getRawNode === 'function'
+              ? (f as any).node.getRawNode()
+              : (f as any).node;
+          const rawId = rawNode?.id || (f as any).id;
+          const rawName = rawNode?.name || (f as any).name;
+          const cleanName = rawName
+            ? rawName.replace(/\[|\]/g, '_').replace(/_+/g, '_').replace(/^_|_$/g, '')
+            : null;
+          const strippedCognilotId = f.id
+            ? f.id.replace(/^Cognilot-field-/i, '').replace(/-/g, '_')
+            : null;
+          const text = f.text || f.metadata?.label;
+          const qId = f.id || f.name || f.ref_id || text || `choice-field-${i + 1}`;
 
-          if (decision && decision.selected_values && decision.selected_values.length > 0) {
+          const candidateLookupKeys = [
+            qId,
+            f.id,
+            rawId,
+            strippedCognilotId,
+            f.name,
+            rawName,
+            cleanName,
+            text,
+            f.metadata?.label,
+          ].filter(Boolean) as string[];
+
+          let decision: any = null;
+          for (const key of candidateLookupKeys) {
+            if (response.results[key]) {
+              decision = response.results[key];
+              break;
+            }
+          }
+
+          if (decision) {
+            const hasSelection =
+              Array.isArray(decision.selected_values) && decision.selected_values.length > 0;
             console.log(
               `[DecisionEngine] 💡 Prefetched decision for "${f.text || f.metadata?.label || qId}":`,
-              decision.selected_values
+              hasSelection ? decision.selected_values : '[] (unselected)'
             );
             decision.ghost_indices = decision.selected_indices || [];
             decision.source = (response as any).meta?.model || 'llm';
-            if (f.id) cachedDecisions[f.id] = decision;
-            if (qId) cachedDecisions[qId] = decision;
-            if (f.text) cachedDecisions[f.text] = decision;
-            if (f.name) cachedDecisions[f.name] = decision;
-            if (f.metadata?.label) cachedDecisions[f.metadata.label] = decision;
+            for (const key of candidateLookupKeys) {
+              cachedDecisions[key] = decision;
+            }
           }
         }
       }

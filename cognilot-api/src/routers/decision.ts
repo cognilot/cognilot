@@ -50,9 +50,13 @@ Your job is to select the correct options for choice-based form fields (such as 
 ${JSON.stringify(userMemoryData, null, 2)}
 
 ## Instructions:
-For each field, analyze the label and its options, and select the index (0-based) and value of the option that matches the user's profile.
-If a field allows multiple selection (checkboxes), you can select multiple indices. If it's single selection (select, radio), select only one index.
-If you cannot determine the value confidently, return an empty selection.
+1. For each field, analyze the label and its options, and select the index (0-based) and value of the option that matches the user's profile.
+2. If a field allows multiple selection (checkboxes), you can select multiple indices. If it's single selection (select, radio), select only one index.
+3. For standalone single checkboxes (boolean toggles):
+   - If it is a profile/account display preference (e.g., "Display current local time" when user has location or timezone in profile), select index 0 to enable it.
+   - If it is terms of service or standard required agreement, select index 0.
+   - If it is marketing spam or newsletter, leave empty [].
+4. If you cannot determine the value confidently, return an empty selection.
 
 Return ONLY a JSON object mapping the field ID to an object with "selected_indices" (array of numbers) and "selected_values" (array of strings).
 Example format:

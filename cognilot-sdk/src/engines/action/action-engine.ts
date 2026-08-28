@@ -366,15 +366,33 @@ export class ActionEngine {
 
       for (const entry of pendingEntries) {
         if (entry.status !== 'pending') continue;
-        const rawNode = entry.node?.getRawNode?.() as any;
+        const rawNode =
+          typeof (entry.node as any)?.getRawNode === 'function'
+            ? (entry.node as any).getRawNode()
+            : (entry.node as any);
+        const rawId = rawNode?.id;
         const attrName =
           rawNode && typeof rawNode.getAttribute === 'function'
             ? rawNode.getAttribute('name')
             : null;
         const name = entry.name || attrName;
+        const cleanName = name
+          ? name.replace(/\[|\]/g, '_').replace(/_+/g, '_').replace(/^_|_$/g, '')
+          : null;
+        const strippedCognilotId = entry.id
+          ? entry.id.replace(/^Cognilot-field-/i, '').replace(/-/g, '_')
+          : null;
         const text = entry.text || entry.metadata?.label;
 
-        const candidateKeys = [entry.id, name, text, entry.selector].filter(Boolean) as string[];
+        const candidateKeys = [
+          entry.id,
+          rawId,
+          strippedCognilotId,
+          name,
+          cleanName,
+          text,
+          entry.selector,
+        ].filter(Boolean) as string[];
 
         let decision: any = null;
         for (const key of candidateKeys) {
@@ -385,12 +403,14 @@ export class ActionEngine {
         }
 
         if (decision) {
+          const hasSelection =
+            Array.isArray(decision.selected_values) && decision.selected_values.length > 0;
           console.log(
             `[ActionEngine] ✅ Synced decision prefetch result to FieldRegistry for "${text || entry.text}":`,
-            decision.selected_values
+            hasSelection ? decision.selected_values : '[] (unselected)'
           );
           this.sdk.registry.updateResolution(entry.id, {
-            value: decision.selected_values?.[0] || 'Selected',
+            value: hasSelection ? decision.selected_values[0] : '',
             options: decision.selected_values || [],
             source: 'ai',
           });

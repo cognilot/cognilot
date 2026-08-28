@@ -693,6 +693,17 @@ class CognilotSidebar {
             let headerBadge = '';
             let resolvedValue = null;
 
+            const isAI =
+              q.resolution?.source === 'ai' ||
+              q.resolution?.source === 'llm' ||
+              (typeof q.resolution?.source === 'string' &&
+                (q.resolution.source.includes('openai') ||
+                  q.resolution.source.includes('groq') ||
+                  q.resolution.source.includes('gpt') ||
+                  q.resolution.source.includes('claude') ||
+                  q.resolution.source.includes('gemini') ||
+                  q.resolution.source.includes('suggestion')));
+
             if (isNonResolvable) {
               headerBadge = `<span style="font-size: 8px; font-weight: 700; color: var(--text-secondary); background: rgba(0,0,0,0.05); padding: 0 4px; border-radius: 3px; border: 1px solid var(--border-color); white-space: nowrap;">DETECT</span>`;
             } else if (q.resolution?.success) {
@@ -708,14 +719,14 @@ class CognilotSidebar {
                 headerBadge = `<span style="font-size: 8px; font-weight: 700; color: #8b5cf6; background: rgba(139,92,246,0.08); padding: 0 4px; border-radius: 3px; border: 1px solid rgba(139,92,246,0.2); white-space: nowrap;">ALIAS</span>`;
               } else if (source === 'local_generator') {
                 headerBadge = `<span style="font-size: 8px; font-weight: 700; color: #10b981; background: rgba(16,185,129,0.08); padding: 0 4px; border-radius: 3px; border: 1px solid rgba(16,185,129,0.2); white-space: nowrap;">KEY</span>`;
-              } else if (source === 'ai') {
+              } else if (isAI) {
                 headerBadge = `<span style="font-size: 8px; font-weight: 700; color: #8b5cf6; background: rgba(139,92,246,0.08); padding: 0 4px; border-radius: 3px; border: 1px solid rgba(139,92,246,0.2); white-space: nowrap;">IA</span>`;
               }
             } else if (q.answer) {
               resolvedValue = q.answer;
               headerBadge = `<span style="font-size: 8px; font-weight: 700; color: #8b5cf6; background: rgba(139,92,246,0.08); padding: 0 4px; border-radius: 3px; border: 1px solid rgba(139,92,246,0.2); white-space: nowrap;">IA</span>`;
             } else {
-              headerBadge = `<span style="font-size: 8px; font-weight: 700; color: #8b5cf6; background: rgba(139,92,246,0.08); padding: 0 4px; border-radius: 3px; border: 1px solid rgba(139,92,246,0.2); white-space: nowrap;">IA</span>`;
+              headerBadge = '';
             }
 
             // ── Match resolved value against option text/value ─────────────
@@ -759,10 +770,8 @@ class CognilotSidebar {
                   if (idx === selectedIndex) {
                     if (isApplied) {
                       return `<span style="font-size: 9px; font-weight: 600; color: #fff; background: ${themeColor}; padding: 2px 6px; border-radius: 3px;">${label}</span>`;
-                    } else if (isMem) {
-                      // Wrap label text inside a inner span with GRADIENT style to avoid shorthand background overrides clipping it to invisible
-                      return `<span style="font-size: 9px; font-weight: 600; background: rgba(0,0,0,0.03); padding: 2px 6px; border-radius: 3px; border: 1px solid var(--border-color);"><span style="${GRADIENT}">${label}</span></span>`;
                     }
+                    return `<span style="font-size: 9px; font-weight: 600; background: rgba(139,92,246,0.12); padding: 2px 6px; border-radius: 3px; border: 1px solid rgba(139,92,246,0.3);"><span style="${GRADIENT}">${label}</span></span>`;
                   }
                   return `<span style="font-size: 9px; color: var(--text-secondary); background: rgba(0,0,0,0.03); padding: 2px 6px; border-radius: 3px; border: 1px solid var(--border-color);">${label}</span>`;
                 })
@@ -2256,6 +2265,16 @@ class CognilotSidebar {
       resolution: (() => {
         if (f.status !== 'resolved') return null;
         const isChoice = f.type === 'radio' || f.type === 'checkbox' || f.type === 'select';
+        const isAIResolution =
+          f.resolution?.source === 'ai' ||
+          f.resolution?.source === 'llm' ||
+          (typeof f.resolution?.source === 'string' &&
+            (f.resolution.source.includes('openai') ||
+              f.resolution.source.includes('groq') ||
+              f.resolution.source.includes('gpt') ||
+              f.resolution.source.includes('claude') ||
+              f.resolution.source.includes('gemini')));
+
         if (isChoice) {
           const fieldOpts = Array.isArray(f.options) ? f.options : [];
           const resOpts = ((f.resolution as any)?.options || []).map(String);
@@ -2263,7 +2282,7 @@ class CognilotSidebar {
             resOpts.push(String(f.resolution.value));
           }
           const matched = this.matchChoiceValue(fieldOpts, resOpts);
-          if (!matched && f.resolution?.source !== 'existing_value') {
+          if (!matched && f.resolution?.source !== 'existing_value' && !isAIResolution) {
             return null; // Choice options don't match memory value — degrade to IA
           }
         }

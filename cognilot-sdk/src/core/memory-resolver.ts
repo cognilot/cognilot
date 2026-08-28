@@ -100,6 +100,10 @@ export class MemoryResolver {
       memoryKey: 'portfolio',
       patterns: ['portfolio', 'portafolio', 'website', 'sitio web', 'blog', 'personal site'],
     },
+    {
+      memoryKey: 'pronouns',
+      patterns: ['pronoun', 'pronombre', 'pronoms', 'pronomen'],
+    },
   ];
 
   constructor(sdk: CognilotSDK) {

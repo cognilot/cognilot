@@ -347,7 +347,13 @@ export class DetectionEngine {
         usedIds.add(uniqueId);
 
         let resolution: any = null;
-        const isResolvable = isResolvableFieldType(cleanType);
+        const rawNode =
+          typeof (el as any).getRawNode === 'function' ? (el as any).getRawNode() : (el as any);
+        const isDisabled =
+          el.getAttribute('disabled') !== null ||
+          el.getAttribute('aria-disabled') === 'true' ||
+          rawNode?.disabled === true;
+        const isResolvable = isResolvableFieldType(cleanType) && !isDisabled;
         let status: 'pending' | 'resolved' | 'detected' = isResolvable ? 'pending' : 'detected';
 
         if (isResolvable && cleanType === 'password') {
