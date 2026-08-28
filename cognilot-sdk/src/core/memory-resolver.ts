@@ -138,9 +138,8 @@ export class MemoryResolver {
     const storage = this.sdk.adapters?.storage;
     if (!storage) return null;
 
-    const result = await storage.get(['Cognilot_memory_cache', 'Cognilot_profile_cache']);
-    const memCache =
-      result?.Cognilot_memory_cache || result?.Cognilot_profile_cache || result || {};
+    const result = await storage.get(['Cognilot_memory_cache']);
+    const memCache = result?.Cognilot_memory_cache || result || {};
     const flatMemory = memCache.data || memCache.data_learned || memCache || {};
 
     const normalizedLabel = LabelUtil.normalizeText(field.text);
@@ -157,6 +156,12 @@ export class MemoryResolver {
       `${textToMatch} ${field.type || ''}`
     );
     if (isSensitive || field.type === 'password') {
+      return null;
+    }
+
+    // Complexity Gate: If the label represents a complex, multi-clause, or open-ended question,
+    // skip local deterministic matching so the field remains pending for full AI synthesis.
+    if (LabelUtil.isComplexPrompt(field.text || '')) {
       return null;
     }
 
@@ -183,7 +188,9 @@ export class MemoryResolver {
     for (const entry of MemoryResolver.SEED_DICTIONARY) {
       const matchingPattern = entry.patterns.find((pattern) => {
         const normPattern = LabelUtil.normalizeText(pattern);
-        return normPattern.length >= 3 && textToMatch.includes(normPattern);
+        if (normPattern.length < 3) return false;
+        const regex = new RegExp(`(^|[^a-z0-9])${normPattern}([^a-z0-9]|$)`, 'i');
+        return regex.test(textToMatch);
       });
       if (!matchingPattern) continue;
 
@@ -219,11 +226,11 @@ export class MemoryResolver {
 
       const normalizedKey = LabelUtil.normalizeText(key).trim();
       const baseKey = normalizedKey.replace(/_\d+$/, '');
+      if (normalizedKey.length < 3 && baseKey.length < 3) continue;
 
-      if (
-        (textToMatch.includes(normalizedKey) || textToMatch.includes(baseKey)) &&
-        normalizedKey.length >= 3
-      ) {
+      const regex = new RegExp(`(^|[^a-z0-9])(${normalizedKey}|${baseKey})([^a-z0-9]|$)`, 'i');
+
+      if (regex.test(textToMatch)) {
         if (!firstMatchedKey) firstMatchedKey = key;
         const value = flatMemory[key];
         const options = this._normalizeOptions(value);
@@ -373,8 +380,8 @@ export class MemoryResolver {
     const storage = this.sdk.adapters?.storage;
     if (!storage || !standardizedData) return;
 
-    const result = await storage.get(['Cognilot_memory_cache', 'Cognilot_profile_cache']);
-    const mem = result?.Cognilot_memory_cache || result?.Cognilot_profile_cache || {};
+    const result = await storage.get(['Cognilot_memory_cache']);
+    const mem = result?.Cognilot_memory_cache || {};
 
     for (const key in standardizedData) {
       if (/(password|contrase|clave|secret|pin|cvv|cvc|token)/i.test(key)) continue;
@@ -389,7 +396,6 @@ export class MemoryResolver {
     try {
       await storage.set({
         Cognilot_memory_cache: mem,
-        Cognilot_profile_cache: mem, // compatibility
       });
       console.log(`[MemoryResolver] ✅ Memory cache updated locally.`);
     } catch (e) {
@@ -400,8 +406,8 @@ export class MemoryResolver {
   async getMemory(): Promise<Record<string, any>> {
     const storage = this.sdk.adapters?.storage;
     if (!storage) return {};
-    const result = await storage.get(['Cognilot_memory_cache', 'Cognilot_profile_cache']);
-    return result?.Cognilot_memory_cache || result?.Cognilot_profile_cache || result || {};
+    const result = await storage.get(['Cognilot_memory_cache']);
+    return result?.Cognilot_memory_cache || result || {};
   }
 
   /** Backwards compatibility alias */

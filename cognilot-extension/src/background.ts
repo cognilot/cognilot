@@ -139,8 +139,8 @@ chrome.runtime.onMessageExternal.addListener(
     }
 
     if (request.action === 'getMemory' || request.action === 'getProfile') {
-      chrome.storage.local.get(['Cognilot_memory_cache', 'Cognilot_profile_cache'], (result) => {
-        const memoryData = result.Cognilot_memory_cache || result.Cognilot_profile_cache || {};
+      chrome.storage.local.get(['Cognilot_memory_cache'], (result) => {
+        const memoryData = result.Cognilot_memory_cache || {};
         sendResponse({
           success: true,
           memory: memoryData,
@@ -155,7 +155,6 @@ chrome.runtime.onMessageExternal.addListener(
       chrome.storage.local.set(
         {
           Cognilot_memory_cache: dataToSave,
-          Cognilot_profile_cache: dataToSave,
         },
         () => {
           sendResponse({ success: true });
@@ -460,8 +459,8 @@ chrome.runtime.onMessage.addListener(
       );
       return true;
     } else if (request.action === 'getMemory' || request.action === 'getProfile') {
-      chrome.storage.local.get(['Cognilot_memory_cache', 'Cognilot_profile_cache'], (result) => {
-        const memoryData = result.Cognilot_memory_cache || result.Cognilot_profile_cache || {};
+      chrome.storage.local.get(['Cognilot_memory_cache'], (result) => {
+        const memoryData = result.Cognilot_memory_cache || {};
         sendResponse({
           success: true,
           memory: memoryData,
@@ -474,7 +473,6 @@ chrome.runtime.onMessage.addListener(
       chrome.storage.local.set(
         {
           Cognilot_memory_cache: dataToSave,
-          Cognilot_profile_cache: dataToSave,
         },
         () => {
           sendResponse({ success: true });
@@ -714,11 +712,8 @@ async function handleProxyRequest(
 
 function seedInitialMemory(user: Record<string, unknown> | undefined | null): void {
   if (!user) return;
-  chrome.storage.local.get(['Cognilot_memory_cache', 'Cognilot_profile_cache'], (result) => {
-    const memory = (result.Cognilot_memory_cache || result.Cognilot_profile_cache || {}) as Record<
-      string,
-      string[]
-    >;
+  chrome.storage.local.get(['Cognilot_memory_cache'], (result) => {
+    const memory = (result.Cognilot_memory_cache || {}) as Record<string, string[]>;
     let changed = false;
 
     if (user.email && (!memory.email || !memory.email.includes(user.email as string))) {
@@ -757,7 +752,6 @@ function seedInitialMemory(user: Record<string, unknown> | undefined | null): vo
     if (changed) {
       chrome.storage.local.set({
         Cognilot_memory_cache: memory,
-        Cognilot_profile_cache: memory,
       });
       console.log('🌱 [Background] Initial memory seeded/updated from auth user', memory);
     }
@@ -816,7 +810,6 @@ chrome.storage.onChanged.addListener(
     if (areaName === 'local') {
       const relevantKeys = [
         'Cognilot_memory_cache',
-        'Cognilot_profile_cache',
         'Cognilot_preference_cache',
         'Cognilot_sync_queue',
       ];

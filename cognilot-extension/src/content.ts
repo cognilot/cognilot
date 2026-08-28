@@ -687,10 +687,7 @@ import { Modules, init as initModules } from './index';
       const updatedKeys = Object.keys(changes);
 
       // Handle cache updates
-      if (
-        updatedKeys.includes('Cognilot_memory_cache') ||
-        updatedKeys.includes('Cognilot_profile_cache')
-      ) {
+      if (updatedKeys.includes('Cognilot_memory_cache')) {
         window.postMessage(
           {
             type: 'Cognilot_CACHE_UPDATED',

@@ -133,7 +133,7 @@ export function processDetection(
               q.status === 'detected' ||
               q.status === 'unsupported' ||
               q.resolvable === false;
-            const isChoice = type === 'radio' || type === 'checkbox';
+            const isChoice = type === 'radio' || type === 'checkbox' || type === 'select';
 
             if (isNonResolvable) {
               // Detection-only field: standard neutral detected style, no AI pending violet outline
@@ -272,7 +272,7 @@ export function paintResolvedFieldsFromRegistry(container: HTMLElement | null): 
     if (!isResolved) return;
 
     const type = (field.type || '').toLowerCase();
-    const isChoice = type === 'radio' || type === 'checkbox';
+    const isChoice = type === 'radio' || type === 'checkbox' || type === 'select';
 
     // Remove pending class — this field has a memory resolution
     el.classList.remove('Cognilot-field-pending');

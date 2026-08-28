@@ -128,6 +128,61 @@ describe('MemoryResolver', () => {
     expect(result).toBeNull();
   });
 
+  it('should skip local resolution on complex, multi-clause, or open-ended questions', async () => {
+    await storage.set({
+      Cognilot_memory_cache: {
+        degree: ['Software Engineering'],
+        country: ['España'],
+      },
+    });
+
+    const complexQuestionField = {
+      text: '¿Cuentas con Titulación de Grado, Licenciado o Ingeniero Superior (o equivalentes) en ingeniería, informática o ciencias, Español u homologado en España? ¿En qué carrera?*',
+      name: 'degree_question',
+      type: 'textarea',
+    } as any;
+
+    const result = await memoryResolver.resolve(complexQuestionField);
+    expect(result).toBeNull();
+  });
+
+  it('should skip local resolution on descriptive open prompts', async () => {
+    await storage.set({
+      Cognilot_memory_cache: {
+        job_title: ['Senior Frontend Engineer'],
+      },
+    });
+
+    const descriptiveField = {
+      text: 'Describe your previous job experience and technical challenges you overcame',
+      name: 'experience_summary',
+      type: 'textarea',
+    } as any;
+
+    const result = await memoryResolver.resolve(descriptiveField);
+    expect(result).toBeNull();
+  });
+
+  it('should resolve atomic degree field when label is clean and short', async () => {
+    await storage.set({
+      Cognilot_memory_cache: {
+        degree: ['Software Engineering'],
+      },
+    });
+
+    const atomicField = {
+      text: 'Carrera Universitaria',
+      name: 'university_degree',
+      type: 'text',
+    } as any;
+
+    const result = await memoryResolver.resolve(atomicField);
+    expect(result).not.toBeNull();
+    expect(result?.success).toBe(true);
+    expect(result?.memoryKey).toBe('degree');
+    expect(result?.suggestion.options).toContain('Software Engineering');
+  });
+
   it('should enqueue learned fields into Cognilot_sync_queue', async () => {
     const success = await memoryResolver.enqueueLearning('User City', 'Madrid', true);
     expect(success).toBe(true);

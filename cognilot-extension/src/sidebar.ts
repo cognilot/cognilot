@@ -427,7 +427,7 @@ class CognilotSidebar {
 
             if (!match && profile) {
               match = await profile.resolve(q);
-              source = 'profile_cache';
+              source = 'memory_cache';
             }
 
             if (match) {
@@ -2377,7 +2377,7 @@ class CognilotSidebar {
           let source = 'alias_cache';
           if (!match && profile) {
             match = await profile.resolve(q);
-            source = 'profile_cache';
+            source = 'memory_cache';
           }
           if (match?.memoryKey) {
             const isChoice = q.type === 'radio' || q.type === 'checkbox' || q.type === 'select';
@@ -3173,11 +3173,8 @@ class CognilotSidebar {
     if (!list) return;
 
     try {
-      const data = await chrome.storage.local.get([
-        'Cognilot_memory_cache',
-        'Cognilot_profile_cache',
-      ]);
-      let profile = data.Cognilot_memory_cache || data.Cognilot_profile_cache || {};
+      const data = await chrome.storage.local.get(['Cognilot_memory_cache']);
+      let profile = data.Cognilot_memory_cache || {};
 
       // Fallback for nested legacy structure
       if (profile.data && typeof profile.data === 'object' && !Array.isArray(profile.data)) {
@@ -3251,7 +3248,6 @@ class CognilotSidebar {
     try {
       await chrome.storage.local.remove([
         'Cognilot_memory_cache',
-        'Cognilot_profile_cache',
         'Cognilot_sync_queue',
         'Cognilot_preference_cache',
       ]);
@@ -3265,17 +3261,13 @@ class CognilotSidebar {
 
   async handleDeleteItem(key) {
     try {
-      const data = await chrome.storage.local.get([
-        'Cognilot_memory_cache',
-        'Cognilot_profile_cache',
-      ]);
-      const profile = data.Cognilot_memory_cache || data.Cognilot_profile_cache || {};
+      const data = await chrome.storage.local.get(['Cognilot_memory_cache']);
+      const profile = data.Cognilot_memory_cache || {};
 
       if (profile[key]) {
         delete profile[key];
         await chrome.storage.local.set({
           Cognilot_memory_cache: profile,
-          Cognilot_profile_cache: profile,
         });
         this.loadAndRenderLocalProfile();
       }

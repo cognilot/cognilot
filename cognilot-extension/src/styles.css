@@ -247,7 +247,9 @@
 }
 
 /* Ghost visual highlights for resolved radio and checkbox decisions */
-.Cognilot-ghost-choice-highlight {
+input[type='radio'].Cognilot-ghost-choice-highlight,
+input[type='checkbox'].Cognilot-ghost-choice-highlight,
+.Cognilot-ghost-choice-highlight:not(select):not(option) {
   outline: 2px dashed rgba(168, 85, 247, 0.85) !important;
   outline-offset: 3px !important;
   box-shadow: 0 0 10px rgba(168, 85, 247, 0.45) !important;
@@ -255,6 +257,20 @@
   transition:
     outline 0.2s ease,
     box-shadow 0.2s ease;
+}
+
+select.Cognilot-ghost-choice-highlight {
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+/* Suggested <option> inside dropdowns */
+option.Cognilot-ghost-choice-highlight {
+  outline: none !important;
+  box-shadow: none !important;
+  background-color: rgba(168, 85, 247, 0.25) !important;
+  color: #c084fc !important;
+  font-weight: 600 !important;
 }
 
 .Cognilot-ghost-choice-label-highlight {

@@ -165,7 +165,7 @@ describe('FieldRegistry', () => {
       groupNodes: [primaryNode, secondaryNode1, secondaryNode2] as any[],
       belongsToForm: true,
       formScopeId: 'form-1',
-      resolution: { value: 'peru', options: ['peru'], source: 'profile_cache' },
+      resolution: { value: 'peru', options: ['peru'], source: 'memory_cache' },
       status: 'resolved',
     };
 

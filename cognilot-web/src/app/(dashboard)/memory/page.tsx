@@ -121,7 +121,7 @@ export default function MemoryPage() {
     const handleSync = (event: MessageEvent) => {
       if (event.data.type === 'Cognilot_CACHE_UPDATED') {
         const keys = event.data.keys || [];
-        if (keys.includes('Cognilot_memory_cache') || keys.includes('Cognilot_profile_cache')) {
+        if (keys.includes('Cognilot_memory_cache')) {
           console.log('🔄 [Memory Page] Extension cache updated, refreshing view...');
           memoryService.clearCache();
           void fetchProfile();
@@ -349,6 +349,9 @@ export default function MemoryPage() {
             }
             if (addr.road) {
               updates.address = `${addr.road} ${addr.house_number || ''}`.trim();
+            }
+            if (addr.postcode || addr.postal_code) {
+              updates.postal_code = addr.postcode || addr.postal_code;
             }
 
             const newData = {

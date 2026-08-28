@@ -24,13 +24,7 @@ export interface FieldResolution {
    * - 'existing_value'    → field already had a value when the page was scanned
    * - 'credentials_vault' → matched from the user's saved domain credentials
    */
-  source:
-    | 'memory'
-    | 'alias_cache'
-    | 'profile_cache'
-    | 'ai'
-    | 'existing_value'
-    | 'credentials_vault';
+  source: 'memory' | 'memory_cache' | 'alias_cache' | 'ai' | 'existing_value' | 'credentials_vault';
 
   /**
    * The underlying memory profile key (e.g. 'country', 'degree', 'given_name')

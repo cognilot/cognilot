@@ -181,9 +181,9 @@ export class PageScanner {
       return null;
     }
 
-    // ── Priority 1: Existing value (skip radio/checkbox — their .value is
-    //    the HTML value attribute, not user input) ──────────────────────────
-    const isChoice = type === 'radio' || type === 'checkbox';
+    // ── Priority 1: Existing value (skip radio/checkbox/select — their .value is
+    //    the HTML value attribute or default option, not user input) ──────────────────────────
+    const isChoice = type === 'radio' || type === 'checkbox' || type === 'select';
     if (!isChoice) {
       const existingValue = (field.node as any).value?.trim?.() ?? '';
       if (existingValue) {
@@ -327,15 +327,8 @@ export class PageScanner {
       const fieldOptions = Array.isArray(field.options) ? field.options : [];
       if (fieldOptions.length > 0) {
         try {
-          const storageResult = await this.sdk.adapters?.storage?.get([
-            'Cognilot_memory_cache',
-            'Cognilot_profile_cache',
-          ]);
-          const rawMem =
-            storageResult?.Cognilot_memory_cache ||
-            storageResult?.Cognilot_profile_cache ||
-            storageResult ||
-            {};
+          const storageResult = await this.sdk.adapters?.storage?.get(['Cognilot_memory_cache']);
+          const rawMem = storageResult?.Cognilot_memory_cache || storageResult || {};
           const memData = rawMem.data || rawMem.data_learned || rawMem;
 
           // Map from memory string -> memoryKey
@@ -359,7 +352,7 @@ export class PageScanner {
             return {
               value: matched.value,
               options: [matched.value],
-              source: 'profile_cache',
+              source: 'memory_cache',
               memoryKey: memToKey.get(matched.mem) || null,
             };
           }

@@ -275,6 +275,45 @@ export function paintChoiceGhost(element: HTMLElement, resolvedValues: string[])
   const tagName = (element.tagName || '').toLowerCase();
   const type = (element.getAttribute('type') || '').toLowerCase();
 
+  const normalize = (str: string) =>
+    str
+      .toLowerCase()
+      .trim()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '');
+
+  const normTargetVals = resolvedValues.map((v) => normalize(String(v)));
+
+  // 1. Handle single select element directly
+  if (tagName === 'select') {
+    const selectEl = element as HTMLSelectElement;
+    const options = Array.from(selectEl.options);
+
+    for (const opt of options) {
+      const optVal = normalize(opt.value || '');
+      const optText = normalize(opt.text || opt.textContent || '');
+
+      const isMatch = normTargetVals.some(
+        (tv) =>
+          tv === optVal ||
+          tv === optText ||
+          (tv.length >= 3 && optText.includes(tv)) ||
+          (optText.length >= 3 && tv.includes(optText))
+      );
+
+      if (isMatch && !opt.selected) {
+        opt.classList.add('Cognilot-ghost-choice-highlight');
+      } else {
+        opt.classList.remove('Cognilot-ghost-choice-highlight');
+      }
+    }
+
+    // Select element itself does NOT get choice highlight (only options)
+    selectEl.classList.remove('Cognilot-ghost-choice-highlight');
+    return;
+  }
+
+  // 2. Handle radio and checkbox inputs
   let inputs: HTMLInputElement[] = [];
   if (tagName === 'input' && (type === 'radio' || type === 'checkbox')) {
     const name = element.getAttribute('name');
@@ -286,16 +325,12 @@ export function paintChoiceGhost(element: HTMLElement, resolvedValues: string[])
     }
   } else {
     inputs = Array.from(element.querySelectorAll('input[type="radio"], input[type="checkbox"]'));
+    // Also process any child select elements if element is a container (form/div)
+    const childSelects = Array.from(element.querySelectorAll('select'));
+    for (const childSelect of childSelects) {
+      paintChoiceGhost(childSelect, resolvedValues);
+    }
   }
-
-  const normalize = (str: string) =>
-    str
-      .toLowerCase()
-      .trim()
-      .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '');
-
-  const normTargetVals = resolvedValues.map((v) => normalize(String(v)));
 
   for (const input of inputs) {
     const val = input.value || '';
@@ -320,11 +355,11 @@ export function paintChoiceGhost(element: HTMLElement, resolvedValues: string[])
 
     if (isMatch && !input.checked) {
       input.classList.add('Cognilot-ghost-choice-highlight');
-      if (labelEl) labelEl.classList.add('Cognilot-ghost-choice-label-highlight');
     } else {
       input.classList.remove('Cognilot-ghost-choice-highlight');
-      if (labelEl) labelEl.classList.remove('Cognilot-ghost-choice-label-highlight');
     }
+    // Clean any residual label highlight
+    if (labelEl) labelEl.classList.remove('Cognilot-ghost-choice-label-highlight');
   }
 }
 
@@ -342,8 +377,12 @@ export function clearChoiceGhost(element: HTMLElement): void {
     }
   }
 
-  const highlightedInputs = container.querySelectorAll('.Cognilot-ghost-choice-highlight');
-  highlightedInputs.forEach((el) => el.classList.remove('Cognilot-ghost-choice-highlight'));
+  if (container.classList?.contains('Cognilot-ghost-choice-highlight')) {
+    container.classList.remove('Cognilot-ghost-choice-highlight');
+  }
+
+  const highlighted = container.querySelectorAll('.Cognilot-ghost-choice-highlight');
+  highlighted.forEach((el) => el.classList.remove('Cognilot-ghost-choice-highlight'));
 
   const highlightedLabels = container.querySelectorAll('.Cognilot-ghost-choice-label-highlight');
   highlightedLabels.forEach((el) => el.classList.remove('Cognilot-ghost-choice-label-highlight'));

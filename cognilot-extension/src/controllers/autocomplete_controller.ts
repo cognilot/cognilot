@@ -606,6 +606,8 @@ function handleKeyboard(e: KeyboardEvent): void {
 
   // ACCEPT: Tab
   if (e.key === 'Tab' && !e.shiftKey) {
+    if (element.tagName.toLowerCase() === 'select') return;
+
     if (suggestion.isLoading || suggestion.isError || suggestion.isNoMatch) {
       clearUI(element);
       return;
@@ -674,22 +676,31 @@ export function init(): void {
 
   const focusHandler = ((e: FocusEvent): void => {
     const el = e.target as HTMLElement;
+    if (!el || !el.tagName) return;
+
     const isTextField = ['INPUT', 'TEXTAREA'].includes(el.tagName);
+    const type = (el.getAttribute('type') || '').toLowerCase();
+    const isChoice =
+      el.tagName === 'SELECT' || (el.tagName === 'INPUT' && ['radio', 'checkbox'].includes(type));
 
-    if (isTextField && !el._blockCognilotTrigger && EligibilityLib.isEligibleForTrigger(el, true)) {
-      const sdk = window.Cognilot?.SDK;
-      const matchedField = sdk?.facade?.matchField(el) || null;
-      const isFormContext = !!matchedField;
+    if ((isTextField || isChoice) && !el._blockCognilotTrigger) {
+      const isEligible = isChoice || EligibilityLib.isEligibleForTrigger(el, true);
+      if (isEligible) {
+        const sdk = window.Cognilot?.SDK;
+        const matchedField = sdk?.facade?.matchField(el) || null;
+        const isFormContext = !!matchedField;
 
-      CursorUI.paint(el, isFormContext);
-
-      (el as HTMLInputElement)._CognilotFocusValue = (el as HTMLInputElement).value;
-
-      if (isFormContext) {
-        if (el._CognilotSuggestion) {
-          updateUI(el, el._CognilotSuggestion);
+        if (isTextField && !isChoice) {
+          CursorUI.paint(el, isFormContext);
+          (el as HTMLInputElement)._CognilotFocusValue = (el as HTMLInputElement).value;
         }
-        handleAutocomplete(el);
+
+        if (isFormContext) {
+          if (el._CognilotSuggestion) {
+            updateUI(el, el._CognilotSuggestion);
+          }
+          handleAutocomplete(el);
+        }
       }
     }
   }) as EventListener;
@@ -803,6 +814,15 @@ export function init(): void {
     const isChoice = type === 'radio' || type === 'checkbox' || el.tagName === 'SELECT';
     if (!isChoice || el._blockCognilotTrigger) return;
 
+    if (el.tagName === 'SELECT') {
+      if (el._CognilotSuggestion) {
+        const opts = el._CognilotSuggestion.options || [];
+        GhostUI.paintChoiceGhost(el, opts);
+      } else {
+        GhostUI.clearChoiceGhost(el);
+      }
+    }
+
     const sdk = window.Cognilot?.SDK;
     const matchedField = sdk?.facade?.matchField(el) || null;
     if (matchedField) {
@@ -825,7 +845,7 @@ export function init(): void {
       `[AutocompleteController] ⚡ Batch prefetch completed for formScope: "${formScopeId}"`
     );
     const activeEl = document.activeElement as HTMLElement;
-    if (activeEl && ['INPUT', 'TEXTAREA'].includes(activeEl.tagName)) {
+    if (activeEl && ['INPUT', 'TEXTAREA', 'SELECT'].includes(activeEl.tagName)) {
       const sdk = window.Cognilot?.SDK;
       const activeEntry = sdk?.registry?.findByNode(activeEl);
       if (activeEntry && activeEntry.formScopeId === formScopeId) {
