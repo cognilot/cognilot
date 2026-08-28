@@ -150,7 +150,9 @@ export class DetectionEngine {
     const seenLabels = new Set<string>();
     const uniqueFields = filteredQuestions.filter((q: any) => {
       const normLabel = (q.text || q.metadata?.label || '').toLowerCase().trim();
-      const normName = (q.name || q.id || '').toLowerCase().trim();
+      const isArrayName = (n: string) => /\[\]|\[\d*\]/.test(n);
+      const rawName = q.name || '';
+      const normName = (!isArrayName(rawName) ? rawName : q.id || '').toLowerCase().trim();
       const labelKey = normLabel || normName;
 
       // If a field with identical label/name exists in this form container, skip duplicates

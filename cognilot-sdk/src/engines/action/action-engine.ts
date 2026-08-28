@@ -319,13 +319,16 @@ export class ActionEngine {
       const name = entry.name || attrName;
       const text = entry.text || entry.metadata?.label;
 
+      const isArrayName = (n: string) => /\[\]|\[\d*\]/.test(n);
       const keysToTry = [
         id ? `${domain}::${id}` : null,
-        name ? `${domain}::${name}` : null,
         text ? `${domain}::${text}` : null,
+        name && text && isArrayName(name) ? `${domain}::${name}::${text}` : null,
+        name && !isArrayName(name) ? `${domain}::${name}` : null,
         id || null,
-        name || null,
         text || null,
+        name && text && isArrayName(name) ? `${name}::${text}` : null,
+        name && !isArrayName(name) ? name : null,
       ].filter(Boolean) as string[];
 
       let cached: any = null;

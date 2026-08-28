@@ -35,6 +35,35 @@ export class SuggestionEngine {
     return password;
   }
 
+  public getUniqueFieldIdentifier(node: CognilotNode, metadata?: LabelMetadata | null): string {
+    const rawNode = node as any;
+    if (rawNode.id && typeof rawNode.id === 'string' && rawNode.id.trim()) {
+      return rawNode.id.trim();
+    }
+    const name =
+      (typeof rawNode.getAttribute === 'function' ? rawNode.getAttribute('name') : null) ||
+      rawNode.name ||
+      '';
+    const isArrayName = /\[\]|\[\d*\]/.test(name);
+    const label = metadata?.label?.trim() || '';
+
+    if (isArrayName && label) {
+      return `${name}::${label}`;
+    }
+    if (!isArrayName && name) {
+      return name;
+    }
+    if (label) {
+      return label;
+    }
+    const placeholder =
+      typeof rawNode.getAttribute === 'function' ? rawNode.getAttribute('placeholder') : '';
+    if (placeholder && placeholder.trim()) {
+      return placeholder.trim();
+    }
+    return 'unknown';
+  }
+
   /**
    * Handles a field trigger (e.g., focus or click) to fetch suggestions.
    */
@@ -136,8 +165,7 @@ export class SuggestionEngine {
 
     const globalContext = this.platform.getGlobalContext();
     const domain = globalContext?.location?.hostname || 'unknown';
-    const fieldIdentifier =
-      (node as any).id || (node as any).getAttribute('name') || metadata.label || 'unknown';
+    const fieldIdentifier = this.getUniqueFieldIdentifier(node, metadata);
     const cacheKey = `${domain}::${fieldIdentifier}`;
     const storage = this.sdk.adapters?.storage;
 
@@ -462,11 +490,7 @@ export class SuggestionEngine {
       const isCombobox = (item.node as any)?.getAttribute?.('role') === 'combobox';
       if (!isResolvableFieldType(fieldType) || isCombobox) continue;
 
-      const fieldIdentifier =
-        (item.node as any).id ||
-        (item.node as any).getAttribute('name') ||
-        item.metadata.label ||
-        'unknown';
+      const fieldIdentifier = this.getUniqueFieldIdentifier(item.node, item.metadata);
       const cacheKey = `${domain}::${fieldIdentifier}`;
 
       if (
@@ -633,15 +657,16 @@ export class SuggestionEngine {
             const name = rawNode?.name || nodeAttr;
             const label = p.item.metadata?.label;
 
+            const isArrayName = (n: string) => /\[\]|\[\d*\]/.test(n);
             const candidateLookupKeys = [
               p.key,
               p.fieldIdentifier,
               id ? `${domain}::${id}` : null,
-              name ? `${domain}::${name}` : null,
               label ? `${domain}::${label}` : null,
+              name && !isArrayName(name) ? `${domain}::${name}` : null,
               id || null,
-              name || null,
               label || null,
+              name && !isArrayName(name) ? name : null,
             ].filter(Boolean) as string[];
 
             let suggestion: any = null;

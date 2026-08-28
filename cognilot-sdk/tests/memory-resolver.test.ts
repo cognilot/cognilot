@@ -59,6 +59,39 @@ describe('MemoryResolver', () => {
     expect(result?.memoryKey).toBe('email');
   });
 
+  it('should match social profile and linkedin seed patterns', async () => {
+    await storage.set({
+      Cognilot_memory_cache: {
+        social_profile: ['https://github.com/jackaranaram'],
+        linkedin: ['https://linkedin.com/in/jackarana'],
+      },
+    });
+
+    const field1 = {
+      text: 'Link to social profile 1',
+      name: 'user[profile_social_accounts][][url]',
+      type: 'text',
+    } as any;
+
+    const result1 = await memoryResolver.resolve(field1);
+    expect(result1).not.toBeNull();
+    expect(result1?.success).toBe(true);
+    expect(result1?.suggestion.options).toContain('https://github.com/jackaranaram');
+    expect(result1?.memoryKey).toBe('social_profile');
+
+    const field2 = {
+      text: 'LinkedIn Profile URL',
+      name: 'linkedin_url',
+      type: 'text',
+    } as any;
+
+    const result2 = await memoryResolver.resolve(field2);
+    expect(result2).not.toBeNull();
+    expect(result2?.success).toBe(true);
+    expect(result2?.suggestion.options).toContain('https://linkedin.com/in/jackarana');
+    expect(result2?.memoryKey).toBe('linkedin');
+  });
+
   it('should match direct memory keys', async () => {
     await storage.set({
       Cognilot_memory_cache: {

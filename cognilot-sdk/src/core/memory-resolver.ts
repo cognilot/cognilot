@@ -73,6 +73,33 @@ export class MemoryResolver {
       ],
     },
     { memoryKey: 'degree', patterns: ['degree', 'carrera', 'título', 'titulo', 'diploma'] },
+    {
+      memoryKey: 'social_profile',
+      patterns: [
+        'social profile',
+        'social account',
+        'perfil social',
+        'redes sociales',
+        'social link',
+        'red social',
+      ],
+    },
+    {
+      memoryKey: 'linkedin',
+      patterns: ['linkedin', 'linked in'],
+    },
+    {
+      memoryKey: 'github',
+      patterns: ['github', 'git hub'],
+    },
+    {
+      memoryKey: 'twitter',
+      patterns: ['twitter', 'x.com', 'cuenta de x'],
+    },
+    {
+      memoryKey: 'portfolio',
+      patterns: ['portfolio', 'portafolio', 'website', 'sitio web', 'blog', 'personal site'],
+    },
   ];
 
   constructor(sdk: CognilotSDK) {

@@ -266,4 +266,89 @@ describe('SuggestionEngine', () => {
       expect(sdk.alias.persistAlias).not.toHaveBeenCalled();
     });
   });
+
+  describe('Array name disambiguation (e.g. GitHub Social Accounts)', () => {
+    it('should generate unique field identifiers for array fields sharing the same name', () => {
+      const node1 = new MockNode('INPUT', '', {
+        name: 'user[profile_social_accounts][][url]',
+        'aria-label': 'Link to social profile 1',
+      });
+      const node2 = new MockNode('INPUT', '', {
+        name: 'user[profile_social_accounts][][url]',
+        'aria-label': 'Link to social profile 2',
+      });
+
+      const id1 = engine.getUniqueFieldIdentifier(node1, {
+        label: 'Link to social profile 1',
+        confidence: 0.95,
+        required: false,
+        source: 'aria-label',
+        helper_text: '',
+      });
+      const id2 = engine.getUniqueFieldIdentifier(node2, {
+        label: 'Link to social profile 2',
+        confidence: 0.95,
+        required: false,
+        source: 'aria-label',
+        helper_text: '',
+      });
+
+      expect(id1).toBe('user[profile_social_accounts][][url]::Link to social profile 1');
+      expect(id2).toBe('user[profile_social_accounts][][url]::Link to social profile 2');
+      expect(id1).not.toBe(id2);
+    });
+
+    it('should prefetch distinct suggestions for multiple array fields with same name', async () => {
+      const node1 = new MockNode('INPUT', '', {
+        name: 'user[profile_social_accounts][][url]',
+        'aria-label': 'Link to social profile 1',
+      });
+      const node2 = new MockNode('INPUT', '', {
+        name: 'user[profile_social_accounts][][url]',
+        'aria-label': 'Link to social profile 2',
+      });
+
+      const meta1 = {
+        label: 'Link to social profile 1',
+        confidence: 0.95,
+        required: false,
+        source: 'aria-label',
+        helper_text: '',
+      };
+      const meta2 = {
+        label: 'Link to social profile 2',
+        confidence: 0.95,
+        required: false,
+        source: 'aria-label',
+        helper_text: '',
+      };
+
+      const key1 = 'localhost::user[profile_social_accounts][][url]::Link to social profile 1';
+      const key2 = 'localhost::user[profile_social_accounts][][url]::Link to social profile 2';
+
+      sdk.apiClient.request.mockResolvedValueOnce({
+        ok: true,
+        results: {
+          [key1]: { value: 'https://linkedin.com/in/jack', type: 'discrete' },
+          [key2]: { value: 'https://twitter.com/jack', type: 'discrete' },
+        },
+      });
+
+      await engine.prefetchBatch([
+        { node: node1, metadata: meta1 },
+        { node: node2, metadata: meta2 },
+      ]);
+
+      expect(sdk.apiClient.request).toHaveBeenCalledWith(
+        '/api/suggestions/batch',
+        expect.objectContaining({
+          questions: expect.arrayContaining([
+            expect.objectContaining({ key: key1 }),
+            expect.objectContaining({ key: key2 }),
+          ]),
+        }),
+        'SuggestionEngine'
+      );
+    });
+  });
 });

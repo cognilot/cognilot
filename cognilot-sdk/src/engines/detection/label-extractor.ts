@@ -369,10 +369,33 @@ export class LabelExtractor {
 
     if (el.id) return `#${escape(el.id)}`;
 
-    const CognilotId = el.getAttribute('data-Cognilot-id');
-    if (CognilotId) return `[data-Cognilot-id="${escape(CognilotId)}"]`;
+    const cognilotId = el.getAttribute('data-Cognilot-id') || el.getAttribute('data-cognilot-id');
+    if (cognilotId) return `[data-Cognilot-id="${escape(cognilotId)}"]`;
 
-    if (el.name) return `[name="${escape(el.name)}"]`;
+    const name = el.name || el.getAttribute('name');
+    const ariaLabel = el.getAttribute('aria-label');
+    const placeholder = el.getAttribute('placeholder');
+    const isArrayName = name && /\[\]|\[\d*\]/.test(name);
+
+    if (name && !isArrayName) return `[name="${escape(name)}"]`;
+
+    if (name && isArrayName) {
+      if (ariaLabel) {
+        return `[name="${escape(name)}"][aria-label="${escape(ariaLabel)}"]`;
+      }
+      if (placeholder) {
+        return `[name="${escape(name)}"][placeholder="${escape(placeholder)}"]`;
+      }
+      return `[name="${escape(name)}"]`;
+    }
+
+    if (ariaLabel) {
+      return `${el.tagName.toLowerCase()}[aria-label="${escape(ariaLabel)}"]`;
+    }
+
+    if (placeholder) {
+      return `${el.tagName.toLowerCase()}[placeholder="${escape(placeholder)}"]`;
+    }
 
     const tag = el.tagName.toLowerCase();
     const classes = el.className
