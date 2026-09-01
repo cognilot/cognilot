@@ -119,4 +119,109 @@ describe('ActionEngine', () => {
       { id: 'combo', success: true, answer: 'Omitido (Solo detección)' },
     ]);
   });
+
+  it('should sanitize and clamp numeric values within min and max in _applySuggestion', async () => {
+    const numNode = new MockNode('INPUT', '', {
+      type: 'number',
+      min: '1000',
+      max: '50000',
+    });
+
+    // Test sanitization of currency and commas
+    await (engine as any)._applySuggestion(numNode, '$35,000 USD');
+    expect(numNode.setValue).toHaveBeenCalledWith('35000');
+
+    // Test clamping above max
+    await (engine as any)._applySuggestion(numNode, '75000');
+    expect(numNode.setValue).toHaveBeenCalledWith('50000');
+
+    // Test clamping below min
+    await (engine as any)._applySuggestion(numNode, '500');
+    expect(numNode.setValue).toHaveBeenCalledWith('1000');
+  });
+
+  it('should defensively truncate values exceeding maxlength in _applySuggestion', async () => {
+    const textNode = new MockNode('INPUT', '', {
+      type: 'text',
+      maxlength: '5',
+    });
+
+    await (engine as any)._applySuggestion(textNode, '1234567890');
+    expect(textNode.setValue).toHaveBeenCalledWith('12345');
+  });
+
+  it('should handle file trigger and apply file with valid pdf extension', async () => {
+    const rawInput = {
+      type: 'file',
+      getAttribute: (attr: string) => (attr === 'accept' ? '.pdf' : null),
+      files: null as any,
+      dispatchEvent: vi.fn(),
+    };
+
+    const fileNode = new MockNode('INPUT', '', { type: 'file', accept: '.pdf' });
+    fileNode.getRawNode = vi.fn().mockReturnValue(rawInput);
+
+    class MockDT {
+      files: any[] = [];
+      items = {
+        add: (f: any) => this.files.push(f),
+      };
+    }
+    const originalDT = (global as any).DataTransfer;
+    (global as any).DataTransfer = MockDT;
+
+    sdk.registry.findByNode.mockReturnValue({
+      id: 'cv-upload',
+      type: 'file',
+      resolution: {
+        value: 'my_resume.pdf',
+        options: ['my_resume.pdf'],
+        source: 'memory',
+        memoryKey: 'cv_file_name',
+      },
+      status: 'resolved',
+    });
+
+    try {
+      const result = await engine.handleTrigger(fileNode as any);
+      expect(result.success).toBe(true);
+      expect(result.value).toBe('my_resume.pdf');
+      expect(rawInput.files?.length).toBe(1);
+      expect(rawInput.files?.[0].name).toBe('my_resume.pdf');
+    } finally {
+      (global as any).DataTransfer = originalDT;
+    }
+  });
+
+  it('should append accept extension if provided filename lacks extension in _applyFileInput', async () => {
+    const rawInput = {
+      type: 'file',
+      getAttribute: (attr: string) => (attr === 'accept' ? '.pdf' : null),
+      files: null as any,
+      dispatchEvent: vi.fn(),
+    };
+
+    const fileNode = new MockNode('INPUT', '', { type: 'file', accept: '.pdf' });
+    fileNode.getRawNode = vi.fn().mockReturnValue(rawInput);
+
+    class MockDT {
+      files: any[] = [];
+      items = {
+        add: (f: any) => this.files.push(f),
+      };
+    }
+    const originalDT = (global as any).DataTransfer;
+    (global as any).DataTransfer = MockDT;
+
+    try {
+      const success = await (engine as any)._applyFileInput(fileNode, {
+        name: 'CV (Hoja de vida)',
+      });
+      expect(success).toBe(true);
+      expect(rawInput.files?.length).toBe(1);
+      expect(rawInput.files?.[0].name).toBe('CV (Hoja de vida).pdf');
+    } finally {
+      (global as any).DataTransfer = originalDT;
+    }
+  });
 });

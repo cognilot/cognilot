@@ -9,7 +9,7 @@ Este documento define el esquema físico y relacional de la base de datos de **C
 
 ## 🗺️ Diagrama de Entidad-Relación (ERD)
 
-El siguiente modelo describe la relación de los datos de usuario, perfiles de aprendizaje dinámicos y alias guardados:
+El siguiente modelo describe la relación de los datos de usuario, memorias de aprendizaje y consumo de créditos:
 
 ```mermaid
 erDiagram
@@ -20,20 +20,11 @@ erDiagram
         timestamp created_at
         timestamp updated_at
     }
-    USER_PROFILES {
+    MEMORIES {
         uuid user_id PK, FK
-        jsonb data_learned
+        jsonb data
         text cv_raw_text
         timestamp onboarding_completed
-        timestamp updated_at
-    }
-    ALIASES {
-        uuid id PK
-        uuid user_id FK
-        string label
-        string value
-        string category
-        timestamp created_at
         timestamp updated_at
     }
     USAGE_CREDITS {
@@ -43,12 +34,11 @@ erDiagram
         string date
     }
 
-    USERS ||--|| USER_PROFILES : "posee"
-    USERS ||--o{ ALIASES : "registra"
+    USERS ||--|| MEMORIES : "posee"
     USERS ||--o{ USAGE_CREDITS : "consume"
 ```
 
-> **Decisión:** Se usa `JSONB` para `data_learned` en `user_profiles` para soportar un perfil dinámico que crece sin migraciones cada vez que la IA aprende un nuevo tipo de dato del usuario.
+> **Decisión:** Se usa `JSONB` para la columna `data` en `memories` para soportar una memoria dinámica del usuario que evoluciona sin migraciones de esquema cada vez que el sistema aprende nuevos datos.
 
 ---
 
@@ -68,33 +58,23 @@ Almacena la identidad y plan básico del usuario registrado.
 
 **TypeScript Type (Drizzle):** `User` — exportado desde `@cognilot/api/src/db/schema.ts`
 
-### 2. Tabla `user_profiles`
+### 2. Tabla `memories`
 
 Almacena el conocimiento e información estructurada del usuario aprendida pasiva o activamente.
 
-| Campo                  | Tipo        | Restricciones                          | Descripción                                                                                 |
-| :--------------------- | :---------- | :------------------------------------- | :------------------------------------------------------------------------------------------ |
-| `user_id`              | `uuid`      | `PRIMARY KEY`, `FK → users.id CASCADE` | Identificador del usuario dueño del perfil.                                                 |
-| `data_learned`         | `jsonb`     | `DEFAULT '{}'`, `NOT NULL`             | Datos de perfil estructurados por la IA (Ej: `{"full_name": "Jack", "skills": ["React"]}`). |
-| `cv_raw_text`          | `text`      | `NULLABLE`                             | Texto crudo del CV del usuario, para reparsear si es necesario.                             |
-| `onboarding_completed` | `timestamp` | `NULLABLE`                             | Fecha en que el usuario completó el onboarding. `NULL` si incompleto.                       |
-| `updated_at`           | `timestamp` | `DEFAULT now()`                        | Última actualización del perfil.                                                            |
+| Campo                  | Tipo        | Restricciones                          | Descripción                                                                                        |
+| :--------------------- | :---------- | :------------------------------------- | :------------------------------------------------------------------------------------------------- |
+| `user_id`              | `uuid`      | `PRIMARY KEY`, `FK → users.id CASCADE` | Identificador del usuario dueño de la memoria.                                                     |
+| `data`                 | `jsonb`     | `DEFAULT '{}'`, `NOT NULL`             | Datos estructurados en memoria (Ej: `{"full_name": ["Jack"], "skills": ["React", "TypeScript"]}`). |
+| `cv_raw_text`          | `text`      | `NULLABLE`                             | Texto crudo del CV del usuario, para reparsear si es necesario.                                    |
+| `onboarding_completed` | `timestamp` | `NULLABLE`                             | Fecha en que el usuario completó el onboarding. `NULL` si incompleto.                              |
+| `updated_at`           | `timestamp` | `DEFAULT now()`                        | Última actualización de la memoria.                                                                |
 
-### 3. Tabla `aliases`
-
-Almacena valores manuales rápidos mapeados por el usuario para atajos de llenado.
-
-| Campo        | Tipo           | Restricciones                              | Descripción                                          |
-| :----------- | :------------- | :----------------------------------------- | :--------------------------------------------------- |
-| `id`         | `uuid`         | `PRIMARY KEY`, `DEFAULT gen_random_uuid()` | Identificador del alias.                             |
-| `user_id`    | `uuid`         | `FOREIGN KEY (users.id)`, `NOT NULL`       | ID del usuario dueño del alias.                      |
-| `label`      | `varchar(255)` | `NOT NULL`                                 | Etiqueta del alias (Ej: "dni", "tarjeta_frecuente"). |
-| `value`      | `text`         | `NOT NULL`                                 | Valor que debe autocompletarse.                      |
-| `created_at` | `timestamp`    | `DEFAULT now()`                            | Fecha de registro.                                   |
+**TypeScript Type (Drizzle):** `Memory` — exportado desde `@cognilot/api/src/db/schema.ts`
 
 ---
 
-### 4. Tabla `usage_credits` (MVP — Rate Limiting)
+### 3. Tabla `usage_credits` (MVP — Rate Limiting)
 
 Rastrea el uso diario de créditos por usuario para el plan Free.
 
@@ -111,7 +91,7 @@ Rastrea el uso diario de créditos por usuario para el plan Free.
 
 ## 🗺️ Tablas de Alcance Futuro (Post-MVP)
 
-### 5. Tabla `commands`
+### 4. Tabla `commands`
 
 Almacenará las plantillas de prompts de las habilidades personalizadas agregadas por el usuario desde el panel web.
 

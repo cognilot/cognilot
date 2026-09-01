@@ -150,7 +150,9 @@ export class DetectionEngine {
     const seenLabels = new Set<string>();
     const uniqueFields = filteredQuestions.filter((q: any) => {
       const normLabel = (q.text || q.metadata?.label || '').toLowerCase().trim();
-      const normName = (q.name || q.id || '').toLowerCase().trim();
+      const isArrayName = (n: string) => /\[\]|\[\d*\]/.test(n);
+      const rawName = q.name || '';
+      const normName = (!isArrayName(rawName) ? rawName : q.id || '').toLowerCase().trim();
       const labelKey = normLabel || normName;
 
       // If a field with identical label/name exists in this form container, skip duplicates
@@ -345,7 +347,13 @@ export class DetectionEngine {
         usedIds.add(uniqueId);
 
         let resolution: any = null;
-        const isResolvable = isResolvableFieldType(cleanType);
+        const rawNode =
+          typeof (el as any).getRawNode === 'function' ? (el as any).getRawNode() : (el as any);
+        const isDisabled =
+          el.getAttribute('disabled') !== null ||
+          el.getAttribute('aria-disabled') === 'true' ||
+          rawNode?.disabled === true;
+        const isResolvable = isResolvableFieldType(cleanType) && !isDisabled;
         let status: 'pending' | 'resolved' | 'detected' = isResolvable ? 'pending' : 'detected';
 
         if (isResolvable && cleanType === 'password') {

@@ -27,15 +27,19 @@ interface ProxyResponse {
 
 export function normalizeLabel(text: string, toLower = false): string {
   const raw = String(text || '');
-  const asteriskIdx = raw.indexOf('*');
-  const stripped =
-    asteriskIdx > 0 ? raw.substring(0, asteriskIdx) : asteriskIdx === 0 ? raw.substring(1) : raw;
-  const normalized = stripped
+  const cleaned = raw
+    .replace(
+      /\s*[([{\s*[*•·-]?\s*(obligatorio|requerido|required|mandatory)?\s*[*•·-]?\s*[)\]}]/gi,
+      ''
+    )
+    .replace(/\s*[([{\s*[*•·-]+\s*[)\]}]?/gi, '')
+    .replace(/\*/g, '')
     .replace(/:/g, '')
     .replace(/[\u200B-\u200D\uFEFF]/g, '')
     .replace(/\s+/g, ' ')
+    .replace(/\s*[([{:/-]\s*$/, '')
     .trim();
-  return toLower ? normalized.toLowerCase() : normalized;
+  return toLower ? cleaned.toLowerCase() : cleaned;
 }
 
 export function getCleanLabelFromQuestion(q: Partial<QuestionLike>): string {

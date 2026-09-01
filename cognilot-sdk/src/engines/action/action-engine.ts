@@ -1,6 +1,7 @@
 import { CognilotSDK } from '../../index';
 import { PlatformAdapter, CognilotNode } from '../../platforms/interface';
 import { FieldRegistryEntry, isResolvableFieldType } from '../../contracts/field-registry-entry';
+import { LabelExtractor } from '../detection/label-extractor';
 
 /**
  * ActionEngine
@@ -10,10 +11,12 @@ import { FieldRegistryEntry, isResolvableFieldType } from '../../contracts/field
 export class ActionEngine {
   private sdk: CognilotSDK;
   private platform: PlatformAdapter;
+  private labelExtractor: LabelExtractor;
 
   constructor(sdk: CognilotSDK) {
     this.sdk = sdk;
     this.platform = sdk.platform;
+    this.labelExtractor = new LabelExtractor(sdk.platform);
   }
 
   private _prefetchedScopes: Set<string> = new Set();
@@ -45,18 +48,40 @@ export class ActionEngine {
 
     const type = (node.type || '').toLowerCase();
     const tagName = node.tagName.toLowerCase();
-    const isCombobox = (node as any).getAttribute?.('role') === 'combobox';
+    const role = (node as any).getAttribute?.('role');
+    const isCombobox =
+      role === 'combobox' || (node as any).getAttribute?.('aria-autocomplete') !== null;
 
-    if (!isResolvableFieldType(type) || isCombobox) {
-      return { error: `Field is detection-only (${type || 'combobox'}) and cannot be resolved` };
+    if (!isResolvableFieldType(type)) {
+      return { error: `Field is detection-only (${type}) and cannot be resolved` };
     }
-
-    const isChoice = ['radio', 'checkbox', 'select'].includes(type) || tagName === 'select';
-
-    console.log(`[ActionEngine] Trigger: ${tagName}[type="${type}"] isChoice=${isChoice}`);
 
     // ── Registry lookup ──────────────────────────────────────────────────────
     const entry = this.sdk.registry.findByNode(node.getRawNode());
+
+    if (type === 'file') {
+      const fileName = entry?.resolution?.value || 'cv_candidato.pdf';
+      const fileApplied = await this._applyFileInput(node, { name: fileName });
+      return {
+        success: fileApplied,
+        value: fileName,
+        source: 'memory',
+        type: 'discrete',
+      };
+    }
+
+    let isChoice = ['radio', 'checkbox', 'select'].includes(type) || tagName === 'select';
+    if (!isChoice && (isCombobox || type === 'autocomplete')) {
+      const liveOptions = this.labelExtractor.collectChoiceOptions(node) || [];
+      if (liveOptions.length > 0 || (entry?.options && entry.options.length > 0)) {
+        isChoice = true;
+        if (entry && (!entry.options || entry.options.length === 0)) {
+          entry.options = liveOptions;
+        }
+      }
+    }
+
+    console.log(`[ActionEngine] Trigger: ${tagName}[type="${type}"] isChoice=${isChoice}`);
 
     if (entry && !options?.clipboard) {
       // If the field was resolved from an existing value, but is now empty,
@@ -85,10 +110,14 @@ export class ActionEngine {
             ? {
                 success: true,
                 value: entry.resolution?.value ?? '',
-                options: entry.resolution?.options ?? [],
-                source: entry.resolution?.source ?? 'alias_cache',
+                options: entry.resolution?.options?.length
+                  ? entry.resolution.options
+                  : [entry.resolution?.value ?? ''],
+                allChoices: entry.options || [],
+                _allOptions: entry.options || [],
+                source: entry.resolution?.source ?? 'memory',
                 field: entry.metadata,
-                type: 'discrete',
+                type: isChoice ? 'discrete' : 'text',
               }
             : null;
 
@@ -108,22 +137,47 @@ export class ActionEngine {
           `[ActionEngine] CASE B — Registry hit (pending) for "${entry.text}". Calling AI...`
         );
 
-        let aiResult;
+        let aiResult: any;
         if (isChoice) {
           aiResult = await this.sdk.decision.handleTrigger(node);
+          const allExtractedChoices =
+            entry?.options && entry.options.length > 0
+              ? entry.options
+              : this.labelExtractor.collectChoiceOptions(node) || [];
+          if (
+            aiResult &&
+            !aiResult.error &&
+            (Array.isArray(aiResult.selected_values) || aiResult.value)
+          ) {
+            const resVal = aiResult.selected_values?.[0] || aiResult.value || '';
+            aiResult = {
+              success: true,
+              value: resVal,
+              options: aiResult.selected_values || [resVal],
+              allChoices: allExtractedChoices,
+              _allOptions: allExtractedChoices,
+              selected_values: aiResult.selected_values || [resVal],
+              selected_indices: aiResult.selected_indices,
+              ghost_indices: aiResult.ghost_indices,
+              source: aiResult.source || 'ai',
+              type: 'discrete',
+            };
+          }
         } else {
           aiResult = await this.sdk.suggestion.handleTrigger(node, options);
         }
 
         // Update registry with the AI result
         if (aiResult && !aiResult.error) {
+          if (isChoice && aiResult.allChoices && aiResult.allChoices.length > 0) {
+            entry.options = aiResult.allChoices;
+          }
+          const resVal = isChoice
+            ? aiResult.selected_values?.[0] || aiResult.value || 'Selected'
+            : (aiResult.value ?? null);
           this.sdk.registry.updateResolution(entry.id, {
-            value: isChoice
-              ? aiResult.selected_values?.[0] || 'Selected'
-              : (aiResult.value ?? null),
-            options: isChoice
-              ? aiResult.selected_values || []
-              : (aiResult.options ?? (aiResult.value ? [aiResult.value] : [])),
+            value: resVal,
+            options: [resVal].filter(Boolean),
             source: 'ai',
           });
         } else {
@@ -143,7 +197,19 @@ export class ActionEngine {
 
     // ── CASE C: Not in registry (or forced via clipboard) ────────────────────
     console.log(`[ActionEngine] Running AI trigger (options passed)...`);
-    const aiResult = await this._handleUnregisteredField(node, isChoice, options);
+    let aiResult: any = await this._handleUnregisteredField(node, isChoice, options);
+    if (isChoice && aiResult && !aiResult.error && Array.isArray(aiResult.selected_values)) {
+      aiResult = {
+        success: true,
+        value: aiResult.selected_values[0] || '',
+        options: aiResult.selected_values || [],
+        selected_values: aiResult.selected_values,
+        selected_indices: aiResult.selected_indices,
+        ghost_indices: aiResult.ghost_indices,
+        source: aiResult.source || 'ai',
+        type: 'discrete',
+      };
+    }
 
     if (entry && entry.belongsToForm && entry.formScopeId) {
       this._prefetchFormScope(entry.formScopeId, node, options).catch((err) =>
@@ -160,9 +226,24 @@ export class ActionEngine {
    * Registers the resolved field in the FieldRegistry for future instant access.
    */
   private async _handleUnregisteredField(node: CognilotNode, isChoice: boolean, options: any = {}) {
-    let result;
+    let result: any;
     if (isChoice) {
       result = await this.sdk.decision.handleTrigger(node);
+      const allExtractedChoices = this.labelExtractor.collectChoiceOptions(node) || [];
+      if (result && !result.error && Array.isArray(result.selected_values)) {
+        result = {
+          success: true,
+          value: result.selected_values[0] || '',
+          options: result.selected_values || [],
+          allChoices: allExtractedChoices,
+          _allOptions: allExtractedChoices,
+          selected_values: result.selected_values,
+          selected_indices: result.selected_indices,
+          ghost_indices: result.ghost_indices,
+          source: result.source || 'ai',
+          type: 'discrete',
+        };
+      }
     } else {
       result = await this.sdk.suggestion.handleTrigger(node, options);
     }
@@ -170,7 +251,7 @@ export class ActionEngine {
     // Opportunistically register so the next click is instant
     if (result && !result.error) {
       const metadata = this.sdk.detection.getFieldMetadata(node);
-      const selector = (this.sdk.detection as any).extractor?.buildFallbackSelector(node) ?? '';
+      const selector = this.labelExtractor.buildFallbackSelector(node) ?? '';
       const stableId = node.id || `Cognilot-dynamic-${Date.now()}`;
 
       const dynamicEntry: FieldRegistryEntry = {
@@ -181,7 +262,7 @@ export class ActionEngine {
         text: metadata?.label || '',
         placeholder: node.getAttribute('placeholder') || '',
         required: metadata?.required || false,
-        options: [],
+        options: isChoice ? result.allChoices || [] : [],
         ref_id: '',
         section_ref_id: '',
         metadata: metadata || ({} as any),
@@ -201,6 +282,30 @@ export class ActionEngine {
     }
 
     return result;
+  }
+
+  /**
+   * Clears prefetched scopes tracking and persistent caches to allow
+   * full re-resolution when the user switches context (e.g. toggling clipboard/CV).
+   */
+  async invalidatePrefetchCache(): Promise<void> {
+    this._prefetchedScopes.clear();
+    await this.sdk.suggestion?.clearCache?.();
+    await this.sdk.decision?.clearCache?.();
+    console.log(
+      '[ActionEngine] 🔄 Prefetch cache invalidated across suggestion and decision engines.'
+    );
+  }
+
+  /**
+   * Public prefetch wrapper for external triggers (like context toggles).
+   */
+  async prefetchFormScope(
+    formScopeId: string,
+    activeNode: CognilotNode,
+    options: any = {}
+  ): Promise<void> {
+    return this._prefetchFormScope(formScopeId, activeNode, options);
   }
 
   /**
@@ -234,18 +339,32 @@ export class ActionEngine {
     );
 
     // Separate by engine type (resolvable only)
-    const textFields = pendingFields
-      .filter(
-        (f) =>
-          !['radio', 'checkbox', 'select'].includes(f.type) &&
-          isResolvableFieldType(f.type) &&
-          f.resolvable !== false
-      )
-      .map((f) => ({ node: f.node, metadata: f.metadata }));
+    const choiceFields = pendingFields.filter((f) => {
+      const type = (f.type || '').toLowerCase();
+      const role = (f.node as any)?.getAttribute?.('role');
+      const isCombobox =
+        role === 'combobox' || (f.node as any)?.getAttribute?.('aria-autocomplete') !== null;
+      const isSelect = ['radio', 'checkbox', 'select'].includes(type);
+      const isAutocompleteWithChoices =
+        (type === 'autocomplete' || isCombobox) && Array.isArray(f.options) && f.options.length > 0;
+      return isSelect || isAutocompleteWithChoices;
+    });
 
-    const choiceFields = pendingFields.filter((f) =>
-      ['radio', 'checkbox', 'select'].includes(f.type)
-    );
+    const textFields = pendingFields
+      .filter((f) => {
+        const type = (f.type || '').toLowerCase();
+        const role = (f.node as any)?.getAttribute?.('role');
+        const isCombobox =
+          role === 'combobox' || (f.node as any)?.getAttribute?.('aria-autocomplete') !== null;
+        const isSelect = ['radio', 'checkbox', 'select'].includes(type);
+        const isAutocompleteWithChoices =
+          (type === 'autocomplete' || isCombobox) &&
+          Array.isArray(f.options) &&
+          f.options.length > 0;
+        if (isSelect || isAutocompleteWithChoices) return false;
+        return isResolvableFieldType(type) && f.resolvable !== false;
+      })
+      .map((f) => ({ node: f.node, metadata: f.metadata }));
 
     // Fire batch requests (fire & forget from the caller's perspective)
     const batchPromises: Promise<any>[] = [];
@@ -258,7 +377,7 @@ export class ActionEngine {
             this._syncBatchResultsToRegistry(
               pendingFields.filter(
                 (f) =>
-                  !['radio', 'checkbox', 'select'].includes(f.type) &&
+                  !choiceFields.some((cf) => cf.id === f.id) &&
                   isResolvableFieldType(f.type) &&
                   f.resolvable !== false
               )
@@ -270,9 +389,7 @@ export class ActionEngine {
       if (choiceFields.length > 0) {
         batchPromises.push(
           this.sdk.decision.prefetchBatch(choiceFields as any).then(() => {
-            this._syncDecisionBatchResultsToRegistry(
-              pendingFields.filter((f) => ['radio', 'checkbox', 'select'].includes(f.type))
-            );
+            this._syncDecisionBatchResultsToRegistry(choiceFields);
           })
         );
       }
@@ -319,13 +436,22 @@ export class ActionEngine {
       const name = entry.name || attrName;
       const text = entry.text || entry.metadata?.label;
 
+      const fieldIdentifier = (this.sdk.suggestion as any)?.getUniqueFieldIdentifier?.(
+        entry.node,
+        entry.metadata
+      );
+      const isArrayName = (n: string) => /\[\]|\[\d*\]/.test(n);
       const keysToTry = [
+        fieldIdentifier ? `${domain}::${fieldIdentifier}` : null,
+        fieldIdentifier || null,
         id ? `${domain}::${id}` : null,
-        name ? `${domain}::${name}` : null,
         text ? `${domain}::${text}` : null,
+        name && text && isArrayName(name) ? `${domain}::${name}::${text}` : null,
+        name && !isArrayName(name) ? `${domain}::${name}` : null,
         id || null,
-        name || null,
         text || null,
+        name && text && isArrayName(name) ? `${name}::${text}` : null,
+        name && !isArrayName(name) ? name : null,
       ].filter(Boolean) as string[];
 
       let cached: any = null;
@@ -360,18 +486,41 @@ export class ActionEngine {
     try {
       const cached = await storage.get('Cognilot_decisions_cache');
       const cachedDecisions = cached?.Cognilot_decisions_cache || cached || {};
+      const globalContext = this.platform.getGlobalContext();
+      const domain = (globalContext?.location?.hostname || '').toLowerCase();
 
       for (const entry of pendingEntries) {
         if (entry.status !== 'pending') continue;
-        const rawNode = entry.node?.getRawNode?.() as any;
+        const rawNode =
+          typeof (entry.node as any)?.getRawNode === 'function'
+            ? (entry.node as any).getRawNode()
+            : (entry.node as any);
+        const rawId = rawNode?.id;
         const attrName =
           rawNode && typeof rawNode.getAttribute === 'function'
             ? rawNode.getAttribute('name')
             : null;
         const name = entry.name || attrName;
+        const cleanName = name
+          ? name.replace(/\[|\]/g, '_').replace(/_+/g, '_').replace(/^_|_$/g, '')
+          : null;
+        const strippedCognilotId = entry.id
+          ? entry.id.replace(/^Cognilot-field-/i, '').replace(/-/g, '_')
+          : null;
         const text = entry.text || entry.metadata?.label;
 
-        const candidateKeys = [entry.id, name, text, entry.selector].filter(Boolean) as string[];
+        const candidateKeys = [
+          entry.id,
+          rawId,
+          strippedCognilotId,
+          name,
+          cleanName,
+          text,
+          entry.selector,
+          domain && entry.id ? `${domain}::${entry.id}` : null,
+          domain && text ? `${domain}::${text}` : null,
+          domain && (name || cleanName) ? `${domain}::${name || cleanName}` : null,
+        ].filter(Boolean) as string[];
 
         let decision: any = null;
         for (const key of candidateKeys) {
@@ -382,13 +531,21 @@ export class ActionEngine {
         }
 
         if (decision) {
+          const hasSelection =
+            Array.isArray(decision.selected_values) && decision.selected_values.length > 0;
+          if (!hasSelection) continue;
+
+          const cachedOptions = decision.allChoices || decision.options || [];
+          if (cachedOptions.length > 0 && (!entry.options || entry.options.length === 0)) {
+            entry.options = cachedOptions;
+          }
           console.log(
             `[ActionEngine] ✅ Synced decision prefetch result to FieldRegistry for "${text || entry.text}":`,
             decision.selected_values
           );
           this.sdk.registry.updateResolution(entry.id, {
-            value: decision.selected_values?.[0] || 'Selected',
-            options: decision.selected_values || [],
+            value: decision.selected_values[0],
+            options: [decision.selected_values[0]],
             source: 'ai',
           });
         }
@@ -479,22 +636,33 @@ export class ActionEngine {
     const textFields = questions.filter((q) => {
       const type = (q.type || '').toLowerCase();
       const tagName = (q.tagName || '').toLowerCase();
+      const role = (q.node as any)?.getAttribute?.('role');
+      const isCombobox =
+        role === 'combobox' || (q.node as any)?.getAttribute?.('aria-autocomplete') !== null;
       return (
-        !['radio', 'checkbox', 'select'].includes(type) &&
+        !['radio', 'checkbox', 'select', 'autocomplete'].includes(type) &&
+        !isCombobox &&
         tagName !== 'select' &&
-        isResolvableFieldType(type)
+        isResolvableFieldType(type) &&
+        q.status !== 'detected' &&
+        q.resolvable !== false
       );
     });
     const choiceFields = questions.filter((q) => {
       const type = (q.type || '').toLowerCase();
       const tagName = (q.tagName || '').toLowerCase();
-      return ['radio', 'checkbox', 'select'].includes(type) || tagName === 'select';
+      return (
+        (['radio', 'checkbox', 'select'].includes(type) || tagName === 'select') &&
+        isResolvableFieldType(type) &&
+        q.status !== 'detected' &&
+        q.resolvable !== false
+      );
     });
 
-    if (textFields.length > 0) {
+    if (textFields.length > 0 && typeof this.sdk.suggestion?.prefetchBatch === 'function') {
       await this.sdk.suggestion.prefetchBatch(textFields as any, options);
     }
-    if (choiceFields.length > 0) {
+    if (choiceFields.length > 0 && typeof this.sdk.decision?.prefetchBatch === 'function') {
       await this.sdk.decision.prefetchBatch(choiceFields as any);
     }
 
@@ -536,7 +704,14 @@ export class ActionEngine {
           const tagName = (q.tagName || '').toLowerCase();
           const isChoice = ['radio', 'checkbox', 'select'].includes(type) || tagName === 'select';
 
-          if (isChoice) {
+          if (type === 'file') {
+            success =
+              result.success ??
+              (await this._applyFileInput(q.node, {
+                name: typeof result.value === 'string' ? result.value : 'cv_candidato.pdf',
+              }));
+            answerValue = typeof result.value === 'string' ? result.value : 'CV Adjuntado';
+          } else if (isChoice) {
             success = await this._applyDecision(q.node, result);
             answerValue = result.selected_values?.[0] || 'Selected';
           } else if (result.value) {
@@ -625,9 +800,47 @@ export class ActionEngine {
       console.warn('[ActionEngine] _applySuggestion called with null node');
       return false;
     }
-    console.log(`[ActionEngine] Applying text: "${value}" to ${node.tagName}`);
+
+    let cleanValue = value;
+    const rawType = (node.type || (node.getAttribute?.('type') ?? '')).toLowerCase();
+
+    // 1. Numeric validation, sanitization & clamping
+    if (rawType === 'number') {
+      const sanitized = String(cleanValue).replace(/[^0-9.-]/g, '');
+      if (sanitized) {
+        let numVal = parseFloat(sanitized);
+        if (!isNaN(numVal)) {
+          const minAttr = node.getAttribute?.('min');
+          const maxAttr = node.getAttribute?.('max');
+          if (minAttr !== null && minAttr !== undefined && minAttr !== '') {
+            const minNum = parseFloat(minAttr);
+            if (!isNaN(minNum)) numVal = Math.max(minNum, numVal);
+          }
+          if (maxAttr !== null && maxAttr !== undefined && maxAttr !== '') {
+            const maxNum = parseFloat(maxAttr);
+            if (!isNaN(maxNum)) numVal = Math.min(maxNum, numVal);
+          }
+          cleanValue = String(numVal);
+        } else {
+          cleanValue = sanitized;
+        }
+      } else {
+        cleanValue = sanitized;
+      }
+    }
+
+    // 2. Maxlength defensive truncation
+    const maxlengthAttr = node.getAttribute?.('maxlength');
+    if (maxlengthAttr) {
+      const maxLen = parseInt(maxlengthAttr, 10);
+      if (!isNaN(maxLen) && maxLen > 0 && cleanValue.length > maxLen) {
+        cleanValue = cleanValue.slice(0, maxLen);
+      }
+    }
+
+    console.log(`[ActionEngine] Applying text: "${cleanValue}" to ${node.tagName}`);
     try {
-      await node.setValue(value);
+      await node.setValue(cleanValue);
       const raw = node.getRawNode<HTMLElement>();
       if (raw && typeof raw.dispatchEvent === 'function') {
         raw.dispatchEvent(new Event('input', { bubbles: true }));
@@ -638,6 +851,77 @@ export class ActionEngine {
       console.error('[ActionEngine] Failed to apply suggestion:', e);
       return false;
     }
+  }
+
+  private async _applyFileInput(
+    node: CognilotNode,
+    fileData?: { name?: string; type?: string; content?: Blob | string }
+  ): Promise<boolean> {
+    const raw = node.getRawNode<HTMLInputElement>();
+    if (!raw) return false;
+
+    try {
+      if (typeof DataTransfer !== 'undefined') {
+        const dt = new DataTransfer();
+        let fileName = (fileData?.name || 'cv_candidato.pdf').trim();
+
+        // Sanitize fileName: ensure it contains an extension matching accept attribute or fallback to .pdf
+        if (!fileName.includes('.')) {
+          const acceptAttr = raw.getAttribute?.('accept');
+          if (acceptAttr) {
+            const firstExt = acceptAttr.split(',')[0].trim();
+            fileName += firstExt.startsWith('.') ? firstExt : `.${firstExt}`;
+          } else {
+            fileName += '.pdf';
+          }
+        }
+
+        // Determine MIME type
+        let fileType = fileData?.type;
+        if (!fileType) {
+          const lower = fileName.toLowerCase();
+          if (lower.endsWith('.pdf')) {
+            fileType = 'application/pdf';
+          } else if (lower.endsWith('.docx')) {
+            fileType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+          } else if (lower.endsWith('.doc')) {
+            fileType = 'application/msword';
+          } else if (lower.endsWith('.png')) {
+            fileType = 'image/png';
+          } else if (lower.endsWith('.jpg') || lower.endsWith('.jpeg')) {
+            fileType = 'image/jpeg';
+          } else {
+            fileType = 'application/pdf';
+          }
+        }
+
+        const blobContent =
+          fileData?.content instanceof Blob
+            ? fileData.content
+            : new Blob(
+                [
+                  typeof fileData?.content === 'string'
+                    ? fileData.content
+                    : '%PDF-1.4 simulated CV document',
+                ],
+                { type: fileType }
+              );
+
+        const file = new File([blobContent], fileName, { type: fileType });
+        dt.items.add(file);
+        raw.files = dt.files;
+
+        raw.dispatchEvent?.(new Event('input', { bubbles: true }));
+        raw.dispatchEvent?.(new Event('change', { bubbles: true }));
+        console.log(
+          `[ActionEngine] ✅ Successfully applied file "${fileName}" to input[type="file"]`
+        );
+        return true;
+      }
+    } catch (err) {
+      console.warn('[ActionEngine] Failed to apply file to input:', err);
+    }
+    return false;
   }
 
   private async _applyDecision(node: CognilotNode, decision: any) {
@@ -792,6 +1076,67 @@ export class ActionEngine {
         } else if (resolvedVals[0]) {
           selectEl.value = resolvedVals[0];
           selectEl.dispatchEvent(new Event('change', { bubbles: true }));
+          return true;
+        }
+      } else {
+        // Autocomplete / Combobox support: click matching option in live portal if mounted, or update input value
+        const rawEl = node.getRawNode<HTMLInputElement>();
+        const resolvedVals: string[] =
+          Array.isArray(decision.selected_values) && decision.selected_values.length > 0
+            ? decision.selected_values.map(String)
+            : Array.isArray(decision.options) && decision.options.length > 0
+              ? decision.options.map(String)
+              : [String(decision.value)];
+        const targetVal = (resolvedVals[0] || '').trim();
+
+        if (targetVal) {
+          const doc = rawEl.ownerDocument || document;
+          const inputId = rawEl.id;
+          const controlsId = rawEl.getAttribute('aria-controls');
+          const listboxEl =
+            (controlsId ? doc.getElementById(controlsId) : null) ||
+            (inputId
+              ? doc.getElementById(`${inputId}-listbox`) || doc.getElementById(`${inputId}_list`)
+              : null) ||
+            doc.querySelector(
+              '.MuiAutocomplete-popper [role="listbox"], .p-autocomplete-panel [role="listbox"], .p-autocomplete-panel, .ant-select-dropdown, [data-radix-popper-content-wrapper] [role="listbox"], [role="listbox"]'
+            );
+
+          let optionClicked = false;
+          if (listboxEl) {
+            const options = Array.from(
+              listboxEl.querySelectorAll(
+                '[role="option"], .MuiAutocomplete-option, .p-autocomplete-item, li[role="option"]'
+              )
+            );
+            for (const opt of options) {
+              const optText = (opt.textContent || '').trim().toLowerCase();
+              const optVal = (
+                (opt as HTMLElement).getAttribute('data-value') ||
+                (opt as HTMLElement).getAttribute('data-val') ||
+                opt.getAttribute('value') ||
+                ''
+              )
+                .trim()
+                .toLowerCase();
+
+              if (
+                targetVal.toLowerCase() === optText ||
+                targetVal.toLowerCase() === optVal ||
+                optText.includes(targetVal.toLowerCase())
+              ) {
+                (opt as HTMLElement).click();
+                optionClicked = true;
+                break;
+              }
+            }
+          }
+
+          if (!optionClicked) {
+            rawEl.value = targetVal;
+            rawEl.dispatchEvent(new Event('input', { bubbles: true }));
+            rawEl.dispatchEvent(new Event('change', { bubbles: true }));
+          }
           return true;
         }
       }

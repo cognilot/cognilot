@@ -257,6 +257,7 @@ export class MockSDK {
   public detection: any;
   public suggestion: any;
   public apiClient: any;
+  public memory: any;
   public alias: any;
   public profile: any;
   public adapters: any;
@@ -285,6 +286,7 @@ export class MockSDK {
       handleTrigger: vi.fn(),
     };
     this.decision = {
+      handleTrigger: vi.fn(),
       handleDecision: vi.fn(),
       _resolveBestOption: vi.fn(),
     };
@@ -295,15 +297,17 @@ export class MockSDK {
     this.apiClient = {
       request: vi.fn().mockResolvedValue({ ok: true }),
     };
-    this.alias = {
+    this.memory = {
       resolve: vi.fn().mockResolvedValue({ success: false }),
+      enqueueLearning: vi.fn().mockResolvedValue(undefined),
       persistAlias: vi.fn().mockResolvedValue(undefined),
       clearSyncQueue: vi.fn(),
-    };
-    this.profile = {
-      resolve: vi.fn().mockResolvedValue({ success: false }),
       updateFromStandardizedData: vi.fn(),
+      getMemory: vi.fn().mockResolvedValue({}),
+      getProfile: vi.fn().mockResolvedValue({}),
     };
+    this.alias = this.memory;
+    this.profile = this.memory;
     this.adapters = {
       storage: { get: vi.fn().mockResolvedValue({}), set: vi.fn() },
       settings: {

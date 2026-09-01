@@ -15,6 +15,11 @@ export interface LabelMetadata {
   required: boolean;
   confidence: number;
   source: string | null;
+  min?: number | string | null;
+  max?: number | string | null;
+  step?: number | string | null;
+  maxlength?: number | null;
+  pattern?: string | null;
 }
 
 /**
@@ -257,6 +262,22 @@ export class LabelExtractor {
     candidates.sort((a, b) => b.score - a.score);
     const best = candidates.find((c) => c.text && c.text.trim().length >= 2);
 
+    const minAttr = element.getAttribute('min');
+    const maxAttr = element.getAttribute('max');
+    const stepAttr = element.getAttribute('step');
+    const maxlengthAttr = element.getAttribute('maxlength');
+    const patternAttr = element.getAttribute('pattern');
+
+    const min = minAttr !== null && minAttr !== undefined && minAttr !== '' ? minAttr : null;
+    const max = maxAttr !== null && maxAttr !== undefined && maxAttr !== '' ? maxAttr : null;
+    const step = stepAttr !== null && stepAttr !== undefined && stepAttr !== '' ? stepAttr : null;
+    const maxlength =
+      maxlengthAttr !== null && maxlengthAttr !== undefined && maxlengthAttr !== ''
+        ? parseInt(maxlengthAttr, 10)
+        : null;
+    const pattern =
+      patternAttr !== null && patternAttr !== undefined && patternAttr !== '' ? patternAttr : null;
+
     return {
       label: best ? this._cleanCandidateText(best.text) : null,
       labelElement: best ? best.element || null : null,
@@ -264,6 +285,11 @@ export class LabelExtractor {
       required,
       confidence: best ? Math.min(best.score / 100, 1.0) : 0,
       source: best ? best.source : null,
+      min: min !== null ? (isNaN(Number(min)) ? min : Number(min)) : null,
+      max: max !== null ? (isNaN(Number(max)) ? max : Number(max)) : null,
+      step: step !== null ? (isNaN(Number(step)) ? step : Number(step)) : null,
+      maxlength: maxlength !== null && !isNaN(maxlength) ? maxlength : null,
+      pattern,
     };
   }
 
@@ -298,7 +324,12 @@ export class LabelExtractor {
   private _cleanCandidateText(text: string): string {
     if (!text) return '';
     let cleaned = text
-      .split('*')[0]
+      .replace(
+        /\s*[\(\[\{]\s*[\*•·-]?\s*(obligatorio|requerido|required|mandatory)?\s*[\*•·-]?\s*[\)\]\}]/gi,
+        ''
+      )
+      .replace(/\s*[\(\[\{]\s*[\*•·-]+\s*[\)\]\}]?/gi, '')
+      .replace(/\*/g, '')
       .replace(/:/g, '')
       .replace(/[\u200B-\u200D\uFEFF]/g, '')
       .replace(/\s+/g, ' ')
@@ -310,11 +341,14 @@ export class LabelExtractor {
       ''
     );
 
+    cleaned = cleaned.replace(/\s*[\(\[\{:\-\/]\s*$/, '').trim();
+
     return LabelUtil.deduplicate(cleaned).trim();
   }
 
   public collectChoiceOptions(element: CognilotNode): any[] {
-    if (element.tagName.toLowerCase() === 'select') {
+    const tagName = element.tagName.toLowerCase();
+    if (tagName === 'select') {
       return element
         .querySelectorAll('option')
         .map((opt, i) => {
@@ -325,10 +359,15 @@ export class LabelExtractor {
         .filter((o) => o.text && !/selecciona|elige|choose|select|n\/a|-|--/i.test(o.text));
     }
 
-    // Autocomplete / combobox: try to extract options from live DOM (MUI, etc.)
+    // Autocomplete / combobox: try to extract options from live DOM (MUI, PrimeNG, Radix, AntD, etc.)
     const role = element.getAttribute('role');
-    if (role === 'combobox') {
+    const ariaAutocomplete = element.getAttribute('aria-autocomplete');
+    const isCombobox =
+      role === 'combobox' || ariaAutocomplete !== null || (element as any).type === 'autocomplete';
+
+    if (isCombobox) {
       const doc = this.adapter.getGlobalContext().document;
+      if (!doc) return [];
       const inputId = element.id;
       let listboxEl: Element | null = null;
 
@@ -343,17 +382,32 @@ export class LabelExtractor {
         listboxEl = doc.getElementById(`${inputId}-listbox`);
       }
 
-      // Strategy 3: scan all listboxes in the document for MUI Autocomplete popper
+      // Strategy 3: PrimeNG pattern — listbox id = input.id + "_list" or popup panel
+      if (!listboxEl && inputId) {
+        listboxEl = doc.getElementById(`${inputId}_list`);
+      }
+
+      // Strategy 4: scan all listboxes in the document for MUI / PrimeNG / AntD / Radix Autocomplete popper
       if (!listboxEl) {
-        listboxEl = doc.querySelector('.MuiAutocomplete-popper [role="listbox"]');
+        listboxEl = doc.querySelector(
+          '.MuiAutocomplete-popper [role="listbox"], .p-autocomplete-panel [role="listbox"], .p-autocomplete-panel, .ant-select-dropdown, [data-radix-popper-content-wrapper] [role="listbox"], [role="listbox"]'
+        );
       }
 
       if (listboxEl) {
-        const items = Array.from(listboxEl.querySelectorAll('[role="option"]'));
+        const items = Array.from(
+          listboxEl.querySelectorAll(
+            '[role="option"], .MuiAutocomplete-option, .p-autocomplete-item, li[role="option"]'
+          )
+        );
         return items
           .map((opt, i) => {
             const text = (opt.textContent || '').trim();
-            const value = (opt as HTMLElement).getAttribute('data-value') || text;
+            const value =
+              (opt as HTMLElement).getAttribute('data-value') ||
+              (opt as HTMLElement).getAttribute('data-val') ||
+              opt.getAttribute('value') ||
+              text;
             return text ? { text, value, index: i } : null;
           })
           .filter((o): o is { text: string; value: string; index: number } => o !== null);
@@ -369,10 +423,33 @@ export class LabelExtractor {
 
     if (el.id) return `#${escape(el.id)}`;
 
-    const CognilotId = el.getAttribute('data-Cognilot-id');
-    if (CognilotId) return `[data-Cognilot-id="${escape(CognilotId)}"]`;
+    const cognilotId = el.getAttribute('data-Cognilot-id') || el.getAttribute('data-cognilot-id');
+    if (cognilotId) return `[data-Cognilot-id="${escape(cognilotId)}"]`;
 
-    if (el.name) return `[name="${escape(el.name)}"]`;
+    const name = el.name || el.getAttribute('name');
+    const ariaLabel = el.getAttribute('aria-label');
+    const placeholder = el.getAttribute('placeholder');
+    const isArrayName = name && /\[\]|\[\d*\]/.test(name);
+
+    if (name && !isArrayName) return `[name="${escape(name)}"]`;
+
+    if (name && isArrayName) {
+      if (ariaLabel) {
+        return `[name="${escape(name)}"][aria-label="${escape(ariaLabel)}"]`;
+      }
+      if (placeholder) {
+        return `[name="${escape(name)}"][placeholder="${escape(placeholder)}"]`;
+      }
+      return `[name="${escape(name)}"]`;
+    }
+
+    if (ariaLabel) {
+      return `${el.tagName.toLowerCase()}[aria-label="${escape(ariaLabel)}"]`;
+    }
+
+    if (placeholder) {
+      return `${el.tagName.toLowerCase()}[placeholder="${escape(placeholder)}"]`;
+    }
 
     const tag = el.tagName.toLowerCase();
     const classes = el.className

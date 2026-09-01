@@ -7,8 +7,7 @@ import { DecisionEngine } from './engines/autocomplete/decision-engine';
 import { DetectionFacade } from './detection-facade';
 import { ApiClient } from './clients/api-client';
 import { PlanGuard } from './policy/plan-guard';
-import { AliasResolver } from './core/alias-resolver';
-import { ProfileResolver } from './core/profile-resolver';
+import { MemoryResolver } from './core/memory-resolver';
 import { FieldRegistry } from './core/field-registry';
 import { PageScanner } from './engines/detection/page-scanner';
 import { InferenceRouter } from './inference/InferenceRouter';
@@ -43,6 +42,7 @@ export * from './contracts/field-context';
 export * from './contracts/page-context';
 export { FieldRegistry } from './core/field-registry';
 export { PageScanner } from './engines/detection/page-scanner';
+export { MemoryResolver } from './core/memory-resolver';
 export type { PlatformAdapter, CognilotNode };
 
 // ── Inference Module ──────────────────────────────────────────────────────────
@@ -92,8 +92,16 @@ export class CognilotSDK {
   public suggestion: SuggestionEngine;
   /** @internal Processes choice-based decisions */
   public decision: DecisionEngine;
-  public alias: AliasResolver;
-  public profile: ProfileResolver;
+  /** @internal Resolves user memory and handles learning queue */
+  public memory: MemoryResolver;
+
+  // Backward compatibility accessors
+  public get alias(): MemoryResolver {
+    return this.memory;
+  }
+  public get profile(): MemoryResolver {
+    return this.memory;
+  }
 
   // Universal Suggestion — Phase 2
   /**
@@ -123,8 +131,7 @@ export class CognilotSDK {
     this.suggestion = new SuggestionEngine(this);
     this.action = new ActionEngine(this);
     this.decision = new DecisionEngine(this);
-    this.alias = new AliasResolver(this);
-    this.profile = new ProfileResolver(this);
+    this.memory = new MemoryResolver(this);
 
     // Universal Suggestion infrastructure
     this.registry = new FieldRegistry();
@@ -157,8 +164,8 @@ export class CognilotSDK {
         return { provider, apiKey, model };
       },
       getProfile: async () => {
-        if (!this.profile) return {};
-        return this.profile.getProfile();
+        if (!this.memory) return {};
+        return this.memory.getMemory();
       },
       templateManager: templateManager,
     });

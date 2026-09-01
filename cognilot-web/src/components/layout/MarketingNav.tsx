@@ -9,12 +9,11 @@ export function MarketingNav() {
           href="/home"
           className="font-mono text-white font-bold text-lg hover:opacity-80 transition-opacity"
         >
-          <span className="text-accent-violet">&gt;</span> <span>cognilot</span>
-          <span className="text-accent-cyan">_</span>
+          <span>&gt; cognilot_</span>
         </Link>
         <div className="flex items-center gap-6">
-          <Button variant="variable" asChild>
-            <Link href="/auth">sign_in</Link>
+          <Button variant="ghost" asChild>
+            <Link href="/auth">Sign In</Link>
           </Button>
           <Button variant="solid" asChild>
             <Link href="/auth?mode=signup">Get Started</Link>

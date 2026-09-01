@@ -19,13 +19,12 @@ export interface FieldResolution {
 
   /**
    * Where the resolution came from:
-   * - 'alias_cache'       → matched from the user's learned alias cache
-   * - 'profile_cache'     → matched from the user's profile data
+   * - 'memory'            → matched from the user's local memory cache
    * - 'ai'                → returned by the Cognilot AI backend
    * - 'existing_value'    → field already had a value when the page was scanned
    * - 'credentials_vault' → matched from the user's saved domain credentials
    */
-  source: 'alias_cache' | 'profile_cache' | 'ai' | 'existing_value' | 'credentials_vault';
+  source: 'memory' | 'memory_cache' | 'alias_cache' | 'ai' | 'existing_value' | 'credentials_vault';
 
   /**
    * The underlying memory profile key (e.g. 'country', 'degree', 'given_name')
@@ -34,8 +33,6 @@ export interface FieldResolution {
 }
 
 export const NON_RESOLVABLE_FIELD_TYPES = new Set([
-  'autocomplete',
-  'file',
   'search',
   'range',
   'color',

@@ -132,7 +132,7 @@ describe('GhostUI', () => {
     expect(tabBadge.style.display).toBe('none');
   });
 
-  it('should highlight matching radio/checkbox option and label with paintChoiceGhost', () => {
+  it('should highlight only the matching radio/checkbox input (and not the label) with paintChoiceGhost', () => {
     const radioContainer = document.createElement('div');
     radioContainer.innerHTML = `
       <label id="lbl-es"><input type="radio" name="lang" value="Spanish" id="radio-es"> Español</label>
@@ -147,8 +147,9 @@ describe('GhostUI', () => {
 
     GhostUI.paintChoiceGhost(radioContainer, ['Spanish']);
 
+    // Only input should be highlighted, label remains clean
     expect(radioEs.classList.contains('Cognilot-ghost-choice-highlight')).toBe(true);
-    expect(lblEs.classList.contains('Cognilot-ghost-choice-label-highlight')).toBe(true);
+    expect(lblEs.classList.contains('Cognilot-ghost-choice-label-highlight')).toBe(false);
 
     expect(radioEn.classList.contains('Cognilot-ghost-choice-highlight')).toBe(false);
     expect(lblEn.classList.contains('Cognilot-ghost-choice-label-highlight')).toBe(false);
@@ -157,6 +158,33 @@ describe('GhostUI', () => {
 
     expect(radioEs.classList.contains('Cognilot-ghost-choice-highlight')).toBe(false);
     expect(lblEs.classList.contains('Cognilot-ghost-choice-label-highlight')).toBe(false);
+  });
+
+  it('should highlight matching OPTION with Cognilot-ghost-choice-highlight and not the select container', () => {
+    const select = document.createElement('select');
+    select.id = 'pronouns-select';
+    select.innerHTML = `
+      <option value="">Don't specify</option>
+      <option value="they/them" id="opt-they">they/them</option>
+      <option value="she/her" id="opt-she">she/her</option>
+      <option value="he/him" id="opt-he">he/him</option>
+    `;
+    document.body.appendChild(select);
+
+    const optThey = document.getElementById('opt-they') as HTMLOptionElement;
+    const optShe = document.getElementById('opt-she') as HTMLOptionElement;
+
+    GhostUI.paintChoiceGhost(select, ['they/them']);
+
+    // Select container should remain clean, option gets the choice highlight
+    expect(select.classList.contains('Cognilot-ghost-choice-highlight')).toBe(false);
+    expect(optThey.classList.contains('Cognilot-ghost-choice-highlight')).toBe(true);
+    expect(optShe.classList.contains('Cognilot-ghost-choice-highlight')).toBe(false);
+
+    GhostUI.clearChoiceGhost(select);
+
+    expect(select.classList.contains('Cognilot-ghost-choice-highlight')).toBe(false);
+    expect(optThey.classList.contains('Cognilot-ghost-choice-highlight')).toBe(false);
   });
 
   it('should remove ghost overlay and clean up on clear()', () => {

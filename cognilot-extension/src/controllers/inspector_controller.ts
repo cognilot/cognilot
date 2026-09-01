@@ -491,6 +491,50 @@ export function enable(activeFormId?: string): void {
     }
   }
 
+  // PRIORITY 0.5: If triggered via right-click context menu or active focus on an actual input/field
+  if (!container) {
+    const candidateTarget =
+      (window as any)._CognilotLastContextMenuTarget ||
+      (document.activeElement as HTMLElement | null);
+    if (
+      candidateTarget &&
+      candidateTarget !== document.body &&
+      candidateTarget !== document.documentElement
+    ) {
+      try {
+        const candidateContainer = InspectorLib.resolveContainerFromElement(candidateTarget);
+        if (candidateContainer && candidateContainer.querySelector('input, select, textarea')) {
+          container = candidateContainer;
+        }
+      } catch (_err) {
+        // silently ignore
+      }
+    }
+  }
+
+  // PRIORITY 0.75: Resolve primary active form from SDK registry
+  if (!container) {
+    try {
+      const registry = window.Cognilot?.SDK?.registry;
+      const allEntries = registry?.getAll() || [];
+      if (allEntries.length > 0) {
+        const firstEntry =
+          allEntries.find((e: any) => e.belongsToForm || e.formScopeId) || allEntries[0];
+        const rawNode =
+          firstEntry.node && typeof firstEntry.node.getRawNode === 'function'
+            ? firstEntry.node.getRawNode()
+            : firstEntry.node;
+        const firstEl =
+          rawNode || (firstEntry.selector ? document.querySelector(firstEntry.selector) : null);
+        if (firstEl) {
+          container = InspectorLib.resolveContainerFromElement(firstEl as HTMLElement);
+        }
+      }
+    } catch (_err) {
+      // silently ignore
+    }
+  }
+
   if (container) {
     _selectedContainer = container;
     _activeSource = 'auto_scan';

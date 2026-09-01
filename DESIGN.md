@@ -1,24 +1,26 @@
 ---
 name: Cognilot Design System
-version: 1.0
+version: 2.0.0
 description: >
-  Dark Minimalist with a subtle terminal signature.
-  The marketing site is the canonical reference and global standard for all product surfaces.
+  Modern Dark Minimalist with subtle terminal signature accents.
+  Clean SaaS readability with high visual hierarchy, dark void foundations, and developer-grade precision.
 identity: dark-minimalist-terminal-signature
 colors:
   bg-void: '#050505'
   bg-background: '#050505'
   bg-surface: 'rgba(255,255,255,0.03)'
-  bg-surface-hover: 'rgba(255,255,255,0.05)'
-  bg-overlay: 'rgba(5,5,5,0.80)'
+  bg-surface-hover: 'rgba(255,255,255,0.06)'
+  bg-surface-active: 'rgba(255,255,255,0.08)'
+  bg-surface-elevated: '#0a0a0f'
+  bg-overlay: 'rgba(5,5,5,0.85)'
   bg-blob-violet: 'rgba(139,92,246,0.10)'
   bg-blob-cyan: 'rgba(6,182,212,0.08)'
   accent-violet: '#8b5cf6'
   accent-cyan: '#06b6d4'
   text-white: '#f8f9fa'
-  text-dim: 'rgba(255,255,255,0.60)'
-  text-ghost: 'rgba(255,255,255,0.30)'
-  text-phantom: 'rgba(255,255,255,0.10)'
+  text-dim: 'rgba(255,255,255,0.70)'
+  text-ghost: 'rgba(255,255,255,0.40)'
+  text-phantom: 'rgba(255,255,255,0.15)'
   border-strong: 'rgba(255,255,255,0.15)'
   border-soft: 'rgba(255,255,255,0.10)'
   border-subtle: 'rgba(255,255,255,0.05)'
@@ -26,25 +28,23 @@ colors:
   warning: '#f59e0b'
   error: '#ef4444'
 typography:
+  primary:
+    fontFamily: 'var(--font-sans), Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
+    fontSize: '14px'
+    lineHeight: '1.5'
+    note: 'Global default for body, headings, navigation, forms, and buttons'
   mono:
-    fontFamily: 'JetBrains Mono, ui-monospace, monospace'
+    fontFamily: 'var(--font-mono), "JetBrains Mono", ui-monospace, monospace'
     fontSize: '13px'
     lineHeight: '1.6'
-    note: 'Global default — applied at layout root via font-mono'
-  sans-label:
-    fontFamily: 'Inter, ui-sans-serif, sans-serif'
-    fontSize: '10px–11px'
-    textTransform: uppercase
-    letterSpacing: '0.2em'
-    fontWeight: '700'
-    note: 'Reserved for badge text and system metadata only'
+    note: 'Reserved for logotype, shortcuts (<kbd>), badges, code, and technical metadata'
   billboard:
-    fontFamily: 'JetBrains Mono, ui-monospace, monospace'
-    fontSize: 'clamp(text-[5vw], text-[8vw], 100px)'
-    fontWeight: '700'
-    letterSpacing: 'tighter'
-    lineHeight: '0.9'
-    note: 'Hero H1 only — billboard scale'
+    fontFamily: 'var(--font-sans), Inter, sans-serif'
+    fontSize: 'clamp(3rem, 7vw, 5.5rem)'
+    fontWeight: '800'
+    letterSpacing: '-0.03em'
+    lineHeight: '0.95'
+    note: 'Hero H1 billboard scale'
 rounded:
   sm: '4px'
   md: '8px'
@@ -54,9 +54,9 @@ rounded:
 spacing:
   section-x: 'px-6 md:px-12 lg:px-20'
   section-x-inner: 'px-10 md:px-20'
-  section-y-major: 'py-36'
+  section-y-major: 'py-28 md:py-36'
   section-y-minor: 'py-16 md:py-24'
-  section-bar: 'py-8'
+  section-bar: 'py-6'
 components:
   ambient-blob:
     size: '500px–600px'
@@ -64,220 +64,163 @@ components:
     opacityViolet: '10%'
     opacityCyan: '8%'
     position: fixed
-    animation: animate-blob
   spine:
     width: '1px'
     color: 'rgba(255,255,255,0.10)'
     position: fixed
-    zIndex: z-0
-    leftPosition: 'left-6 md:left-12 lg:left-20'
-    rightPosition: 'right-6 md:right-12 lg:right-20'
-  diamond-node:
-    size: '6px–8px'
-    border: '1px solid rgba(255,255,255,0.30)'
-    background: '{colors.bg-background}'
-    transform: 'rotate-45'
   feature-card:
     background: 'rgba(255,255,255,0.03)'
-    borderTop: '2px solid accent-color'
-    borderOther: '1px solid rgba(255,255,255,0.05)'
-    borderRadius: '{rounded.md}'
+    borderTop: '2px solid {colors.accent-cyan}'
+    borderOther: '1px solid rgba(255,255,255,0.06)'
+    borderRadius: '{rounded.lg}'
     hoverBackground: 'rgba(255,255,255,0.05)'
-    padding: '32px'
-  button-terminal:
-    background: 'rgba(255,255,255,0.05)'
-    backgroundHover: 'rgba(255,255,255,0.10)'
-    border: '1px solid rgba(255,255,255,0.10)'
-    textColor: '{colors.text-white}'
-    prefix: '>'
-    prefixColor: '{colors.accent-violet}'
-    prefixOpacity: '60% default → 100% on hover'
-  button-solid:
+    padding: '28px'
+  button-primary:
     background: '#ffffff'
-    textColor: '#000000'
-    note: 'High-contrast secondary CTA'
-  button-variable:
+    textColor: '#050505'
+    hoverBackground: '#e5e5e5'
+    borderRadius: '{rounded.md}'
+  button-terminal:
+    background: 'rgba(255,255,255,0.04)'
+    backgroundHover: 'rgba(255,255,255,0.08)'
+    border: '1px solid rgba(255,255,255,0.12)'
+    textColor: '{colors.text-white}'
+    borderRadius: '{rounded.md}'
+  button-ghost:
     background: transparent
     textColor: '{colors.text-dim}'
     textColorHover: '{colors.text-white}'
-    note: 'Ghost style — nav links, sign in'
-  product-mockup-panel:
-    background: 'rgba(255,255,255,0.02)'
-    border: '1px solid rgba(255,255,255,0.08)'
-    borderRadius: '{rounded.xl}'
-    padding: '24px'
-    font: 'font-mono text-[12px]'
-    note: 'Flat panel for product previews. NO macOS dots here.'
 ---
 
 ## Overview
 
-**Dark Minimalist with a subtle terminal signature.**
+**Modern Dark Minimalist with subtle terminal signature accents.**
 
-Cognilot is not a pure terminal emulator. The interface is a clean, near-black product that uses _specific_ terminal-inspired details as a differentiator — the `> cognilot_` logotype, `├──` tree footer, `//` comment subtext, git branch SVGs — applied with restraint, not as a blanket system.
+Cognilot combines the sleek, high-readability aesthetics of modern productivity software (Linear, Raycast, Cursor) with a subtle developer-centric signature (`> cognilot_` brandmark, selective JSDoc comment accents in the Hero, keyboard shortcut badges `<kbd>`, and precise status indicators).
 
-The **marketing site (`/home`)** is the canonical reference implementation. Every new surface in the product must feel like it belongs to the same visual world.
-
----
-
-## Core Aesthetic Principles
-
-1. **Dark void foundation** — Root background is near-black `#050505`. Depth comes from the ambient blobs, not from layered gray panels.
-2. **Vertical spines as structure** — Two fixed `1px` lines at the margins define the layout. Diamond nodes mark intersections. This is the most distinctive structural element.
-3. **Monospace default** — `font-mono` at the layout root. Billboard for heroes, 13px for body. `font-sans` only for badge/system metadata.
-4. **Terminal as signature, not system** — `>`, `//`, `$`, `├──`, ASCII art appear selectively (1–2 per section max). They create brand recognition, not an IDE simulation.
-5. **Accent colors as punctuation** — Violet and cyan appear at `/`, `_`, `>`, active dots, and link states. Not on every heading.
-6. **Flat over layered** — Feature cards use `bg-surface border-t-2 accent-color`. Never nest `bg-*` panels inside panels.
+The design eliminates retro-terminal clutter (raw bash scripts, ASCII command trees, 100% monospace bodies, and markdown-file headers) in favor of high visual hierarchy, clean card layouts, and dual-typography contrast.
 
 ---
 
 ## Colors
 
-| Token              | Value                    | Usage                                          |
-| ------------------ | ------------------------ | ---------------------------------------------- |
-| `bg-background`    | `#050505`                | Root background                                |
-| `bg-surface`       | `rgba(255,255,255,0.03)` | Feature cards, subtle fills                    |
-| `bg-surface-hover` | `rgba(255,255,255,0.05)` | Hover states on cards/rows                     |
-| `bg-blob-violet`   | `rgba(139,92,246,0.10)`  | Left ambient blob                              |
-| `bg-blob-cyan`     | `rgba(6,182,212,0.08)`   | Right ambient blob                             |
-| `accent-violet`    | `#8b5cf6`                | Logo `>`, heading `/`, active accents          |
-| `accent-cyan`      | `#06b6d4`                | Cursor `_`, heading `//`, links, active states |
-| `text-white`       | `#f8f9fa`                | Active, important text                         |
-| `text-dim`         | `rgba(255,255,255,0.60)` | Secondary body text, descriptions              |
-| `text-ghost`       | `rgba(255,255,255,0.30)` | Metadata, decorative labels, spines            |
-| `text-phantom`     | `rgba(255,255,255,0.10)` | Placeholders, extreme de-emphasis              |
-| `border-strong`    | `rgba(255,255,255,0.15)` | Nav bottom border                              |
-| `border-soft`      | `rgba(255,255,255,0.10)` | Spines, general borders                        |
-| `border-subtle`    | `rgba(255,255,255,0.05)` | Internal dividers, section `border-y`          |
-
-### Do not use
-
-- Hardcoded hex values (except `#050505`)
-- `bg-gray-*`, `bg-zinc-*`, `text-blue-500` or similar non-token utilities
-- Solid white/light backgrounds as fills
-- More than 2 ambient blobs
+| Token                 | Value                    | Usage                                          |
+| :-------------------- | :----------------------- | :--------------------------------------------- |
+| `bg-background`       | `#050505`                | Absolute void background                       |
+| `bg-surface`          | `rgba(255,255,255,0.03)` | Cards, panels, inputs                          |
+| `bg-surface-hover`    | `rgba(255,255,255,0.06)` | Hover state on cards, rows, buttons            |
+| `bg-surface-elevated` | `#0a0a0f`                | Elevated dropdowns, modals, sidebars           |
+| `accent-violet`       | `#8b5cf6`                | Brand `>` prefix, active indicators, Pro tier  |
+| `accent-cyan`         | `#06b6d4`                | Cursor `_`, active tabs, secondary highlights  |
+| `text-white`          | `#f8f9fa`                | Primary headings, active labels, high contrast |
+| `text-dim`            | `rgba(255,255,255,0.70)` | Body text, descriptions, secondary items       |
+| `text-ghost`          | `rgba(255,255,255,0.40)` | Form hints, inactive tabs, metadata            |
+| `text-phantom`        | `rgba(255,255,255,0.15)` | Placeholders, disabled states                  |
+| `border-strong`       | `rgba(255,255,255,0.15)` | Active borders, nav dividers                   |
+| `border-soft`         | `rgba(255,255,255,0.10)` | Card borders, sidebar dividers                 |
+| `border-subtle`       | `rgba(255,255,255,0.05)` | Internal list dividers, grid lines             |
+| `success`             | `#10b981`                | Positive status, saved notifications           |
+| `warning`             | `#f59e0b`                | Warnings, rate-limit warnings                  |
+| `error`               | `#ef4444`                | Errors, destructive actions                    |
 
 ---
 
 ## Typography
 
-### Scale
+Cognilot uses a **dual-typography system**:
 
-| Level               | Classes                                                                                      | Context                                   |
-| ------------------- | -------------------------------------------------------------------------------------------- | ----------------------------------------- |
-| **Billboard H1**    | `font-mono font-bold leading-[0.9] tracking-tighter text-[8vw] sm:text-[6vw] md:text-[5vw]`  | Hero headline                             |
-| **Section H2**      | `font-mono font-bold leading-none tracking-tighter text-[5vw] sm:text-[4vw] md:text-[3.5vw]` | Content section headings                  |
-| **Body**            | `font-mono text-[13px] leading-relaxed`                                                      | Default readable content                  |
-| **Small/meta**      | `font-mono text-[11px] uppercase tracking-widest`                                            | Coverage bars, labels                     |
-| **Comment subtext** | `font-mono text-[13px] text-dim italic`                                                      | `/** block comment */` style descriptions |
-| **Badge**           | `font-sans text-[10px] uppercase tracking-widest font-bold`                                  | System tags only                          |
+### 1. Sans-Serif Primary (`font-sans`: Geist / Inter)
 
-### Section heading pattern
+Used for **90% of the UI** to guarantee maximum readability and clean SaaS visual weight:
 
-```
-SECTION_NAME/ /
-                ↑          ↑
-         text-accent-violet  text-accent-cyan
-```
+- Page headings, section titles, subheadings
+- Body copy, instructions, marketing descriptions
+- Navigation items, buttons, form labels, inputs
+- Tables, pricing cards, settings options
+
+### 2. Monospace Secondary (`font-mono`: Geist Mono / JetBrains Mono)
+
+Used **strictly for technical signature accents**:
+
+- Brand logotype: `> cognilot_`
+- Hero section JSDoc comment description `/** ... */`
+- Keyboard shortcuts: `<kbd>Alt + /</kbd>`
+- System badges and versioning: `v0.6.5`, `PRO`, `FREE`
+- API keys, token counters, JSON previews, DOM selectors
+
+### Typographic Scale
+
+- **Billboard H1**: `font-sans font-extrabold text-4xl sm:text-6xl md:text-7xl tracking-tight leading-[1.05]`
+- **Section H2**: `font-sans font-bold text-2xl sm:text-3xl md:text-4xl tracking-tight text-white`
+- **Card Title H3**: `font-sans font-semibold text-base sm:text-lg text-white`
+- **Body Regular**: `font-sans text-sm sm:text-base text-dim leading-relaxed`
+- **Caption / Meta**: `font-sans text-xs text-ghost`
+- **Mono Accent**: `font-mono text-xs uppercase tracking-wider`
 
 ---
 
-## Layout Components
+## Layout
 
-### Vertical Spine System
+### Marketing Layout
 
-Two fixed `1px` lines at the margin positions, always present via `MarketingLayout`.
+- **Root Background**: `#050505` with 2 fixed ambient background blobs (`violet-500/10` and `cyan-500/8`).
+- **Vertical Spines**: 2 fixed `1px` subtle lines at `left-6 md:left-12 lg:left-20` and `right-6 md:right-12 lg:right-20` to frame marketing sections.
+- **Section Structure**: Outer `px-6 md:px-12 lg:px-20 py-28 md:py-36` with inner `px-10 md:px-20` content container.
 
-```
-left-6 md:left-12 lg:left-20    right-6 md:right-12 lg:right-20
-       │                                       │
-       │   ◇  ←── Diamond node at border       │
-       │                                       │
-```
+### Dashboard Layout (Web App)
 
-### Section structure
+- **Viewport Constraints**: `h-screen overflow-hidden flex bg-background`
+- **Sidebar**: Fixed `h-screen w-64 shrink-0 flex flex-col border-r border-white/10 bg-surface/50 backdrop-blur-md`
+- **Main Content**: `flex-1 h-screen overflow-y-auto p-6 md:p-10`
 
-```
-<section px-6 md:px-12 lg:px-20 py-36>
-  <div px-10 md:px-20>   ← clears spine area
-    content
+---
+
+## Elevation & Depth
+
+- **Void Depth**: Near-black void `#050505` sits beneath all panels.
+- **Surface Elevation**: Cards use translucent `rgba(255,255,255,0.03)` with `1px border-white/10`.
+- **Backdrop Blur**: `backdrop-blur-md` or `backdrop-blur-xl` applied on sticky navbars and modal overlays.
+
+---
+
+## Shapes
+
+- **sm (`4px`)**: Badges, tags, shortcut `<kbd>` keys.
+- **md (`8px`)**: Buttons, inputs, dropdown items.
+- **lg (`12px`)**: Feature cards, dashboard panels, modal containers.
+- **xl (`16px`)**: Large dashboard workbench modules, preview containers.
+- **full (`9999px`)**: Status dots, pill badges, user avatars.
+
+---
+
+## Components
+
+### 1. Modern Marketing Footer
+
+Clean SaaS 3-column layout:
+
+- **Col 1 (Brand)**: `> cognilot_` logo + tagline + copyright.
+- **Col 2 (Product & Resources)**: Features, Chrome Web Store, Documentation, API.
+- **Col 3 (Legal & Company)**: Privacy Policy, Terms of Service, Support contact.
+
+### 2. Feature Cards
+
+- Border top accent: `border-t-2 border-accent-cyan` or `border-accent-violet`.
+- Flat translucent container: `bg-surface border border-white/5 rounded-lg p-6 hover:bg-white/[0.05] transition-all`.
+
+### 3. Dashboard Page Header
+
+Replaces `# filename.md` with:
+
+```tsx
+<div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
+  <div>
+    <h1 className="text-2xl font-bold text-white tracking-tight">{title}</h1>
+    <p className="text-sm text-white/50 mt-1">{description}</p>
   </div>
-</section>
-```
-
-### Ambient Background
-
-```
-Fixed behind all content:
-  ◉ Violet blob: top-left, 600px, blur-[120px], opacity 10%
-  ◉ Cyan blob: bottom-right, 500px, blur-[120px], opacity 8%
-```
-
----
-
-## Interactive Components
-
-### Feature Cards
-
-```tsx
-<div className="p-8 bg-surface border-t-2 border-accent-cyan border-x border-b border-white/5 rounded transition-all hover:bg-white/5 duration-300">
-  <div className="mb-6 text-accent-violet">{icon}</div>
-  <h3 className="font-mono text-white font-bold text-base mb-4">{title}</h3>
-  <p className="font-mono text-dim text-[13px] leading-relaxed">{desc}</p>
+  {action && <div>{action}</div>}
 </div>
 ```
-
-Top border accent options: `border-accent-cyan` / `border-accent-violet` / `border-success`
-
-### Accordion (Animated with CSS grid trick)
-
-```tsx
-// Collapsed → Expanded: no JS height measurement
-<div
-  className={`grid transition-[grid-template-rows] duration-300 ${isOpen ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}
->
-  <div className="overflow-hidden">{/* content */}</div>
-</div>
-```
-
-### Product Mockup Panel (flat, no macOS dots)
-
-```tsx
-<div className="border border-white/8 bg-white/[0.02] rounded-xl p-6 font-mono text-[12px] leading-relaxed">
-  <div className="text-ghost mb-3 text-[11px] uppercase tracking-widest">// preview</div>
-  <pre className="text-dim whitespace-pre-wrap">{mockupContent}</pre>
-</div>
-```
-
----
-
-## Terminal Signature Catalog
-
-Use these elements selectively (max 1–2 per section):
-
-| Element         | Where used                      | Code pattern                                                               |
-| --------------- | ------------------------------- | -------------------------------------------------------------------------- |
-| Logotype        | Nav, anywhere the brand appears | `> cognilot_` with violet `>` and cyan `_`                                 |
-| Status dot      | Hero release badge              | `w-2 h-2 rounded-full bg-accent-violet animate-pulse shadow-[0_0_8px_...]` |
-| Comment subtext | Hero description                | `` `/**\n * description\n */` `` italic dim                                |
-| Coverage bar    | Stats section                   | `font-mono text-[11px] uppercase text-ghost` + pipe separators             |
-| Git branch SVG  | Hero, features sections         | Violet/cyan path + circle nodes, opacity 30%                               |
-| Footer tree     | Footer only                     | `├──`, `└──`, `~/path $ tree` pattern                                      |
-| ASCII art       | Footer only                     | Monospace art, desktop only, `text-[10px]`                                 |
-
----
-
-## Animations
-
-| Class                             | Use                                                    |
-| --------------------------------- | ------------------------------------------------------ |
-| `animate-fade-in`                 | Page-level entry (`<div className="animate-fade-in">`) |
-| `animate-blob`                    | Ambient background blobs                               |
-| `animate-pulse`                   | Status dots, loading indicators                        |
-| `transition-colors`               | Button, link, card hover states                        |
-| `transition-opacity`              | Preview fades, button prefix reveal                    |
-| `transition-[grid-template-rows]` | Accordion expand/collapse                              |
-| `duration-300`                    | Standard — use on all transitions                      |
 
 ---
 
@@ -285,19 +228,19 @@ Use these elements selectively (max 1–2 per section):
 
 ### ✅ Do
 
-- Let **spines + whitespace + typography** create structure
-- Use accent colors as **punctuation** at `>`, `_`, `/`, `//` positions
-- Use `text-dim` for body, `text-ghost` for meta, `text-white` for active
-- Use the `border-t-2 accent-color` pattern for feature differentiation
-- Use the CSS grid trick for smooth accordion animations
-- Wrap client-side interactive sections with `next/dynamic` to preserve Server Components
+- Use `font-sans` for all readable text, titles, forms, navigation, and buttons.
+- Use `font-mono` exclusively for code, `<kbd>` badges, logs, and brand signatures.
+- Keep the Cognilot logo monochrome pure white (`> cognilot_` / `< cognilot_`) without split accent colors.
+- Keep the JSDoc comment `/** ... */` as a signature element in the Hero subtext.
+- Maintain a locked `100vh` layout with independent scroll in the dashboard.
+- Use clean modern CTA labels ("Get Started", "Install Extension", "Save Changes") without redundant `>` or `<` symbols.
+- Style accordions with generous spacing (`py-7 sm:py-8`), clean white dividers (`border-b border-white/10`), and pure white `+` / `−` indicators.
 
 ### ❌ Don't
 
-- Use macOS window dots outside of explicit product mockup contexts
-- Add more than 2 ambient blobs
-- Use `font-sans` for body or data text
-- Put `text-accent-violet` on every heading — it loses meaning
-- Nest `bg-*` panels inside other `bg-*` panels
-- Add `backdrop-blur` to anything other than the nav
-- Create generic SaaS patterns: icon grids, filled gradient sections, floating label inputs
+- Use `font-mono` on entire page layouts or body paragraphs.
+- Use multi-colored split accents on the brand logo symbols.
+- Add redundant `>` or `<` symbols to buttons (`Get Started >`, `> Continue with Email`).
+- Use bash script button labels like `./run.sh`, `./get_started.sh`, `./sign_out.sh`.
+- Use markdown file headers like `# plan.md` or `# settings.md` as page titles.
+- Let the dashboard sidebar expand or lose sticky anchoring when page content grows.

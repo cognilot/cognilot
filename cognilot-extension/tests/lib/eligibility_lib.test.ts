@@ -20,15 +20,20 @@ describe('EligibilityLib', () => {
     expect(EligibilityLib.isEligibleForTrigger(textarea)).toBe(true);
   });
 
-  it('should mark search, file, and combobox inputs as ineligible for triggers and learning', () => {
+  it('should mark combobox inputs as eligible for triggers', () => {
+    const comboInput = document.createElement('input');
+    comboInput.setAttribute('role', 'combobox');
+
+    expect(EligibilityLib.isEligibleForTrigger(comboInput)).toBe(true);
+    expect(EligibilityLib.isEligibleForLearning(comboInput)).toBe(true);
+  });
+
+  it('should mark search, file, radio, and checkbox inputs as ineligible for text triggers', () => {
     const searchInput = document.createElement('input');
     searchInput.type = 'search';
 
     const fileInput = document.createElement('input');
     fileInput.type = 'file';
-
-    const comboInput = document.createElement('input');
-    comboInput.setAttribute('role', 'combobox');
 
     const radioInput = document.createElement('input');
     radioInput.type = 'radio';
@@ -38,12 +43,10 @@ describe('EligibilityLib', () => {
 
     expect(EligibilityLib.isEligibleForTrigger(searchInput)).toBe(false);
     expect(EligibilityLib.isEligibleForTrigger(fileInput)).toBe(false);
-    expect(EligibilityLib.isEligibleForTrigger(comboInput)).toBe(false);
     expect(EligibilityLib.isEligibleForTrigger(radioInput)).toBe(false);
     expect(EligibilityLib.isEligibleForTrigger(checkboxInput)).toBe(false);
 
     expect(EligibilityLib.isEligibleForLearning(searchInput)).toBe(false);
     expect(EligibilityLib.isEligibleForLearning(fileInput)).toBe(false);
-    expect(EligibilityLib.isEligibleForLearning(comboInput)).toBe(false);
   });
 });

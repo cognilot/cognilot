@@ -249,11 +249,15 @@ export class ExtensionAuthAdapter extends (getBaseClass(
     return !!(await this.getToken());
   }
 
-  async getActiveProfile(): Promise<Record<string, unknown> | null> {
+  async getActiveMemory(): Promise<Record<string, unknown> | null> {
     const res = await new Promise<Record<string, unknown>>((resolve) =>
-      chrome.storage.local.get('Cognilot_profile_cache', resolve)
+      chrome.storage.local.get(['Cognilot_memory_cache'], resolve)
     );
-    return (res.Cognilot_profile_cache as Record<string, unknown>) || null;
+    return (res.Cognilot_memory_cache as Record<string, unknown>) || null;
+  }
+
+  async getActiveProfile(): Promise<Record<string, unknown> | null> {
+    return this.getActiveMemory();
   }
 
   async getUser(): Promise<Record<string, unknown> | null> {

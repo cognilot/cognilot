@@ -27,7 +27,6 @@ export function setUseClipboardContext(active: boolean): void {
 }
 
 let _toolbar: HTMLDivElement | null = null;
-let _btnSolve: HTMLButtonElement | null = null;
 let _btnCapture: HTMLButtonElement | null = null;
 let _btnMarkdown: HTMLButtonElement | null = null;
 let _btnSelectManu: HTMLButtonElement | null = null;
@@ -122,13 +121,6 @@ function createToolbar(
     fontFamily: 'system-ui, -apple-system, sans-serif',
   });
 
-  const btnSolve = createIconButton(
-    'solve',
-    'Resolver campos',
-    `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>`,
-    onSolveClick
-  );
-
   const btnCapture = createIconButton(
     'capture',
     'Screenshot',
@@ -170,7 +162,6 @@ function createToolbar(
 
   toolbar.appendChild(btnSelectManu);
   toolbar.appendChild(createDivider());
-  toolbar.appendChild(btnSolve);
   toolbar.appendChild(btnClipboard);
   toolbar.appendChild(btnCapture);
   toolbar.appendChild(btnMarkdown);
@@ -178,7 +169,6 @@ function createToolbar(
   toolbar.appendChild(btnClose);
 
   _toolbar = toolbar;
-  _btnSolve = btnSolve;
   _btnCapture = btnCapture;
   _btnMarkdown = btnMarkdown;
   _btnSelectManu = btnSelectManu;
@@ -213,7 +203,7 @@ export function showToolbar(
 }
 
 export function setButtonsDisabled(disabled: boolean): void {
-  const actionBtns = [_btnSolve, _btnCapture, _btnMarkdown];
+  const actionBtns = [_btnCapture, _btnMarkdown];
   actionBtns.forEach((btn) => {
     if (!btn) return;
     btn.disabled = disabled;
@@ -237,29 +227,20 @@ export function hideToolbar(): void {
     }, 300);
   }
   _toolbar = null;
-  _btnSolve = null;
   _btnCapture = null;
   _btnMarkdown = null;
   _btnSelectManu = null;
+  _btnClipboard = null;
 }
 
 export function updateActionButtons(fieldCount: number, handlers: ToolbarHandlers): void {
-  if (!_btnSolve || !_btnCapture || !_btnMarkdown || !_btnSelectManu) return;
+  if (!_btnCapture || !_btnMarkdown || !_btnSelectManu) return;
 
-  const { onManualSelectClick, onSolveClick, onCaptureClick, onMarkdownClick } = handlers || {};
+  const { onManualSelectClick, onCaptureClick, onMarkdownClick } = handlers || {};
 
   if (fieldCount > 0) {
     setButtonsDisabled(false);
 
-    _btnSolve.innerHTML = `
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
-      <span style="position: absolute; top: -6px; right: -6px; background: #ef4444; color: white; padding: 2px 5px; border-radius: 10px; font-size: 10px; font-weight: bold; line-height: 1;">${fieldCount}</span>
-    `;
-
-    _btnSolve.onclick = (e): void => {
-      e.stopPropagation();
-      if (onSolveClick) onSolveClick();
-    };
     _btnCapture.onclick = (e): void => {
       e.stopPropagation();
       if (onCaptureClick) onCaptureClick();
@@ -270,9 +251,6 @@ export function updateActionButtons(fieldCount: number, handlers: ToolbarHandler
     };
   } else {
     setButtonsDisabled(true);
-    _btnSolve.innerHTML = `
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
-    `;
   }
 
   _btnSelectManu.onclick = (e): void => {

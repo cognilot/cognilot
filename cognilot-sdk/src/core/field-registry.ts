@@ -62,8 +62,19 @@ export class FieldRegistry {
       console.warn(`[FieldRegistry] updateResolution: no entry found for id "${id}"`);
       return;
     }
-    entry.resolution = resolution;
-    entry.status = 'resolved';
+    const hasValue =
+      resolution &&
+      ((typeof resolution.value === 'string' && resolution.value.trim().length > 0) ||
+        (resolution.value !== null && resolution.value !== undefined && resolution.value !== '') ||
+        (Array.isArray(resolution.options) && resolution.options.length > 0));
+
+    if (!hasValue) {
+      entry.status = 'failed';
+      entry.resolution = null;
+    } else {
+      entry.resolution = resolution;
+      entry.status = 'resolved';
+    }
     this._entries.set(id, entry);
   }
 

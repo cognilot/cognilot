@@ -178,11 +178,6 @@ import { Modules, init as initModules } from './index';
 
     // 2. Smoke check — Universal Scan is triggered by registerAdapters() above
     runDetectionSmokeCheck();
-
-    // 3. Proactive in-page form trigger placement for normal view
-    setTimeout(() => {
-      renderInPageFormTriggers();
-    }, 1200);
   }
 
   function initDiscoveryMode(): void {
@@ -400,12 +395,56 @@ import { Modules, init as initModules } from './index';
       if (request.action === 'sidebarEnableInspector') {
         const activeFormId = request.data?.activeFormId;
         api.enableInspector(activeFormId);
+        chrome.runtime
+          .sendMessage({ action: 'inspectorLockDetection', data: { locked: true } })
+          .catch(() => {});
         sendResponse({ success: true });
         return true;
       }
 
       if (request.action === 'sidebarDisableInspector') {
         api.disableInspector();
+        chrome.runtime
+          .sendMessage({ action: 'inspectorUnlockDetection', data: { locked: false } })
+          .catch(() => {});
+        sendResponse({ success: true });
+        return true;
+      }
+
+      if (request.action === 'cognilot-invalidate-cache-and-prefetch') {
+        try {
+          sessionStorage.removeItem('Cognilot_suggestions_cache');
+          sessionStorage.removeItem('Cognilot_decisions_cache');
+        } catch (_e) {
+          // silently ignore
+        }
+        const useClipboard = request.data?.useClipboard ?? false;
+        const sdk = window.Cognilot?.SDK;
+        if (sdk?.action?.invalidatePrefetchCache) {
+          sdk.action.invalidatePrefetchCache().then(async () => {
+            let clipboardContent = '';
+            if (useClipboard) {
+              try {
+                clipboardContent = await navigator.clipboard.readText();
+              } catch (_e) {
+                // silently ignore
+              }
+            }
+            const formScopes = sdk.registry?.getFormScopes() || [];
+            for (const scope of formScopes) {
+              const fields = sdk.registry?.getByFormScope(scope.id) || [];
+              if (fields.length > 0 && fields[0]?.node) {
+                sdk.action
+                  .prefetchFormScope(scope.id, fields[0].node, {
+                    useClipboard,
+                    clipboardData: clipboardContent,
+                    clipboard_context: clipboardContent,
+                  })
+                  .catch(() => {});
+              }
+            }
+          });
+        }
         sendResponse({ success: true });
         return true;
       }
@@ -634,18 +673,23 @@ import { Modules, init as initModules } from './index';
       });
     } else if (data.type === 'Cognilot_LOGOUT') {
       chrome.runtime.sendMessage({ action: 'clearAuth' });
-    } else if (data.type === 'Cognilot_SAVE_PROFILE') {
+    } else if (data.type === 'Cognilot_SAVE_MEMORY' || data.type === 'Cognilot_SAVE_PROFILE') {
       chrome.runtime.sendMessage({
-        action: 'saveProfile',
+        action: 'saveMemory',
+        memory: data.payload,
         profile: data.payload,
       });
-    } else if (data.type === 'Cognilot_GET_PROFILE') {
-      chrome.runtime.sendMessage({ action: 'getProfile' }, (response: any) => {
+    } else if (data.type === 'Cognilot_GET_MEMORY' || data.type === 'Cognilot_GET_PROFILE') {
+      chrome.runtime.sendMessage({ action: 'getMemory' }, (response: any) => {
         if (response && response.success) {
+          const payload = response.memory || response.profile;
           window.postMessage(
             {
-              type: 'Cognilot_PROFILE_RESPONSE',
-              payload: response.profile,
+              type:
+                data.type === 'Cognilot_GET_MEMORY'
+                  ? 'Cognilot_MEMORY_RESPONSE'
+                  : 'Cognilot_PROFILE_RESPONSE',
+              payload,
             },
             '*'
           );
@@ -668,8 +712,11 @@ import { Modules, init as initModules } from './index';
           );
         }
       });
-    } else if (data.type === 'Cognilot_REFRESH_PROFILE') {
-      Logger.info('Received Cognilot_REFRESH_PROFILE sync request from web app.');
+    } else if (
+      data.type === 'Cognilot_REFRESH_MEMORY' ||
+      data.type === 'Cognilot_REFRESH_PROFILE'
+    ) {
+      Logger.info('Received Cognilot_REFRESH_MEMORY sync request from web app.');
     }
   });
 
@@ -678,11 +725,8 @@ import { Modules, init as initModules } from './index';
     if (areaName === 'local') {
       const updatedKeys = Object.keys(changes);
 
-      // Handle cache updates (existing logic)
-      if (
-        updatedKeys.includes('Cognilot_profile_cache') ||
-        updatedKeys.includes('Cognilot_alias_cache')
-      ) {
+      // Handle cache updates
+      if (updatedKeys.includes('Cognilot_memory_cache')) {
         window.postMessage(
           {
             type: 'Cognilot_CACHE_UPDATED',
@@ -707,6 +751,15 @@ import { Modules, init as initModules } from './index';
       */
     }
   });
+
+  // ─── Track Right-Click Element for Context Menu Inspect ─────────────────
+  document.addEventListener(
+    'contextmenu',
+    (e: MouseEvent) => {
+      (window as any)._CognilotLastContextMenuTarget = e.target as HTMLElement;
+    },
+    true
+  );
 
   // ─── Global Shortcut Listener: Alt + / (Autofill) and Ctrl + Shift + M (Inspect) ──────────
   window.addEventListener(
@@ -742,89 +795,25 @@ import { Modules, init as initModules } from './index';
       if (isInspectShortcut) {
         e.preventDefault();
         Logger.info(`⌨️ Global shortcut Ctrl+Shift+M triggered from content.ts`);
-        const api = (
-          window as unknown as {
-            CognilotAPI?: {
-              enableInspector(): unknown;
-              inspectorActive?: boolean;
-              disableInspector(): unknown;
-            };
-          }
-        ).CognilotAPI;
-        if (api) {
-          if (api.inspectorActive && api.disableInspector) {
-            api.disableInspector();
-          } else if (api.enableInspector) {
-            api.enableInspector();
-          }
+        chrome.runtime.sendMessage({ action: 'openSidebar' }).catch(() => {});
+        if (InspectorController.isActive()) {
+          disableInspector();
+        } else {
+          enableInspector();
         }
       }
     },
     true
   );
 
-  function renderInPageFormTriggers(formScopes?: any[]): void {
-    const sdk = window.Cognilot.SDK;
-    const registry = sdk?.registry;
-    if (!registry) return;
-
-    const allFields = registry.getAll();
-    if (allFields.length === 0) {
-      FormTriggerUI.removeAll();
-      return;
-    }
-
-    if (formScopes && formScopes.length > 0) {
-      for (const scope of formScopes) {
-        const scopeFields = registry.getByFormScope(scope.id);
-        const count = scopeFields.length;
-        if (count > 0 && scope.selector) {
-          try {
-            const container = document.querySelector(scope.selector) as HTMLElement | null;
-            if (container) {
-              FormTriggerUI.showFormTrigger(container, count, () => {
-                const api = (window as unknown as { CognilotAPI?: { solveAll(q?: any): unknown } })
-                  .CognilotAPI;
-                const questions = scopeFields.map((f: any) => ({
-                  id: f.id,
-                  text: f.text,
-                  type: f.type,
-                  selector: f.selector,
-                  resolution: f.resolution,
-                }));
-                api?.solveAll(questions);
-              });
-            }
-          } catch (err) {
-            console.warn(
-              '[content.ts] Failed to attach form trigger to scope selector:',
-              scope.selector,
-              err
-            );
-          }
-        }
-      }
-    } else {
-      const firstEl =
-        (allFields[0]?.node?.getRawNode?.() as HTMLElement | null) ||
-        (document.querySelector(allFields[0]?.selector || '') as HTMLElement | null);
-      const container =
-        (firstEl?.closest('form') as HTMLElement | null) ||
-        (firstEl ? InspectorLib.resolveContainerFromElement(firstEl) : null);
-      if (container) {
-        FormTriggerUI.showFormTrigger(container, allFields.length, () => {
-          const api = (window as unknown as { CognilotAPI?: { solveAll(): unknown } }).CognilotAPI;
-          api?.solveAll();
-        });
-      }
-    }
+  function renderInPageFormTriggers(_formScopes?: any[]): void {
+    // Disabled per UX decision — user accesses actions via Inspect Toolbar or Context Menu
+    FormTriggerUI.removeAll();
   }
 
   // ─── Listen to proactive scan complete from PageScanner ──────
-  window.addEventListener('cognilot-scan-complete', (e: Event) => {
-    const customEvent = e as CustomEvent;
-    const scopes = customEvent.detail?.formScopes;
-    renderInPageFormTriggers(scopes);
+  window.addEventListener('cognilot-scan-complete', (_e: Event) => {
+    // In-page form triggers disabled
   });
 
   // ─── Listen to batch prefetch completion from ActionEngine ──

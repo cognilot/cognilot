@@ -32,6 +32,7 @@ export const profileSections: ProfileSection[] = [
       { name: 'country', label: 'País', type: 'text' },
       { name: 'city', label: 'Ciudad', type: 'text' },
       { name: 'address', label: 'Dirección', type: 'text' },
+      { name: 'postal_code', label: 'Código Postal', type: 'text' },
     ],
   },
   {
@@ -41,8 +42,8 @@ export const profileSections: ProfileSection[] = [
     icon: '💼',
     required: false,
     fields: [
-      { name: 'current_company', label: 'Empresa Actual', type: 'text' },
-      { name: 'current_role', label: 'Rol Actual', type: 'text' },
+      { name: 'company', label: 'Empresa', type: 'text' },
+      { name: 'job_title', label: 'Cargo / Rol', type: 'text' },
       { name: 'years_experience', label: 'Años de Experiencia', type: 'text' },
     ],
   },
@@ -59,14 +60,24 @@ export const profileSections: ProfileSection[] = [
   },
 ];
 
+const FIELD_ALIASES: Record<string, string[]> = {
+  company: ['company', 'current_company'],
+  job_title: ['job_title', 'current_role'],
+  phone: ['phone', 'phone_number'],
+  postal_code: ['postal_code', 'zip', 'zip_code'],
+};
+
 export function calculateSectionCompletion(
   section: ProfileSection,
   profileData: Record<string, unknown>
 ): { completed: number; total: number } {
   const total = section.fields.length;
   const completed = section.fields.filter((field) => {
-    const value = profileData[field.name];
-    return value !== undefined && value !== null && value !== '';
+    const aliases = FIELD_ALIASES[field.name] || [field.name];
+    return aliases.some((key) => {
+      const val = profileData[key];
+      return val !== undefined && val !== null && val !== '';
+    });
   }).length;
 
   return { completed, total };

@@ -204,23 +204,23 @@ describe('SuggestionEngine', () => {
     expect(result.value).toBe('resolved-from-ai@email.com');
   });
 
-  it('should reject detection-only fields like search, file, and combobox', async () => {
+  it('should reject detection-only fields like search, file, and range', async () => {
     const searchNode = new MockNode('INPUT', '', { type: 'search' });
     const fileNode = new MockNode('INPUT', '', { type: 'file' });
-    const comboNode = new MockNode('INPUT', '', { role: 'combobox' });
+    const rangeNode = new MockNode('INPUT', '', { type: 'range' });
 
     const searchRes = await engine.handleTrigger(searchNode);
     const fileRes = await engine.handleTrigger(fileNode);
-    const comboRes = await engine.handleTrigger(comboNode);
+    const rangeRes = await engine.handleTrigger(rangeNode);
 
     expect(searchRes).toHaveProperty('error');
     expect((searchRes as any).error).toContain('detection-only');
 
     expect(fileRes).toHaveProperty('error');
-    expect((fileRes as any).error).toContain('detection-only');
+    expect((fileRes as any).error).toContain('not textual');
 
-    expect(comboRes).toHaveProperty('error');
-    expect((comboRes as any).error).toContain('detection-only');
+    expect(rangeRes).toHaveProperty('error');
+    expect((rangeRes as any).error).toContain('detection-only');
   });
 
   describe('handleRefine', () => {
@@ -264,6 +264,91 @@ describe('SuggestionEngine', () => {
       // Since confirmSuggestion is a method of the class being tested,
       // we check its side effect: persisting an alias.
       expect(sdk.alias.persistAlias).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('Array name disambiguation (e.g. GitHub Social Accounts)', () => {
+    it('should generate unique field identifiers for array fields sharing the same name', () => {
+      const node1 = new MockNode('INPUT', '', {
+        name: 'user[profile_social_accounts][][url]',
+        'aria-label': 'Link to social profile 1',
+      });
+      const node2 = new MockNode('INPUT', '', {
+        name: 'user[profile_social_accounts][][url]',
+        'aria-label': 'Link to social profile 2',
+      });
+
+      const id1 = engine.getUniqueFieldIdentifier(node1, {
+        label: 'Link to social profile 1',
+        confidence: 0.95,
+        required: false,
+        source: 'aria-label',
+        helper_text: '',
+      });
+      const id2 = engine.getUniqueFieldIdentifier(node2, {
+        label: 'Link to social profile 2',
+        confidence: 0.95,
+        required: false,
+        source: 'aria-label',
+        helper_text: '',
+      });
+
+      expect(id1).toBe('user[profile_social_accounts][][url]::Link to social profile 1');
+      expect(id2).toBe('user[profile_social_accounts][][url]::Link to social profile 2');
+      expect(id1).not.toBe(id2);
+    });
+
+    it('should prefetch distinct suggestions for multiple array fields with same name', async () => {
+      const node1 = new MockNode('INPUT', '', {
+        name: 'user[profile_social_accounts][][url]',
+        'aria-label': 'Link to social profile 1',
+      });
+      const node2 = new MockNode('INPUT', '', {
+        name: 'user[profile_social_accounts][][url]',
+        'aria-label': 'Link to social profile 2',
+      });
+
+      const meta1 = {
+        label: 'Link to social profile 1',
+        confidence: 0.95,
+        required: false,
+        source: 'aria-label',
+        helper_text: '',
+      };
+      const meta2 = {
+        label: 'Link to social profile 2',
+        confidence: 0.95,
+        required: false,
+        source: 'aria-label',
+        helper_text: '',
+      };
+
+      const key1 = 'localhost::user[profile_social_accounts][][url]::Link to social profile 1';
+      const key2 = 'localhost::user[profile_social_accounts][][url]::Link to social profile 2';
+
+      sdk.apiClient.request.mockResolvedValueOnce({
+        ok: true,
+        results: {
+          [key1]: { value: 'https://linkedin.com/in/jack', type: 'discrete' },
+          [key2]: { value: 'https://twitter.com/jack', type: 'discrete' },
+        },
+      });
+
+      await engine.prefetchBatch([
+        { node: node1, metadata: meta1 },
+        { node: node2, metadata: meta2 },
+      ]);
+
+      expect(sdk.apiClient.request).toHaveBeenCalledWith(
+        '/api/suggestions/batch',
+        expect.objectContaining({
+          questions: expect.arrayContaining([
+            expect.objectContaining({ key: key1 }),
+            expect.objectContaining({ key: key2 }),
+          ]),
+        }),
+        'SuggestionEngine'
+      );
     });
   });
 });

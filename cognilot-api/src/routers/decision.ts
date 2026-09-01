@@ -3,7 +3,7 @@ import { zValidator } from '@hono/zod-validator';
 import { z } from 'zod';
 import { HumanMessage, SystemMessage } from '@langchain/core/messages';
 import { db } from '../db/client.js';
-import { userProfiles } from '../db/schema.js';
+import { memories } from '../db/schema.js';
 import { eq } from 'drizzle-orm';
 import { authMiddleware } from '../middleware/auth.js';
 import { rateLimiterMiddleware } from '../middleware/rate-limiter.js';
@@ -33,26 +33,30 @@ decisionRouter.post('/batch', zValidator('json', batchDecisionSchema), async (c)
   const reqBody = c.req.valid('json');
   const { questions } = reqBody;
 
-  let userProfileData = {};
+  let userMemoryData = {};
 
   if (reqBody.user_context !== undefined) {
-    const clientProfile = reqBody.user_context?.profile || {};
-    userProfileData = clientProfile.data_learned || clientProfile;
+    const clientMemory = reqBody.user_context?.memory || reqBody.user_context?.profile || {};
+    userMemoryData = clientMemory.data || clientMemory.data_learned || clientMemory;
   } else {
-    const [profile] = await db.select().from(userProfiles).where(eq(userProfiles.userId, userId));
-    userProfileData = profile?.dataLearned ?? {};
+    const [mem] = await db.select().from(memories).where(eq(memories.userId, userId));
+    userMemoryData = mem?.data ?? {};
   }
 
   const systemPrompt = `You are an intelligent form autofill assistant.
 Your job is to select the correct options for choice-based form fields (such as dropdown select, radio buttons, or checkboxes) based on the user's profile data.
 
-## User Profile:
-${JSON.stringify(userProfileData, null, 2)}
+## User Profile / Memory:
+${JSON.stringify(userMemoryData, null, 2)}
 
 ## Instructions:
-For each field, analyze the label and its options, and select the index (0-based) and value of the option that matches the user's profile.
-If a field allows multiple selection (checkboxes), you can select multiple indices. If it's single selection (select, radio), select only one index.
-If you cannot determine the value confidently, return an empty selection.
+1. For each field, analyze the label and its options, and select the index (0-based) and value of the option that matches the user's profile.
+2. If a field allows multiple selection (checkboxes), you can select multiple indices. If it's single selection (select, radio), select only one index.
+3. For standalone single checkboxes (boolean toggles):
+   - If it is a profile/account display preference (e.g., "Display current local time" when user has location or timezone in profile), select index 0 to enable it.
+   - If it is terms of service or standard required agreement, select index 0.
+   - If it is marketing spam or newsletter, leave empty [].
+4. If you cannot determine the value confidently, return an empty selection.
 
 Return ONLY a JSON object mapping the field ID to an object with "selected_indices" (array of numbers) and "selected_values" (array of strings).
 Example format:

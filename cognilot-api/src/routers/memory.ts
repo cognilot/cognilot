@@ -2,14 +2,14 @@ import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
 import { z } from 'zod';
 import { db } from '../db/client.js';
-import { userProfiles, aliases, users, usageCredits } from '../db/schema.js';
-import { eq, and, inArray } from 'drizzle-orm';
+import { memories, users, usageCredits } from '../db/schema.js';
+import { eq, and } from 'drizzle-orm';
 import { authMiddleware } from '../middleware/auth.js';
 import { standardizeKeys } from '../services/standardizer.js';
 import type { AuthEnv } from '../types/hono.js';
 
-export const profileRouter = new Hono<AuthEnv>();
-profileRouter.use('*', authMiddleware);
+export const memoryRouter = new Hono<AuthEnv>();
+memoryRouter.use('*', authMiddleware);
 
 // ── Schemas ───────────────────────────────────────────────────────────────────
 
@@ -17,15 +17,18 @@ const patchPlanSchema = z.object({
   plan: z.enum(['free', 'pro']),
 });
 
-const patchProfileSchema = z.object({
-  dataLearned: z.record(z.unknown()).optional(),
+const patchMemorySchema = z.object({
+  data: z.record(z.unknown()).optional(),
+  dataLearned: z.record(z.unknown()).optional(), // compatibility
   cvRawText: z.string().optional(),
 });
 
-const syncProfileSchema = z.object({
-  /** Partial learned data from the extension's local cache */
+const syncMemorySchema = z.object({
+  /** Partial memory data from client */
+  data: z.record(z.unknown()).optional(),
+  /** Legacy alias for data */
   learnedData: z.record(z.unknown()).optional(),
-  /** Sync queue of learned entries from extension */
+  /** Sync queue of learned entries from extension/SDK */
   sync_queue: z
     .array(
       z.object({
@@ -41,28 +44,25 @@ const syncProfileSchema = z.object({
 // ── Handlers ──────────────────────────────────────────────────────────────────
 
 /**
- * GET /api/profile
- * Returns the full profile for the authenticated user:
+ * GET /api/memory
+ * Returns the full memory and user state for the authenticated user:
  * - User metadata (plan, email)
  * - Daily usage credits info
- * - Learned AI data (dataLearned JSONB)
- * - All aliases
+ * - Learned memory data (data JSONB)
  */
-profileRouter.get('/', async (c) => {
+memoryRouter.get('/', async (c) => {
   const userId = c.get('userId');
   const user = c.get('user');
 
-  // Get or create user profile
-  const [profile] = await db
-    .insert(userProfiles)
-    .values({ userId, dataLearned: {} })
+  // Get or create user memory record
+  const [mem] = await db
+    .insert(memories)
+    .values({ userId, data: {} })
     .onConflictDoUpdate({
-      target: userProfiles.userId,
+      target: memories.userId,
       set: { updatedAt: new Date() },
     })
     .returning();
-
-  const userAliases = await db.select().from(aliases).where(eq(aliases.userId, userId));
 
   const today = new Date().toISOString().split('T')[0] as string;
   const [usage] = await db
@@ -71,6 +71,11 @@ profileRouter.get('/', async (c) => {
     .where(and(eq(usageCredits.userId, userId), eq(usageCredits.date, today)));
 
   const FREE_CREDITS_PER_DAY = Number(process.env['COGNILOT_FREE_CREDITS_PER_DAY'] ?? 50);
+
+  const memoryData = (mem?.data as Record<string, unknown>) || {};
+  if (mem?.cvFileName && !memoryData['cv_file_name']) {
+    memoryData['cv_file_name'] = [mem.cvFileName];
+  }
 
   return c.json({
     user: {
@@ -83,19 +88,25 @@ profileRouter.get('/', async (c) => {
       creditsLimit: FREE_CREDITS_PER_DAY,
       resetsAt: `${today}T23:59:59Z`,
     },
-    profile: {
-      dataLearned: profile?.dataLearned ?? {},
-      onboardingCompleted: profile?.onboardingCompleted ?? null,
+    memory: {
+      data: memoryData,
+      cvFileName: mem?.cvFileName ?? null,
+      onboardingCompleted: mem?.onboardingCompleted ?? null,
     },
-    aliases: userAliases,
+    // Backward compatibility payload
+    profile: {
+      dataLearned: memoryData,
+      cvFileName: mem?.cvFileName ?? null,
+      onboardingCompleted: mem?.onboardingCompleted ?? null,
+    },
   });
 });
 
 /**
- * PATCH /api/profile/plan
+ * PATCH /api/memory/plan
  * Switches user plan between 'free' and 'pro' (Dev / Testing mode).
  */
-profileRouter.patch('/plan', zValidator('json', patchPlanSchema), async (c) => {
+memoryRouter.patch('/plan', zValidator('json', patchPlanSchema), async (c) => {
   const userId = c.get('userId');
   const { plan } = c.req.valid('json');
 
@@ -120,53 +131,66 @@ profileRouter.patch('/plan', zValidator('json', patchPlanSchema), async (c) => {
 });
 
 /**
- * PATCH /api/profile
- * Updates the user's profile data (dataLearned, cvRawText).
+ * PATCH /api/memory
+ * Updates the user's memory data (data, cvRawText).
  */
-profileRouter.patch('/', zValidator('json', patchProfileSchema), async (c) => {
+memoryRouter.patch('/', zValidator('json', patchMemorySchema), async (c) => {
   const userId = c.get('userId');
   const body = c.req.valid('json');
 
+  const updatePayload: Record<string, unknown> = {
+    updatedAt: new Date(),
+  };
+
+  if (body.data) updatePayload.data = body.data;
+  else if (body.dataLearned) updatePayload.data = body.dataLearned;
+
+  if (body.cvRawText !== undefined) updatePayload.cvRawText = body.cvRawText;
+
   const [updated] = await db
-    .insert(userProfiles)
-    .values({ userId, ...body })
+    .insert(memories)
+    .values({
+      userId,
+      data: (updatePayload.data as Record<string, unknown>) || {},
+      cvRawText: updatePayload.cvRawText as string,
+    })
     .onConflictDoUpdate({
-      target: userProfiles.userId,
-      set: { ...body, updatedAt: new Date() },
+      target: memories.userId,
+      set: updatePayload,
     })
     .returning();
 
-  return c.json({ profile: updated });
+  return c.json({ memory: updated, profile: updated });
 });
 
 /**
- * POST /api/profile/sync
- * Endpoint used by the browser extension to push locally-learned data
- * to the backend. Merges incoming data with existing dataLearned JSONB.
+ * POST /api/memory/sync
+ * Endpoint used by the browser extension / SDK to push locally-learned data
+ * to the backend. Merges incoming data with existing memory JSONB.
  * Standardizes raw labels into canonical keys via LLM.
- * Auto-creates aliases for raw → canonical key mappings.
  */
-profileRouter.post('/sync', zValidator('json', syncProfileSchema), async (c) => {
+memoryRouter.post('/sync', zValidator('json', syncMemorySchema), async (c) => {
   const userId = c.get('userId');
-  const { learnedData, sync_queue } = c.req.valid('json');
+  const { data: clientData, learnedData, sync_queue } = c.req.valid('json');
 
-  // ── 1. Get current dataLearned ───────────────────────────────────────────
-  const [current] = await db.select().from(userProfiles).where(eq(userProfiles.userId, userId));
-  const existingDataLearned: Record<string, string[]> =
-    typeof current?.dataLearned === 'object' && current.dataLearned !== null
-      ? (current.dataLearned as Record<string, string[]>)
+  // ── 1. Get current memories ──────────────────────────────────────────────
+  const [current] = await db.select().from(memories).where(eq(memories.userId, userId));
+  const existingMemoryData: Record<string, string[]> =
+    typeof current?.data === 'object' && current.data !== null
+      ? (current.data as Record<string, string[]>)
       : {};
-  const existingCanonicalKeys = Object.keys(existingDataLearned);
+  const existingCanonicalKeys = Object.keys(existingMemoryData);
 
-  // ── 2. Collect raw labels from sync_queue + learnedData ──────────────────
+  // ── 2. Collect raw labels from sync_queue + direct data ───────────────────
   const rawLabels: string[] = [];
   if (sync_queue && Array.isArray(sync_queue)) {
     for (const item of sync_queue) {
       if (item.key) rawLabels.push(item.key);
     }
   }
-  if (learnedData && typeof learnedData === 'object') {
-    for (const key of Object.keys(learnedData)) {
+  const directObj = clientData || learnedData;
+  if (directObj && typeof directObj === 'object') {
+    for (const key of Object.keys(directObj)) {
       rawLabels.push(key);
     }
   }
@@ -176,43 +200,37 @@ profileRouter.post('/sync', zValidator('json', syncProfileSchema), async (c) => 
   let mappings: Record<string, string> = {};
   if (uniqueRawLabels.length > 0) {
     try {
-      console.log(`[Profile/Sync] Standardizing ${uniqueRawLabels.length} raw label(s)...`);
+      console.log(`[Memory/Sync] Standardizing ${uniqueRawLabels.length} raw label(s)...`);
       const result = await standardizeKeys(uniqueRawLabels, existingCanonicalKeys);
       mappings = result.mappings;
-      console.log('[Profile/Sync] Standardizer mappings:', mappings);
+      console.log('[Memory/Sync] Standardizer mappings:', mappings);
     } catch (err) {
-      console.warn('[Profile/Sync] Standardizer failed, using raw labels:', err);
-      // Fallback: use raw labels as canonical keys
+      console.warn('[Memory/Sync] Standardizer failed, using raw labels:', err);
       for (const label of uniqueRawLabels) {
         mappings[label] = label;
       }
     }
-  } else {
-    console.log('[Profile/Sync] No raw labels to standardize.');
   }
 
   // ── 4. Merge values under canonical keys with semantic validation ─────────
-  const mergedData: Record<string, string[]> = { ...existingDataLearned };
+  const mergedData: Record<string, string[]> = { ...existingMemoryData };
 
   const sanitizeAndValidate = (key: string, rawVal: string): string | null => {
     const val = String(rawVal || '').trim();
     if (!val) return null;
 
-    // Discard any sensitive keys (passwords, PINs, tokens, CVVs) from global profile memory
     if (/(password|contrase|clave|secret|pin|cvv|cvc|token|auth_token)/i.test(key)) {
-      console.warn(`[Profile/Sync] Discarding sensitive/password key from global profile:`, key);
+      console.warn(`[Memory/Sync] Discarding sensitive/password key:`, key);
       return null;
     }
 
-    // Discard email values accidentally placed into name or username fields
     if (['full_name', 'first_name', 'last_name', 'username'].includes(key) && val.includes('@')) {
-      console.warn(`[Profile/Sync] Discarding email value for name field ${key}:`, val);
+      console.warn(`[Memory/Sync] Discarding email value for name field ${key}:`, val);
       return null;
     }
 
-    // Discard non-email values in email field
     if (key === 'email' && (!val.includes('@') || !val.includes('.'))) {
-      console.warn(`[Profile/Sync] Discarding invalid email format for email field:`, val);
+      console.warn(`[Memory/Sync] Discarding invalid email format for email field:`, val);
       return null;
     }
 
@@ -234,9 +252,9 @@ profileRouter.post('/sync', zValidator('json', syncProfileSchema), async (c) => 
     }
   }
 
-  // Process learnedData (direct payload)
-  if (learnedData && typeof learnedData === 'object') {
-    for (const [rawKey, value] of Object.entries(learnedData)) {
+  // Process direct payload
+  if (directObj && typeof directObj === 'object') {
+    for (const [rawKey, value] of Object.entries(directObj)) {
       const canonicalKey = mappings[rawKey] || rawKey;
       const validVal = sanitizeAndValidate(canonicalKey, String(value));
       if (!validVal) continue;
@@ -254,22 +272,20 @@ profileRouter.post('/sync', zValidator('json', syncProfileSchema), async (c) => 
     if (values) mergedData[key] = values.slice(0, 20);
   }
 
-  // ── 5. Persist dataLearned ────────────────────────────────────────────────
+  // ── 5. Persist to memories table ──────────────────────────────────────────
   await db
-    .insert(userProfiles)
-    .values({ userId, dataLearned: mergedData })
+    .insert(memories)
+    .values({ userId, data: mergedData })
     .onConflictDoUpdate({
-      target: userProfiles.userId,
-      set: { dataLearned: mergedData, updatedAt: new Date() },
+      target: memories.userId,
+      set: { data: mergedData, updatedAt: new Date() },
     });
 
-  // ── 6. (KISS: No automatic database alias creation) ───────────────────────
-
   return c.json({
-    message: 'Profile synced successfully.',
+    message: 'Memory synced successfully.',
     fieldsLearned: Object.keys(mergedData).length,
+    memory: { data: mergedData },
     profile: { dataLearned: mergedData },
     mappings,
-    newAliases: [],
   });
 });

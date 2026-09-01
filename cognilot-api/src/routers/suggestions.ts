@@ -3,7 +3,7 @@ import { zValidator } from '@hono/zod-validator';
 import { z } from 'zod';
 import { HumanMessage, SystemMessage } from '@langchain/core/messages';
 import { db } from '../db/client.js';
-import { userProfiles } from '../db/schema.js';
+import { memories } from '../db/schema.js';
 import { eq } from 'drizzle-orm';
 import { authMiddleware } from '../middleware/auth.js';
 import { rateLimiterMiddleware } from '../middleware/rate-limiter.js';
@@ -91,21 +91,21 @@ const batchSuggestionSchema = z.object({
 /**
  * POST /api/suggestions
  * Generates an AI suggestion for a single form field.
- * Uses the user's learned profile data and aliases to personalize suggestions.
+ * Uses the user's learned memory data to personalize suggestions.
  */
 suggestionsRouter.post('/', zValidator('json', suggestionRequestSchema), async (c) => {
   const userId = c.get('userId');
   const reqBody = c.req.valid('json');
   const { fieldContext, pageContext, options } = reqBody;
 
-  let profileData: Record<string, unknown> = {};
+  let memoryData: Record<string, unknown> = {};
 
   if (reqBody.user_context !== undefined) {
-    const clientProfile = reqBody.user_context?.profile || {};
-    profileData = clientProfile.data_learned || clientProfile;
+    const clientMemory = reqBody.user_context?.memory || reqBody.user_context?.profile || {};
+    memoryData = clientMemory.data || clientMemory.data_learned || clientMemory;
   } else {
-    const [profile] = await db.select().from(userProfiles).where(eq(userProfiles.userId, userId));
-    profileData = (profile?.dataLearned as Record<string, unknown>) ?? {};
+    const [mem] = await db.select().from(memories).where(eq(memories.userId, userId));
+    memoryData = (mem?.data as Record<string, unknown>) ?? {};
   }
 
   const clipboard = reqBody.user_context?.clipboard;
@@ -120,8 +120,8 @@ suggestionsRouter.post('/', zValidator('json', suggestionRequestSchema), async (
   const systemPrompt = `You are an intelligent form autofill assistant.
 Your job is to suggest the most appropriate value for a web form field based on the user's profile data, page context, and any provided clipboard context.
 
-## User Profile Data:
-${JSON.stringify(profileData, null, 2)}${clipboardPromptSection}
+## User Profile / Memory Data:
+${JSON.stringify(memoryData, null, 2)}${clipboardPromptSection}
 
 ## Instructions:
 - Suggest a value for the field. If you cannot find the exact information in the user profile data or clipboard context, infer a highly plausible example value based on the field label, type, placeholder, and context.
@@ -223,21 +223,21 @@ suggestionsRouter.post('/refine', zValidator('json', refineRequestSchema), async
   const reqBody = c.req.valid('json');
   const { field, page_context, raw_text } = reqBody;
 
-  let profileData: Record<string, unknown> = {};
+  let memoryData: Record<string, unknown> = {};
 
   if (reqBody.user_context !== undefined) {
-    const clientProfile = reqBody.user_context?.profile || {};
-    profileData = clientProfile.data_learned || clientProfile;
+    const clientMemory = reqBody.user_context?.memory || reqBody.user_context?.profile || {};
+    memoryData = clientMemory.data || clientMemory.data_learned || clientMemory;
   } else {
-    const [profile] = await db.select().from(userProfiles).where(eq(userProfiles.userId, userId));
-    profileData = (profile?.dataLearned as Record<string, unknown>) ?? {};
+    const [mem] = await db.select().from(memories).where(eq(memories.userId, userId));
+    memoryData = (mem?.data as Record<string, unknown>) ?? {};
   }
 
   const systemPrompt = `You are an assistant that refines, enhances, and formats user input text within a form field.
 Your job is to rewrite or complete the user's text to make it fit perfectly in the context of the field.
 
-## User Profile:
-${JSON.stringify(profileData, null, 2)}
+## User Profile / Memory:
+${JSON.stringify(memoryData, null, 2)}
 
 ## Instructions:
 - Return ONLY the refined, polished, or completed text. No introductions, no conversational filler, no markdown wrappers, no quotes.
@@ -284,14 +284,14 @@ suggestionsRouter.post('/batch', zValidator('json', batchSuggestionSchema), asyn
   const { questions } = reqBody;
   const model = 'openai/gpt-oss-120b';
 
-  let profileData: Record<string, unknown> = {};
+  let memoryData: Record<string, unknown> = {};
 
   if (reqBody.user_context !== undefined) {
-    const clientProfile = reqBody.user_context?.profile || {};
-    profileData = clientProfile.data_learned || clientProfile;
+    const clientMemory = reqBody.user_context?.memory || reqBody.user_context?.profile || {};
+    memoryData = clientMemory.data || clientMemory.data_learned || clientMemory;
   } else {
-    const [profile] = await db.select().from(userProfiles).where(eq(userProfiles.userId, userId));
-    profileData = (profile?.dataLearned as Record<string, unknown>) ?? {};
+    const [mem] = await db.select().from(memories).where(eq(memories.userId, userId));
+    memoryData = (mem?.data as Record<string, unknown>) ?? {};
   }
 
   const clipboard = reqBody.user_context?.clipboard;
@@ -306,8 +306,8 @@ suggestionsRouter.post('/batch', zValidator('json', batchSuggestionSchema), asyn
   const systemPrompt = `You are an intelligent form autofill assistant.
 Your job is to suggest the most appropriate values for multiple form fields based on the user's profile data and any provided clipboard context.
 
-## User Profile:
-${JSON.stringify(profileData, null, 2)}${clipboardPromptSection}
+## User Profile / Memory:
+${JSON.stringify(memoryData, null, 2)}${clipboardPromptSection}
 
 ## Instructions:
 For each field in the request, return the best suggestion value. If you cannot find the exact information in the user profile or clipboard context, infer a highly plausible example value.

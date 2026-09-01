@@ -41,7 +41,9 @@ export const OnboardingGuide: FC = () => {
   // Calculate steps completion
   const isLocationDone = !!profileData.country || !!profileData.city;
   const isExperienceDone =
+    !!profileData.company ||
     !!profileData.current_company ||
+    !!profileData.job_title ||
     !!profileData.current_role ||
     !!profileData.degree ||
     !!profileData.university;

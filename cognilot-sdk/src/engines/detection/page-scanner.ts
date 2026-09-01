@@ -128,26 +128,46 @@ export class PageScanner {
     if (!docBody) return;
 
     this._observer = new MutationObserver((mutations) => {
-      const hasNewInputs = mutations.some((m) =>
-        Array.from(m.addedNodes).some(
-          (n) =>
-            n instanceof HTMLElement &&
-            (n.matches(
-              'input:not([type="hidden"]), textarea, select, [contenteditable="true"], [role="textbox"]'
-            ) ||
-              n.querySelector(
+      const hasChanges = mutations.some((m) => {
+        if (m.type === 'childList') {
+          return Array.from(m.addedNodes).some(
+            (n) =>
+              n instanceof HTMLElement &&
+              (n.matches(
                 'input:not([type="hidden"]), textarea, select, [contenteditable="true"], [role="textbox"]'
-              ))
-        )
-      );
+              ) ||
+                n.querySelector(
+                  'input:not([type="hidden"]), textarea, select, [contenteditable="true"], [role="textbox"]'
+                ))
+          );
+        }
+        if (m.type === 'attributes') {
+          const target = m.target as HTMLElement;
+          if (!target || !target.tagName) return false;
+          return (
+            target.matches(
+              'input:not([type="hidden"]), textarea, select, [contenteditable="true"], [role="textbox"], form, fieldset, [role="group"], [role="region"], details, .collapse, .accordion, [class*="collapse"], [class*="accordion"], [class*="modal"], [class*="dialog"], [class*="tab"]'
+            ) ||
+            target.querySelector(
+              'input:not([type="hidden"]), textarea, select, [contenteditable="true"], [role="textbox"]'
+            ) !== null
+          );
+        }
+        return false;
+      });
 
-      if (hasNewInputs) {
+      if (hasChanges) {
         this._scheduleIncrementalScan();
       }
     });
 
-    this._observer.observe(docBody, { childList: true, subtree: true });
-    console.log('[PageScanner] 👁️ MutationObserver active.');
+    this._observer.observe(docBody, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: ['class', 'style', 'hidden', 'aria-hidden', 'aria-expanded', 'open'],
+    });
+    console.log('[PageScanner] 👁️ MutationObserver active (childList + attributes).');
   }
 
   /** Stops observing. Called on SPA route change or SDK destroy(). */
@@ -181,9 +201,60 @@ export class PageScanner {
       return null;
     }
 
-    // ── Priority 1: Existing value (skip radio/checkbox — their .value is
-    //    the HTML value attribute, not user input) ──────────────────────────
-    const isChoice = type === 'radio' || type === 'checkbox';
+    // ── Special case: File Input (CV / Resume auto-attachment) ───────────────
+    if (type === 'file') {
+      let resolvedFileName = 'cv_candidato.pdf';
+      try {
+        const storage = this.sdk.adapters?.storage;
+        if (storage) {
+          const res = await storage.get(['Cognilot_memory_cache']);
+          const memCache = res?.Cognilot_memory_cache || res || {};
+          const flatMemory = memCache.data || memCache.data_learned || memCache || {};
+          const found =
+            flatMemory.cv_file_name ||
+            flatMemory.cv_file ||
+            flatMemory.cvFileName ||
+            flatMemory.resume_file;
+          if (found) {
+            const rawVal = Array.isArray(found) ? found[0] : String(found);
+            if (rawVal && typeof rawVal === 'string' && rawVal.trim()) {
+              resolvedFileName = rawVal.trim();
+            }
+          }
+        }
+      } catch (err) {
+        console.warn('[PageScanner] Error resolving CV filename from memory:', err);
+      }
+
+      // Ensure valid extension matching accept attribute or fallback to .pdf
+      const rawNode = field.node as any;
+      const acceptAttr = rawNode?.getAttribute?.('accept');
+      if (acceptAttr && !resolvedFileName.includes('.')) {
+        const firstExt = acceptAttr.split(',')[0].trim();
+        resolvedFileName += firstExt.startsWith('.') ? firstExt : `.${firstExt}`;
+      } else if (!resolvedFileName.includes('.')) {
+        resolvedFileName += '.pdf';
+      }
+
+      return {
+        value: resolvedFileName,
+        options: [resolvedFileName],
+        source: 'memory',
+        memoryKey: 'cv_file_name',
+      };
+    }
+
+    // ── Priority 1: Existing value (skip radio/checkbox/select/autocomplete — their .value is
+    //    the HTML value attribute or default option, not user input) ──────────────────────────
+    const role = (field.node as any)?.getAttribute?.('role');
+    const ariaAutocomplete = (field.node as any)?.getAttribute?.('aria-autocomplete');
+    const isCombobox = role === 'combobox' || ariaAutocomplete !== null;
+    const isChoice =
+      type === 'radio' ||
+      type === 'checkbox' ||
+      type === 'select' ||
+      type === 'autocomplete' ||
+      isCombobox;
     if (!isChoice) {
       const existingValue = (field.node as any).value?.trim?.() ?? '';
       if (existingValue) {
@@ -289,78 +360,51 @@ export class PageScanner {
       return null;
     };
 
-    // ── Priority 2: Alias cache ────────────────────────────────────────────
+    // ── Priority 2: Memory cache (Seed dictionary + Direct keys) ──────────
     try {
-      // FieldDetectionResponse shape is a subset of FieldRegistryEntry, safe to cast
-      const aliasResult = await this.sdk.alias.resolve(field as any);
-      if (aliasResult?.success && aliasResult.suggestion?.options?.length) {
-        const memOpts = aliasResult.suggestion.options.map(String);
-        if (isChoice) {
-          const matched = matchChoiceValue(field.options, memOpts);
-          if (matched) {
+      if (this.sdk.memory) {
+        const memoryResult = await this.sdk.memory.resolve(field as any);
+        if (memoryResult?.success && memoryResult.suggestion?.options?.length) {
+          const memOpts = memoryResult.suggestion.options.map(String);
+          if (isChoice) {
+            const matched = matchChoiceValue(field.options, memOpts);
+            if (matched) {
+              return {
+                value: matched.value,
+                options: [matched.value],
+                source: 'memory',
+                memoryKey: memoryResult.memoryKey || null,
+              };
+            }
+          } else {
             return {
-              value: matched.value,
-              options: [matched.value],
-              source: 'alias_cache',
-              memoryKey: aliasResult.memoryKey || null,
+              value: memOpts[0],
+              options: memOpts,
+              source: 'memory',
+              memoryKey: memoryResult.memoryKey || null,
             };
           }
-        } else {
-          return {
-            value: memOpts[0],
-            options: memOpts,
-            source: 'alias_cache',
-            memoryKey: aliasResult.memoryKey || null,
-          };
         }
       }
     } catch (e) {
-      console.warn('[PageScanner] Alias resolution error:', e);
+      console.warn('[PageScanner] Memory resolution error:', e);
     }
 
-    // ── Priority 3: Profile cache ──────────────────────────────────────────
-    try {
-      const profileResult = await this.sdk.profile.resolve(field as any);
-      if (profileResult?.success && profileResult.suggestion?.options?.length) {
-        const memOpts = profileResult.suggestion.options.map(String);
-        if (isChoice) {
-          const matched = matchChoiceValue(field.options, memOpts);
-          if (matched) {
-            return {
-              value: matched.value,
-              options: [matched.value],
-              source: 'profile_cache',
-              memoryKey: profileResult.memoryKey || null,
-            };
-          }
-        } else {
-          return {
-            value: memOpts[0],
-            options: memOpts,
-            source: 'profile_cache',
-            memoryKey: profileResult.memoryKey || null,
-          };
-        }
-      }
-    } catch (e) {
-      console.warn('[PageScanner] Profile resolution error:', e);
-    }
-
-    // ── Priority 4: Option tanteo for choice fields ────────────────────────
+    // ── Priority 3: Option tanteo for choice fields ────────────────────────
     // When a radio/checkbox/select has predefined options, check if any
-    // option text matches a stored profile value (e.g. option "Perú" matches
-    // profile.country = ["Perú"]). This guesses the answer without AI.
+    // option text matches a stored memory value (e.g. option "Perú" matches
+    // memory.country = ["Perú"]). This guesses the answer without AI.
     if (isChoice) {
       const fieldOptions = Array.isArray(field.options) ? field.options : [];
       if (fieldOptions.length > 0) {
         try {
-          const storageResult = await this.sdk.adapters?.storage?.get('Cognilot_profile_cache');
-          const rawProfile = storageResult?.Cognilot_profile_cache || storageResult || {};
-          const dataLearned = rawProfile.data_learned || rawProfile;
+          const storageResult = await this.sdk.adapters?.storage?.get(['Cognilot_memory_cache']);
+          const rawMem = storageResult?.Cognilot_memory_cache || storageResult || {};
+          const memData = rawMem.data || rawMem.data_learned || rawMem;
 
           // Map from memory string -> memoryKey
           const memToKey = new Map<string, string>();
-          for (const [key, val] of Object.entries(dataLearned)) {
+          for (const [key, val] of Object.entries(memData)) {
             if (Array.isArray(val)) {
               val.forEach((v) => {
                 if (v !== undefined && v !== null && v !== '') {
@@ -379,7 +423,7 @@ export class PageScanner {
             return {
               value: matched.value,
               options: [matched.value],
-              source: 'profile_cache',
+              source: 'memory_cache',
               memoryKey: memToKey.get(matched.mem) || null,
             };
           }
@@ -410,12 +454,28 @@ export class PageScanner {
           const decisionsResult = await storage.get('Cognilot_decisions_cache');
           const cachedDecisions =
             decisionsResult?.Cognilot_decisions_cache || decisionsResult || {};
-          const candidateKeys = [id, name, text, field.selector].filter(Boolean) as string[];
+          const label = field.metadata?.label;
+          const candidateKeys = [
+            domain && id ? `${domain}::${id}` : null,
+            domain && text ? `${domain}::${text}` : null,
+            domain && label ? `${domain}::${label}` : null,
+            domain && name ? `${domain}::${name}` : null,
+            domain && field.selector ? `${domain}::${field.selector}` : null,
+            id,
+            name,
+            text,
+            label,
+            field.selector,
+          ].filter(Boolean) as string[];
 
           for (const k of candidateKeys) {
             const dec = cachedDecisions[k];
             if (dec && (dec.selected_values?.length || dec.value)) {
               const resVal = dec.selected_values?.[0] || dec.value || 'Selected';
+              const cachedOptions = dec.allChoices || dec.options || [];
+              if (cachedOptions.length > 0 && (!field.options || field.options.length === 0)) {
+                field.options = cachedOptions;
+              }
               return {
                 value: String(resVal),
                 options: dec.selected_values || [String(resVal)],
@@ -569,7 +629,7 @@ export class PageScanner {
   private async _runIncrementalScan(): Promise<void> {
     console.log('[PageScanner] 🔄 Incremental scan triggered...');
 
-    const { fields: allFields } = this.sdk.detection.scanAllFields();
+    const { fields: allFields, formScopes } = this.sdk.detection.scanAllFields();
     const newFields = allFields.filter((f) => !this.registry.findByNode(f.node.getRawNode()));
 
     if (newFields.length === 0) {
@@ -596,7 +656,7 @@ export class PageScanner {
     // Persist updated snapshot after incremental scan (M2)
     await this._persistRegistrySnapshot();
 
-    this._notifySidebar([]);
+    this._notifySidebar(formScopes);
   }
 
   // ── SPA URL Watcher (M6) ───────────────────────────────────────────────────

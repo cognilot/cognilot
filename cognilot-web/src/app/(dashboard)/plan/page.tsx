@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { createBrowserClient } from '@supabase/ssr';
 import { toast } from 'sonner';
-import { RefreshCw, ArrowUpRight, HelpCircle } from 'lucide-react';
+import { RefreshCw, Check, Sparkles, HelpCircle, Zap } from 'lucide-react';
 import { DocLayout } from '@/components/layout/DocLayout';
 import { Button } from '@/components/ui/button';
 
@@ -94,7 +94,7 @@ export default function PlanPage() {
       const data = await response.json();
       setPlan(data.user.plan);
       toast.success(
-        newPlan === 'pro' ? '🚀 Plan cambiado a Pro (Testing)' : 'ℹ️ Plan cambiado a Free (Testing)'
+        newPlan === 'pro' ? 'Plan actualizado a Pro (Modo Demo)' : 'Plan actualizado a Free'
       );
     } catch (err) {
       console.error(err);
@@ -113,197 +113,212 @@ export default function PlanPage() {
   if (loading) {
     return (
       <DocLayout
-        filename="plan.md"
-        description="Manage subscription, usage limits, and billing"
-        action={
-          <button
-            onClick={fetchPlanStatus}
-            className="text-white/30 hover:text-white/70 transition-colors flex items-center gap-1.5 text-sm"
-          >
-            <RefreshCw className="w-3.5 h-3.5" />
-            Refresh
-          </button>
-        }
+        filename="Plan & Billing"
+        description="Manage your subscription, daily AI quotas, and team billing"
       >
-        <div className="h-64 bg-white/2 rounded-xl animate-pulse" />
+        <div className="h-72 bg-white/[0.02] border border-white/5 rounded-2xl animate-pulse" />
       </DocLayout>
     );
   }
 
   return (
     <DocLayout
-      filename="plan.md"
-      description="Manage subscription, usage limits, and billing"
+      filename="Plan & Billing"
+      description="Manage your subscription, daily AI quotas, and team billing"
       action={
-        <button
+        <Button
+          variant="ghost"
+          size="sm"
           onClick={fetchPlanStatus}
-          className="text-white/30 hover:text-white/70 transition-colors flex items-center gap-1.5 text-sm"
+          className="text-white/60 hover:text-white"
         >
           <RefreshCw className="w-3.5 h-3.5" />
-          Refresh
-        </button>
+          <span>Refresh</span>
+        </Button>
       }
     >
-      <div className="bg-bg-primary/90 backdrop-blur-2xl border border-white/10 rounded-xl shadow-2xl overflow-hidden mb-6">
-        <div className="p-6 md:p-8 space-y-8">
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white/[0.01] border border-white/5 rounded-lg p-4">
-            <div>
-              <div className="text-white/40 text-[11px] font-medium uppercase tracking-wider mb-1">
-                Current Plan
-              </div>
-              <div className="text-lg font-bold text-white flex items-center gap-2">
-                <span>{plan === 'pro' ? 'Pro' : 'Free'}</span>
-                <span
-                  className={`text-[10px] px-2 py-0.5 rounded font-bold ${
-                    plan === 'pro'
-                      ? 'bg-accent-violet/20 text-accent-violet border border-accent-violet/30'
-                      : 'bg-white/5 text-white/40 border border-white/10'
-                  }`}
-                >
-                  {plan.toUpperCase()}
-                </span>
-              </div>
+      {/* Current Plan & Usage Summary */}
+      <div className="bg-surface border border-white/10 rounded-2xl p-6 md:p-8 mb-8 backdrop-blur-xl">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-6 pb-6 border-b border-white/5">
+          <div>
+            <div className="text-xs font-semibold uppercase tracking-wider text-white/40 mb-1">
+              Active Tier
             </div>
             <div className="flex items-center gap-3">
-              {plan === 'free' ? (
-                <button
-                  onClick={() => handleTogglePlan('pro')}
-                  disabled={updatingPlan}
-                  className="py-2 px-5 bg-accent-violet/20 hover:bg-accent-violet/30 border border-accent-violet/50 text-accent-violet rounded transition-colors flex items-center gap-1.5 font-medium cursor-pointer text-sm disabled:opacity-50"
-                >
-                  {updatingPlan ? 'Actualizando...' : 'Cambiar a Pro (Dev)'}
-                  <ArrowUpRight className="w-3.5 h-3.5" />
-                </button>
-              ) : (
-                <button
-                  onClick={() => handleTogglePlan('free')}
-                  disabled={updatingPlan}
-                  className="py-2 px-4 bg-white/5 hover:bg-white/10 border border-white/20 text-white/70 rounded transition-colors flex items-center gap-1.5 font-medium cursor-pointer text-sm disabled:opacity-50"
-                >
-                  {updatingPlan ? 'Actualizando...' : 'Cambiar a Free (Dev)'}
-                </button>
-              )}
+              <span className="text-2xl font-bold text-white capitalize">{plan} Plan</span>
+              <span
+                className={`text-xs px-2.5 py-0.5 rounded-full font-semibold ${
+                  plan === 'pro'
+                    ? 'bg-accent-violet/20 text-accent-violet border border-accent-violet/30'
+                    : 'bg-white/10 text-white/70 border border-white/10'
+                }`}
+              >
+                {plan.toUpperCase()}
+              </span>
             </div>
           </div>
 
-          <div>
-            <div className="text-xs font-semibold text-white/30 uppercase tracking-wider mb-3">
-              Daily API Usage
-            </div>
-
-            {plan === 'pro' ? (
-              <div className="text-success py-2 font-medium text-sm">
-                Unlimited — Pro users bypass daily rate limits.
-              </div>
+          <div className="flex items-center gap-3">
+            {plan === 'free' ? (
+              <Button
+                variant="solid"
+                size="md"
+                onClick={() => handleTogglePlan('pro')}
+                disabled={updatingPlan}
+                className="cursor-pointer"
+              >
+                <Sparkles className="w-4 h-4 text-accent-violet" />
+                <span>{updatingPlan ? 'Upgrading...' : 'Upgrade to Pro'}</span>
+              </Button>
             ) : (
-              <div className="space-y-3 max-w-md">
-                <div className="w-full bg-white/5 rounded-full h-2.5">
-                  <div
-                    className="bg-accent-cyan h-2.5 rounded-full transition-all duration-500"
-                    style={{ width: `${usagePercent}%` }}
-                  />
-                </div>
-                <div className="flex justify-between text-white/50 text-[11px]">
-                  <span>
-                    {creditsUsed} / {maxCredits} requests used
-                  </span>
-                  <span>Resets in ~14 hours</span>
-                </div>
-              </div>
+              <Button
+                variant="terminal"
+                size="md"
+                onClick={() => handleTogglePlan('free')}
+                disabled={updatingPlan}
+                className="cursor-pointer"
+              >
+                <span>{updatingPlan ? 'Updating...' : 'Downgrade to Free'}</span>
+              </Button>
             )}
-            <div className="text-white/20 mt-2 text-[11px]">
-              Daily limits prevent abuse. Local Gemini Nano bypasses all limits.
+          </div>
+        </div>
+
+        {/* Quotas */}
+        <div className="pt-6">
+          <div className="text-xs font-semibold text-white/40 uppercase tracking-wider mb-3">
+            Daily AI API Usage
+          </div>
+
+          {plan === 'pro' ? (
+            <div className="flex items-center gap-2 text-success font-medium text-sm py-2">
+              <Zap className="w-4 h-4 text-success" />
+              <span>Unlimited — Pro tier bypasses all daily rate limits.</span>
+            </div>
+          ) : (
+            <div className="space-y-3 max-w-md">
+              <div className="w-full bg-white/5 rounded-full h-2 overflow-hidden">
+                <div
+                  className="bg-accent-cyan h-full rounded-full transition-all duration-500"
+                  style={{ width: `${usagePercent}%` }}
+                />
+              </div>
+              <div className="flex justify-between text-xs text-white/60 font-sans">
+                <span>
+                  {creditsUsed} / {maxCredits} requests used today
+                </span>
+                <span>{usagePercent}% utilized</span>
+              </div>
+            </div>
+          )}
+          <p className="text-xs text-white/30 mt-3 leading-relaxed">
+            Local Gemini Nano executions on Chrome are always unlimited and run 100% private on your
+            device.
+          </p>
+        </div>
+      </div>
+
+      {/* Plan Comparison Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+        {/* Free Card */}
+        <div
+          className={`p-6 md:p-8 rounded-2xl border transition-all ${
+            plan === 'free'
+              ? 'bg-surface border-white/20 shadow-lg'
+              : 'bg-surface/50 border-white/5 opacity-80 hover:opacity-100'
+          }`}
+        >
+          <div className="text-xs font-semibold uppercase tracking-wider text-white/40 mb-2">
+            Starter
+          </div>
+          <div className="text-xl font-bold text-white mb-1">Free</div>
+          <div className="text-2xl font-extrabold text-white mb-6">
+            $0 <span className="text-xs font-normal text-white/40">/ month</span>
+          </div>
+
+          <div className="space-y-3 text-sm">
+            <div className="flex items-center gap-2.5 text-white/80">
+              <Check className="w-4 h-4 text-accent-cyan shrink-0" />
+              <span>50 AI API requests / day</span>
+            </div>
+            <div className="flex items-center gap-2.5 text-white/80">
+              <Check className="w-4 h-4 text-accent-cyan shrink-0" />
+              <span>Local Gemini Nano support</span>
+            </div>
+            <div className="flex items-center gap-2.5 text-white/80">
+              <Check className="w-4 h-4 text-accent-cyan shrink-0" />
+              <span>Local alias shortcut rules</span>
+            </div>
+            <div className="flex items-center gap-2.5 text-white/30">
+              <span className="w-4 h-4 flex items-center justify-center text-xs">&times;</span>
+              <span className="line-through">Cloud profile sync</span>
+            </div>
+            <div className="flex items-center gap-2.5 text-white/30">
+              <span className="w-4 h-4 flex items-center justify-center text-xs">&times;</span>
+              <span className="line-through">Groq Llama-3.3-70B model access</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Pro Card */}
+        <div
+          className={`p-6 md:p-8 rounded-2xl border transition-all relative ${
+            plan === 'pro'
+              ? 'bg-surface border-accent-violet/50 shadow-lg shadow-accent-violet/5'
+              : 'bg-surface/70 border-accent-violet/30 hover:border-accent-violet/60'
+          }`}
+        >
+          <div className="absolute top-6 right-6">
+            <span className="text-[10px] px-2.5 py-1 rounded-full bg-accent-violet/20 border border-accent-violet/40 text-accent-violet font-bold uppercase tracking-wider">
+              Popular
+            </span>
+          </div>
+
+          <div className="text-xs font-semibold uppercase tracking-wider text-accent-violet mb-2">
+            Professional
+          </div>
+          <div className="text-xl font-bold text-white mb-1">Pro</div>
+          <div className="text-2xl font-extrabold text-white mb-6">
+            $9 <span className="text-xs font-normal text-white/40">/ month</span>
+          </div>
+
+          <div className="space-y-3 text-sm">
+            <div className="flex items-center gap-2.5 text-white/90">
+              <Check className="w-4 h-4 text-accent-cyan shrink-0" />
+              <span>Unlimited AI requests</span>
+            </div>
+            <div className="flex items-center gap-2.5 text-white/90">
+              <Check className="w-4 h-4 text-accent-cyan shrink-0" />
+              <span>Groq Llama-3.3-70B Cloud Model</span>
+            </div>
+            <div className="flex items-center gap-2.5 text-white/90">
+              <Check className="w-4 h-4 text-accent-cyan shrink-0" />
+              <span>Continuous Cloud Profile Sync</span>
+            </div>
+            <div className="flex items-center gap-2.5 text-white/90">
+              <Check className="w-4 h-4 text-accent-cyan shrink-0" />
+              <span>Custom Skill Sandbox execution</span>
+            </div>
+            <div className="flex items-center gap-2.5 text-white/90">
+              <Check className="w-4 h-4 text-accent-cyan shrink-0" />
+              <span>Priority Support & Updates</span>
             </div>
           </div>
         </div>
       </div>
 
-      <div className="bg-bg-primary/90 backdrop-blur-2xl border border-white/10 rounded-xl shadow-2xl overflow-hidden mb-8">
-        <div className="p-6 md:p-8">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            <div className="space-y-4">
-              <div>
-                <div className="text-white/30 text-[11px] uppercase tracking-wider font-medium mb-3">
-                  Free Plan
-                </div>
-                <div className="text-lg font-bold text-white">Free</div>
-                <div className="text-accent-cyan text-sm font-bold mb-4">$0 / month</div>
-                <div className="space-y-2 text-[13px]">
-                  <div className="flex items-center gap-2 text-white/60">
-                    <span className="text-accent-cyan">&#10003;</span>
-                    <span>50 AI API requests per day</span>
-                  </div>
-                  <div className="flex items-center gap-2 text-white/60">
-                    <span className="text-accent-cyan">&#10003;</span>
-                    <span>Local Gemini Nano support (Chrome)</span>
-                  </div>
-                  <div className="flex items-center gap-2 text-white/60">
-                    <span className="text-accent-cyan">&#10003;</span>
-                    <span>Local alias shortcut configs</span>
-                  </div>
-                  <div className="flex items-center gap-2 text-white/20">
-                    <span className="text-white/10">&#10007;</span>
-                    <span>Cloud profile memory sync</span>
-                  </div>
-                  <div className="flex items-center gap-2 text-white/20">
-                    <span className="text-white/10">&#10007;</span>
-                    <span>Groq Llama-3.3-70B model access</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="space-y-4">
-              <div>
-                <div className="text-white/30 text-[11px] uppercase tracking-wider font-medium mb-3">
-                  Pro Plan
-                </div>
-                <div className="flex items-center gap-2 mb-0.5">
-                  <div className="text-lg font-bold text-white">Pro</div>
-                  <span className="text-[10px] px-2 py-0.5 rounded bg-accent-violet/20 border border-accent-violet/30 text-accent-violet font-bold uppercase tracking-wider">
-                    Recommended
-                  </span>
-                </div>
-                <div className="text-accent-violet text-sm font-bold mb-4">$9 / month</div>
-                <div className="space-y-2 text-[13px]">
-                  <div className="flex items-center gap-2 text-white/60">
-                    <span className="text-accent-cyan">&#10003;</span>
-                    <span>Unlimited API requests</span>
-                  </div>
-                  <div className="flex items-center gap-2 text-white/60">
-                    <span className="text-accent-cyan">&#10003;</span>
-                    <span>Groq Llama-3.3-70B cloud model</span>
-                  </div>
-                  <div className="flex items-center gap-2 text-white/60">
-                    <span className="text-accent-cyan">&#10003;</span>
-                    <span>Continuous cloud profile sync</span>
-                  </div>
-                  <div className="flex items-center gap-2 text-white/60">
-                    <span className="text-accent-cyan">&#10003;</span>
-                    <span>Priority skill sandbox execution</span>
-                  </div>
-                  <div className="flex items-center gap-2 text-white/60">
-                    <span className="text-accent-cyan">&#10003;</span>
-                    <span>Full developer community support</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div className="mt-8 flex items-start gap-2 text-white/30 text-[11px] leading-relaxed">
-        <HelpCircle className="w-4 h-4 shrink-0 mt-0.5" />
-        <div>
-          <span>Need custom quotas or enterprise API keys? </span>
+      {/* Support footnote */}
+      <div className="flex items-center gap-2 text-white/40 text-xs">
+        <HelpCircle className="w-4 h-4 shrink-0" />
+        <span>
+          Need custom enterprise quotas or team billing?{' '}
           <a
             href="mailto:support@cognilot.app"
-            className="text-accent-cyan hover:text-accent-cyan/85 transition-colors underline"
+            className="text-accent-cyan hover:underline transition-colors"
           >
             Contact support
           </a>
-        </div>
+        </span>
       </div>
     </DocLayout>
   );

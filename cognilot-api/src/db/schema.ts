@@ -16,35 +16,21 @@ export const users = pgTable('users', {
 });
 
 /**
- * User Profiles — stores learned AI data and onboarding info per user.
- * One profile per user (1:1 relation).
- * `dataLearned` is a JSONB column that stores structured learned context
- * (job title, company, writing style, etc.) collected by the extension.
+ * Memories — stores learned AI facts and memory data per user.
+ * One record per user (1:1 relation).
+ * `data` is a JSONB column that stores structured memory facts
+ * (job title, company, full name, phone, etc.) collected by the extension and SDK.
  */
-export const userProfiles = pgTable('user_profiles', {
+export const memories = pgTable('memories', {
   userId: uuid('user_id')
     .primaryKey()
     .references(() => users.id, { onDelete: 'cascade' }),
-  dataLearned: jsonb('data_learned').default({}).notNull(),
+  data: jsonb('data').default({}).notNull(),
   cvRawText: text('cv_raw_text'),
+  cvStoragePath: text('cv_storage_path'),
+  cvFileName: text('cv_file_name'),
+  cvMimeType: text('cv_mime_type'),
   onboardingCompleted: timestamp('onboarding_completed', { withTimezone: true }),
-  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
-});
-
-/**
- * Aliases — user-defined named references to memory fields.
- * e.g. "correo" → memoryKey: "email" (resolves to all values from data_learned.email)
- * The extension resolves aliases by reading the memoryKey from profile_cache.
- */
-export const aliases = pgTable('aliases', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  userId: uuid('user_id')
-    .notNull()
-    .references(() => users.id, { onDelete: 'cascade' }),
-  label: text('label').notNull(), // The trigger text (e.g. "correo")
-  memoryKey: text('memory_key').notNull(), // Reference to data_learned key (e.g. "email")
-  category: text('category').default('general'),
-  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 });
 
@@ -69,8 +55,6 @@ export const usageCredits = pgTable(
 
 export type User = typeof users.$inferSelect;
 export type UserInsert = typeof users.$inferInsert;
-export type UserProfile = typeof userProfiles.$inferSelect;
-export type UserProfileInsert = typeof userProfiles.$inferInsert;
-export type Alias = typeof aliases.$inferSelect;
-export type AliasInsert = typeof aliases.$inferInsert;
+export type Memory = typeof memories.$inferSelect;
+export type MemoryInsert = typeof memories.$inferInsert;
 export type UsageCredit = typeof usageCredits.$inferSelect;

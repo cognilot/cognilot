@@ -115,7 +115,14 @@ export class WebNode implements CognilotNode {
 
   async setValue(value: string): Promise<void> {
     if (this.element instanceof HTMLInputElement || this.element instanceof HTMLTextAreaElement) {
-      this.element.value = value;
+      let proto: object | null = HTMLInputElement.prototype;
+      if (this.element instanceof HTMLTextAreaElement) proto = HTMLTextAreaElement.prototype;
+      const descriptor = proto ? Object.getOwnPropertyDescriptor(proto, 'value') : null;
+      if (descriptor?.set) {
+        descriptor.set.call(this.element, value);
+      } else {
+        this.element.value = value;
+      }
       this.triggerEvent('input');
       this.triggerEvent('change');
     } else if (this.element instanceof HTMLSelectElement) {

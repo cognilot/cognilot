@@ -5,6 +5,7 @@ import { useRouter, usePathname } from 'next/navigation';
 import { createBrowserClient } from '@supabase/ssr';
 import Link from 'next/link';
 import type { User } from '@supabase/supabase-js';
+import { Compass, Database, Sparkles, Settings, CreditCard, LogOut } from 'lucide-react';
 
 const supabase = createBrowserClient(
   process.env['NEXT_PUBLIC_SUPABASE_URL'] ?? '',
@@ -16,9 +17,9 @@ const supabase = createBrowserClient(
  *
  * Responsibilities:
  * 1. Auth guard: redirects to /auth if no active session.
- * 2. Renders the IDE-style sidebar navigation.
- * 3. Injects the animated ambient background shared across all dashboard pages.
- * 4. Listens to SIGNED_OUT events and redirects immediately.
+ * 2. Renders a fixed 100vh modern sidebar navigation.
+ * 3. Injects ambient lighting background.
+ * 4. Ensures independent content scrolling without sidebar stretching.
  */
 export default function DashboardLayout({ children }: { children: ReactNode }) {
   const router = useRouter();
@@ -97,27 +98,30 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
   };
 
   const navItems = [
-    { href: '/welcome', label: 'welcome', hint: '// getting started' },
-    { href: '/memory', label: 'memory', hint: '// profile & learned data' },
-    { href: '/playground', label: 'playground', hint: '// skills & testing' },
-    { href: '/settings', label: 'settings', hint: '// BYOK & preferences' },
-    { href: '/plan', label: 'plan', hint: '// billing & usage' },
+    { href: '/welcome', label: 'Welcome', icon: Compass, hint: 'Getting started' },
+    { href: '/memory', label: 'Memory', icon: Database, hint: 'Learned profile' },
+    { href: '/playground', label: 'Playground', icon: Sparkles, hint: 'Skills & prompts' },
+    { href: '/settings', label: 'Settings', icon: Settings, hint: 'BYOK & preferences' },
+    { href: '/plan', label: 'Plan & Billing', icon: CreditCard, hint: 'Usage limits' },
   ];
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <span className="font-mono text-white/30 text-sm animate-pulse">// loading session...</span>
+      <div className="h-screen w-screen bg-background flex items-center justify-center">
+        <div className="flex items-center gap-2 text-white/40 text-sm font-sans">
+          <span className="w-2 h-2 rounded-full bg-accent-violet animate-pulse" />
+          <span>Loading session...</span>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-background text-foreground flex">
+    <div className="h-screen w-screen overflow-hidden bg-background text-foreground flex">
       {/* Ambient background blobs */}
       <div
         aria-hidden="true"
-        className="fixed inset-0 overflow-hidden pointer-events-none select-none"
+        className="fixed inset-0 overflow-hidden pointer-events-none select-none z-0"
       >
         <div className="absolute -top-48 -left-48 w-[600px] h-[600px] rounded-full bg-violet-500/8 blur-[120px] animate-blob" />
         <div
@@ -126,77 +130,82 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
         />
       </div>
 
-      {/* ── Sidebar ────────────────────────────────────────────────────────── */}
-      <aside className="relative z-10 w-60 border-r border-white/5 bg-white/[0.02] flex flex-col py-6 shrink-0">
-        {/* Logo */}
-        <div className="px-5 mb-8">
-          <Link
-            href="/memory"
-            className="font-mono text-base font-bold text-white flex items-center gap-1 hover:opacity-80 transition-opacity"
-          >
-            <span className="text-violet-400">&gt;</span>
-            <span> cognilot</span>
-            <span className="text-cyan-400 animate-pulse">_</span>
-          </Link>
-          <div className="text-white/20 text-[10px] font-mono uppercase tracking-widest mt-1">
-            // v2.0.0-alpha
+      {/* ── Fixed Sidebar ─────────────────────────────────────────────────── */}
+      <aside className="relative z-20 w-64 h-full border-r border-white/10 bg-surface/50 backdrop-blur-xl flex flex-col justify-between py-6 shrink-0 select-none">
+        <div>
+          {/* Logo */}
+          <div className="px-6 mb-8">
+            <Link
+              href="/home"
+              className="font-mono text-lg font-bold text-white hover:opacity-80 transition-opacity"
+            >
+              &gt; cognilot_
+            </Link>
+            <div className="text-white/30 text-[11px] font-mono tracking-wider mt-1">
+              v2.0.0-alpha
+            </div>
           </div>
+
+          {/* Navigation Items */}
+          <nav className="px-3 space-y-1">
+            {navItems.map((item) => {
+              const isActive = pathname.startsWith(item.href);
+              const Icon = item.icon;
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={`group flex items-center gap-3 px-3.5 py-2.5 rounded-lg text-sm font-sans transition-all ${
+                    isActive
+                      ? 'bg-white/10 text-white font-semibold shadow-sm'
+                      : 'text-white/60 hover:text-white hover:bg-white/5'
+                  }`}
+                >
+                  <Icon
+                    className={`w-4 h-4 shrink-0 transition-colors ${
+                      isActive ? 'text-accent-cyan' : 'text-white/40 group-hover:text-white/80'
+                    }`}
+                  />
+                  <div className="flex flex-col min-w-0">
+                    <span className="truncate leading-tight">{item.label}</span>
+                    <span
+                      className={`text-[11px] font-normal leading-none mt-0.5 truncate transition-colors ${
+                        isActive ? 'text-white/50' : 'text-white/30 group-hover:text-white/40'
+                      }`}
+                    >
+                      {item.hint}
+                    </span>
+                  </div>
+                </Link>
+              );
+            })}
+          </nav>
         </div>
 
-        {/* Nav */}
-        <nav className="flex-1 px-3 space-y-0.5">
-          {navItems.map((item) => {
-            const isActive = pathname.startsWith(item.href);
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={`group flex flex-col px-3 py-2.5 rounded-lg font-mono text-sm transition-colors ${
-                  isActive
-                    ? 'bg-white/8 text-white'
-                    : 'text-white/40 hover:text-white/70 hover:bg-white/4'
-                }`}
-              >
-                <span className="flex items-center gap-2">
-                  {isActive ? (
-                    <span className="text-cyan-400 text-xs font-bold shrink-0">&gt;</span>
-                  ) : (
-                    <span className="w-3 shrink-0" />
-                  )}
-                  <span className={isActive ? 'text-white' : ''}>{item.label}</span>
-                </span>
-                {isActive && (
-                  <span className="text-white/25 text-[10px] pl-5 mt-0.5 font-sans leading-none">
-                    {item.hint}
-                  </span>
-                )}
-              </Link>
-            );
-          })}
-        </nav>
-
-        {/* User footer */}
-        <div className="px-4 mt-4 border-t border-white/5 pt-4">
+        {/* User Footer */}
+        <div className="px-4 border-t border-white/10 pt-4">
           {user && (
-            <div className="mb-3">
-              <div className="text-white/60 text-[11px] font-mono truncate">{user.email}</div>
-              <div className="text-white/20 text-[10px] font-sans uppercase tracking-wider mt-0.5">
+            <div className="mb-3 px-2">
+              <div className="text-white/80 text-xs font-sans font-medium truncate">
+                {user.email}
+              </div>
+              <div className="text-white/30 text-[10px] font-mono uppercase tracking-wider mt-0.5">
                 {user.app_metadata?.provider ?? 'email'}
               </div>
             </div>
           )}
           <button
             onClick={handleSignOut}
-            className="text-white/30 hover:text-red-400 font-mono text-xs transition-colors flex items-center gap-1.5"
+            className="w-full flex items-center gap-2 px-3 py-2 text-white/50 hover:text-red-400 hover:bg-red-500/10 rounded-lg text-xs font-sans transition-colors cursor-pointer"
           >
-            <span className="text-red-500/50">&gt;</span>
-            ./sign_out.sh
+            <LogOut className="w-3.5 h-3.5 text-red-400/70" />
+            <span>Sign Out</span>
           </button>
         </div>
       </aside>
 
-      {/* ── Main Content ───────────────────────────────────────────────────── */}
-      <main className="relative z-10 flex-1 overflow-auto">{children}</main>
+      {/* ── Main Scrollable Content ────────────────────────────────────────── */}
+      <main className="relative z-10 flex-1 h-full overflow-y-auto">{children}</main>
     </div>
   );
 }

@@ -6,7 +6,7 @@ export interface DecisionResponse {
   ghost_indices?: number[]; // Suggested choices in the UI
   is_example?: boolean; // For AI-proposals
   text_content?: string;
-  source: 'llm' | 'profile' | 'alias' | 'cache' | 'local';
+  source: 'llm' | 'profile' | 'alias' | 'cache' | 'local' | 'memory';
   timestamp?: number;
   confidence?: number;
 }

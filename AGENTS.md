@@ -16,14 +16,14 @@
 - **Imports**: Usar paths absolutos y limpios.
 - **Testing**: Pruebas unitarias para el frontend/SDK con Vitest.
 
-## 3. UI/UX y Sistema de Diseño (Terminal/IDE Aesthetic)
+## 3. UI/UX y Sistema de Diseño (Modern Dark Minimalist)
 
-- **Diseño Estricto**: Toda página y componente nuevo debe seguir estrictamente la estética de Terminal/IDE detallada en `DESIGN.md`.
-- **Tipografía**: Fuente monoespaciada (`font-mono`) en toda la aplicación. `font-sans` reservada para etiquetas de ventana y badges del sistema.
-- **Void Background**: Fondo `#050505` por defecto.
-- **Window Container**: Cada bloque principal debe usar el contenedor con barra de título y círculos macOS (`w-3 h-3 rounded-full bg-red-500/80`, etc.).
-- **Botones**: Usar botones tipo script `.sh` con prefijo `>` en violeta (`text-accent-violet`) para acciones principales, y botones de corchetes `[ACTION]` para toggles.
-- **Prohibición**: No usar estilos clásicos de dashboard SaaS tradicional ni cards anidadas.
+- **Diseño Unificado**: Toda página y componente nuevo debe seguir el estándar Modern Dark Minimalist detallado en `DESIGN.md`.
+- **Tipografía Dual**: `font-sans` (Geist / Inter) para el 90% de la UI (títulos, cuerpo, controles, botones, navegación). `font-mono` (Geist Mono / JetBrains Mono) reservada exclusivamente para el logotipo `> cognilot_`, atajos de teclado `<kbd>`, badges técnicos y metadatos.
+- **Void Background**: Fondo `#050505` por defecto con iluminación ambiental sutil.
+- **Botones y Acciones**: Botones modernos con estados limpios (`Get Started`, `Save Changes`, `Sign Out`). Prohibido usar nombres de scripts bash (`./run.sh`).
+- **Dashboard Layout**: Estructura bloqueada `100vh` (`h-screen overflow-hidden`) con sidebar fijo y scroll interno en el área de contenido.
+- **Prohibición**: No saturar la interfaz con gimmicks de terminal (evitar títulos `# archivo.md`, comentarios excesivos, y footers con árboles ASCII). El comentario JSDoc `/** ... */` se reserva solo como acento de marca en el Hero subtext.
 
 ## 4. Git y Workflow
 

@@ -19,7 +19,9 @@ export const MemorySidebar: FC<MemorySidebarProps> = ({
 }) => {
   const isLocationDone = !!formData.country || !!formData.city || !!formData.location;
   const isExperienceDone =
+    !!formData.company ||
     !!formData.current_company ||
+    !!formData.job_title ||
     !!formData.current_role ||
     !!formData.degree ||
     !!formData.university;

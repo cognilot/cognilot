@@ -35,6 +35,35 @@ export class SuggestionEngine {
     return password;
   }
 
+  public getUniqueFieldIdentifier(node: CognilotNode, metadata?: LabelMetadata | null): string {
+    const rawNode = node as any;
+    if (rawNode.id && typeof rawNode.id === 'string' && rawNode.id.trim()) {
+      return rawNode.id.trim();
+    }
+    const name =
+      (typeof rawNode.getAttribute === 'function' ? rawNode.getAttribute('name') : null) ||
+      rawNode.name ||
+      '';
+    const isArrayName = /\[\]|\[\d*\]/.test(name);
+    const label = metadata?.label?.trim() || '';
+
+    if (isArrayName && label) {
+      return `${name}::${label}`;
+    }
+    if (!isArrayName && name) {
+      return name;
+    }
+    if (label) {
+      return label;
+    }
+    const placeholder =
+      typeof rawNode.getAttribute === 'function' ? rawNode.getAttribute('placeholder') : '';
+    if (placeholder && placeholder.trim()) {
+      return placeholder.trim();
+    }
+    return 'unknown';
+  }
+
   /**
    * Handles a field trigger (e.g., focus or click) to fetch suggestions.
    */
@@ -42,17 +71,16 @@ export class SuggestionEngine {
     // 1. Validation (Strictly resolvable text fields)
     const fieldType = (node.type || '').toLowerCase();
     const tagName = node.tagName.toLowerCase();
-    const isCombobox = (node as any).getAttribute?.('role') === 'combobox';
 
-    if (['radio', 'checkbox'].includes(fieldType) || tagName === 'select') {
+    if (['radio', 'checkbox'].includes(fieldType) || tagName === 'select' || fieldType === 'file') {
       return {
         error: 'Field is not textual. SuggestionEngine handles only text/inputs.',
       };
     }
 
-    if (!isResolvableFieldType(fieldType) || isCombobox) {
+    if (!isResolvableFieldType(fieldType)) {
       return {
-        error: `Field is detection-only (${fieldType || 'combobox'}) and cannot be resolved with AI suggestions.`,
+        error: `Field is detection-only (${fieldType}) and cannot be resolved with AI suggestions.`,
       };
     }
 
@@ -118,6 +146,17 @@ export class SuggestionEngine {
       }
     }
 
+    // 2b. Re-use FieldRegistry metadata (populated by PageScanner)
+    if (!metadata && this.sdk.registry) {
+      const regEntry = this.sdk.registry.findByNode(node.getRawNode());
+      if (regEntry?.metadata) {
+        console.log(
+          `[SuggestionEngine] FieldRegistry Match Found: Re-using metadata for "${regEntry.text}"`
+        );
+        metadata = regEntry.metadata;
+      }
+    }
+
     // 3. Case 2: No Match -> On-demand Detection
     if (!metadata) {
       console.log(`[SuggestionEngine] No auto-detection match. Performing on-demand scan...`);
@@ -136,8 +175,7 @@ export class SuggestionEngine {
 
     const globalContext = this.platform.getGlobalContext();
     const domain = globalContext?.location?.hostname || 'unknown';
-    const fieldIdentifier =
-      (node as any).id || (node as any).getAttribute('name') || metadata.label || 'unknown';
+    const fieldIdentifier = this.getUniqueFieldIdentifier(node, metadata);
     const cacheKey = `${domain}::${fieldIdentifier}`;
     const storage = this.sdk.adapters?.storage;
 
@@ -201,6 +239,11 @@ export class SuggestionEngine {
             tagName: node.tagName || 'INPUT',
             required: metadata.required || false,
             helperText: metadata.helper_text || undefined,
+            min: metadata.min ?? undefined,
+            max: metadata.max ?? undefined,
+            step: metadata.step ?? undefined,
+            maxlength: metadata.maxlength ?? undefined,
+            pattern: metadata.pattern ?? undefined,
           },
         },
       ],
@@ -405,40 +448,21 @@ export class SuggestionEngine {
       return null;
     }
 
-    // 1. Check Alias Cache
-    if (this.sdk.alias) {
-      const localMatch = await this.sdk.alias.resolve(fieldDto);
-      if (localMatch && localMatch.success) {
-        console.log(`[SuggestionEngine] Alias Match Hit for "${metadata.label}"`);
+    // 1. Check Local Memory Cache (Seed patterns + Exact keys)
+    if (this.sdk.memory) {
+      const memoryMatch = await this.sdk.memory.resolve(fieldDto);
+      if (memoryMatch && memoryMatch.success) {
+        console.log(`[SuggestionEngine] Memory Match Hit for "${metadata.label}"`);
         return {
           success: true,
-          value: localMatch.suggestion.options?.[0] || '',
-          options: localMatch.suggestion.options || [localMatch.suggestion.options?.[0]],
+          value: memoryMatch.suggestion.options?.[0] || '',
+          options: memoryMatch.suggestion.options || [memoryMatch.suggestion.options?.[0]],
           field: {
             ...cleanMetadata,
             placeholder: (node as any).getAttribute('placeholder') || '',
           },
-          source: localMatch.suggestion.source || 'alias_cache',
-          type: localMatch.suggestion.type || 'discrete',
-        };
-      }
-    }
-
-    // 2. Check Profile Cache
-    if (this.sdk.profile) {
-      const profileMatch = await this.sdk.profile.resolve(fieldDto);
-      if (profileMatch && profileMatch.success) {
-        console.log(`[SuggestionEngine] Profile Match Hit for "${metadata.label}"`);
-        return {
-          success: true,
-          value: profileMatch.suggestion.options?.[0] || '',
-          options: profileMatch.suggestion.options || [profileMatch.suggestion.options?.[0]],
-          field: {
-            ...cleanMetadata,
-            placeholder: (node as any).getAttribute('placeholder') || '',
-          },
-          source: profileMatch.suggestion.source || 'profile_cache',
-          type: profileMatch.suggestion.type || 'discrete',
+          source: memoryMatch.suggestion.source || 'memory',
+          type: memoryMatch.suggestion.type || 'discrete',
         };
       }
     }
@@ -478,14 +502,19 @@ export class SuggestionEngine {
         (item.node as any)?.tagName ||
         ''
       ).toLowerCase();
-      const isCombobox = (item.node as any)?.getAttribute?.('role') === 'combobox';
-      if (!isResolvableFieldType(fieldType) || isCombobox) continue;
+      const isCombobox =
+        (item.node as any)?.getAttribute?.('role') === 'combobox' ||
+        (item.node as any)?.getAttribute?.('aria-autocomplete') !== null;
+      if (
+        !isResolvableFieldType(fieldType) ||
+        fieldType === 'file' ||
+        fieldType === 'autocomplete' ||
+        isCombobox
+      ) {
+        continue;
+      }
 
-      const fieldIdentifier =
-        (item.node as any).id ||
-        (item.node as any).getAttribute('name') ||
-        item.metadata.label ||
-        'unknown';
+      const fieldIdentifier = this.getUniqueFieldIdentifier(item.node, item.metadata);
       const cacheKey = `${domain}::${fieldIdentifier}`;
 
       if (
@@ -604,6 +633,11 @@ export class SuggestionEngine {
           tagName: p.item.node.tagName || 'INPUT',
           required: p.item.metadata.required || false,
           helperText: p.item.metadata.helper_text || undefined,
+          min: p.item.metadata.min ?? undefined,
+          max: p.item.metadata.max ?? undefined,
+          step: p.item.metadata.step ?? undefined,
+          maxlength: p.item.metadata.maxlength ?? undefined,
+          pattern: p.item.metadata.pattern ?? undefined,
         },
       })),
       user_context: {
@@ -652,15 +686,16 @@ export class SuggestionEngine {
             const name = rawNode?.name || nodeAttr;
             const label = p.item.metadata?.label;
 
+            const isArrayName = (n: string) => /\[\]|\[\d*\]/.test(n);
             const candidateLookupKeys = [
               p.key,
               p.fieldIdentifier,
               id ? `${domain}::${id}` : null,
-              name ? `${domain}::${name}` : null,
               label ? `${domain}::${label}` : null,
+              name && !isArrayName(name) ? `${domain}::${name}` : null,
               id || null,
-              name || null,
               label || null,
+              name && !isArrayName(name) ? name : null,
             ].filter(Boolean) as string[];
 
             let suggestion: any = null;
@@ -792,11 +827,11 @@ export class SuggestionEngine {
       return;
     }
 
-    if (label && this.sdk.alias) {
+    if (label && this.sdk.memory) {
       console.log(
-        `[SuggestionEngine] Learning alias for "${label}" -> "${value}" (skipSync=${skipSync})`
+        `[SuggestionEngine] Learning fact for "${label}" -> "${value}" (skipSync=${skipSync})`
       );
-      await this.sdk.alias.persistAlias(label, value, skipSync);
+      await this.sdk.memory.enqueueLearning(label, value, skipSync);
     }
 
     // Invalidate registry entry so the next trigger re-consults alias cache
@@ -807,6 +842,19 @@ export class SuggestionEngine {
       );
       regEntry.status = 'pending';
       regEntry.resolution = null;
+    }
+  }
+
+  /** Clears persistent suggestions cache to allow full re-resolution on context toggle */
+  async clearCache(): Promise<void> {
+    const storage = this.sdk.adapters?.storage;
+    if (storage) {
+      try {
+        await (storage as any).set('Cognilot_suggestions_cache', {});
+        console.log('[SuggestionEngine] 🗑️ Suggestions cache cleared.');
+      } catch (e) {
+        console.warn('[SuggestionEngine] Failed to clear storage cache:', e);
+      }
     }
   }
 }

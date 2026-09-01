@@ -103,6 +103,15 @@ export function processDetection(
 
   const showBorders = true;
   if (showBorders) {
+    if (_selectedContainer && _currentBatch.length > 0) {
+      FormTriggerUI.showFormTrigger(_selectedContainer, _currentBatch.length, () => {
+        const api = (window as unknown as { CognilotAPI?: { solveAll(): unknown } }).CognilotAPI;
+        if (api?.solveAll) {
+          api.solveAll();
+        }
+      });
+    }
+
     console.log(`[InspectorUI] Painting ${_currentBatch.length} fields...`);
     _currentBatch.forEach((q) => {
       try {
@@ -116,8 +125,6 @@ export function processDetection(
 
             const type = (q.type || '').toLowerCase();
             const NON_RESOLVABLE = new Set([
-              'autocomplete',
-              'file',
               'search',
               'range',
               'color',
@@ -133,7 +140,7 @@ export function processDetection(
               q.status === 'detected' ||
               q.status === 'unsupported' ||
               q.resolvable === false;
-            const isChoice = type === 'radio' || type === 'checkbox';
+            const isChoice = type === 'radio' || type === 'checkbox' || type === 'select';
 
             if (isNonResolvable) {
               // Detection-only field: standard neutral detected style, no AI pending violet outline
@@ -239,8 +246,6 @@ export function paintResolvedFieldsFromRegistry(container: HTMLElement | null): 
     const isResolved = field.status === 'resolved' && !!resolution?.value && !isPreFilled;
 
     const NON_RESOLVABLE = new Set([
-      'autocomplete',
-      'file',
       'search',
       'range',
       'color',
@@ -272,7 +277,7 @@ export function paintResolvedFieldsFromRegistry(container: HTMLElement | null): 
     if (!isResolved) return;
 
     const type = (field.type || '').toLowerCase();
-    const isChoice = type === 'radio' || type === 'checkbox';
+    const isChoice = type === 'radio' || type === 'checkbox' || type === 'select';
 
     // Remove pending class — this field has a memory resolution
     el.classList.remove('Cognilot-field-pending');
@@ -308,7 +313,7 @@ export function setSelectedContainer(el: HTMLElement | null): void {
   _selectedContainer = el || null;
   if (!el) {
     removeSpotlightBackdrop();
-    FormTriggerUI.removeFormTrigger();
+    FormTriggerUI.removeAll();
     return;
   }
 
@@ -423,7 +428,7 @@ export function clear(): void {
   setLastHighlighted(null);
   removeSpotlightBackdrop();
   hideToolbar();
-  FormTriggerUI.removeFormTrigger();
+  FormTriggerUI.removeAll();
 }
 
 // Re-export sub-module functions for unified access

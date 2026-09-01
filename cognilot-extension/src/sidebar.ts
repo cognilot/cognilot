@@ -427,7 +427,7 @@ class CognilotSidebar {
 
             if (!match && profile) {
               match = await profile.resolve(q);
-              source = 'profile_cache';
+              source = 'memory_cache';
             }
 
             if (match) {
@@ -649,11 +649,21 @@ class CognilotSidebar {
           const renderField = (q, i) => {
             const type = q.type || 'text';
             const labelStr = q.text || q.label || q.question || `Field ${i + 1}`;
-            const cleanLabel = labelStr.replace(/\n/g, ' ').replace(/\s+/g, ' ').trim();
+            const cleanLabel = labelStr
+              .replace(/\n/g, ' ')
+              .replace(
+                /\s*[([{\s*[*•·-]?\s*(obligatorio|requerido|required|mandatory)?\s*[*•·-]?\s*[)\]}]/gi,
+                ''
+              )
+              .replace(/\s*[([{\s*[*•·-]+\s*[)\]}]?/gi, '')
+              .replace(/\*/g, '')
+              .replace(/:/g, '')
+              .replace(/[\u200B-\u200D\uFEFF]/g, '')
+              .replace(/\s+/g, ' ')
+              .replace(/\s*[([{:/-]\s*$/, '')
+              .trim();
 
             const NON_RESOLVABLE_TYPES = new Set([
-              'autocomplete',
-              'file',
               'search',
               'range',
               'color',
@@ -670,8 +680,8 @@ class CognilotSidebar {
               q.status === 'unsupported' ||
               q.resolvable === false;
 
-            const isChoice = type === 'radio' || type === 'checkbox' || type === 'select';
             const qOptions = Array.isArray(q.options) ? q.options : [];
+            const isChoice = type === 'radio' || type === 'checkbox' || type === 'select';
 
             // ── Derived visual state flags ─────────────────────────────────
             const isApplied = q.applied || this.lastSolvedUrl === this.currentTab?.url;
@@ -693,6 +703,17 @@ class CognilotSidebar {
             let headerBadge = '';
             let resolvedValue = null;
 
+            const isAI =
+              q.resolution?.source === 'ai' ||
+              q.resolution?.source === 'llm' ||
+              (typeof q.resolution?.source === 'string' &&
+                (q.resolution.source.includes('openai') ||
+                  q.resolution.source.includes('groq') ||
+                  q.resolution.source.includes('gpt') ||
+                  q.resolution.source.includes('claude') ||
+                  q.resolution.source.includes('gemini') ||
+                  q.resolution.source.includes('suggestion')));
+
             if (isNonResolvable) {
               headerBadge = `<span style="font-size: 8px; font-weight: 700; color: var(--text-secondary); background: rgba(0,0,0,0.05); padding: 0 4px; border-radius: 3px; border: 1px solid var(--border-color); white-space: nowrap;">DETECT</span>`;
             } else if (q.resolution?.success) {
@@ -708,14 +729,14 @@ class CognilotSidebar {
                 headerBadge = `<span style="font-size: 8px; font-weight: 700; color: #8b5cf6; background: rgba(139,92,246,0.08); padding: 0 4px; border-radius: 3px; border: 1px solid rgba(139,92,246,0.2); white-space: nowrap;">ALIAS</span>`;
               } else if (source === 'local_generator') {
                 headerBadge = `<span style="font-size: 8px; font-weight: 700; color: #10b981; background: rgba(16,185,129,0.08); padding: 0 4px; border-radius: 3px; border: 1px solid rgba(16,185,129,0.2); white-space: nowrap;">KEY</span>`;
-              } else if (source === 'ai') {
+              } else if (isAI) {
                 headerBadge = `<span style="font-size: 8px; font-weight: 700; color: #8b5cf6; background: rgba(139,92,246,0.08); padding: 0 4px; border-radius: 3px; border: 1px solid rgba(139,92,246,0.2); white-space: nowrap;">IA</span>`;
               }
             } else if (q.answer) {
               resolvedValue = q.answer;
               headerBadge = `<span style="font-size: 8px; font-weight: 700; color: #8b5cf6; background: rgba(139,92,246,0.08); padding: 0 4px; border-radius: 3px; border: 1px solid rgba(139,92,246,0.2); white-space: nowrap;">IA</span>`;
             } else {
-              headerBadge = `<span style="font-size: 8px; font-weight: 700; color: #8b5cf6; background: rgba(139,92,246,0.08); padding: 0 4px; border-radius: 3px; border: 1px solid rgba(139,92,246,0.2); white-space: nowrap;">IA</span>`;
+              headerBadge = '';
             }
 
             // ── Match resolved value against option text/value ─────────────
@@ -752,26 +773,63 @@ class CognilotSidebar {
                                  Solo detección
                              </div>
                            `;
-            } else if (isChoice && qOptions.length > 0) {
-              const optsHtml = qOptions
-                .map((o, idx) => {
-                  const label = o.text || o.label || String(o.value || o);
-                  if (idx === selectedIndex) {
-                    if (isApplied) {
-                      return `<span style="font-size: 9px; font-weight: 600; color: #fff; background: ${themeColor}; padding: 2px 6px; border-radius: 3px;">${label}</span>`;
-                    } else if (isMem) {
-                      // Wrap label text inside a inner span with GRADIENT style to avoid shorthand background overrides clipping it to invisible
-                      return `<span style="font-size: 9px; font-weight: 600; background: rgba(0,0,0,0.03); padding: 2px 6px; border-radius: 3px; border: 1px solid var(--border-color);"><span style="${GRADIENT}">${label}</span></span>`;
-                    }
+            } else if (isChoice && (qOptions.length > 0 || type === 'checkbox')) {
+              const isSingleCheckbox = type === 'checkbox' && qOptions.length <= 1;
+              if (isSingleCheckbox) {
+                const isChecked =
+                  selectedIndex === 0 ||
+                  resolvedValue === true ||
+                  resolvedValue === '1' ||
+                  resolvedValue === 'true' ||
+                  resolvedValue === 'on' ||
+                  (resolvedValue &&
+                    qOptions.length > 0 &&
+                    String(resolvedValue).trim().toLowerCase() ===
+                      String(qOptions[0].value || qOptions[0].text || '')
+                        .trim()
+                        .toLowerCase());
+
+                if (isChecked) {
+                  if (isApplied) {
+                    entryHtml += `
+                      <div style="padding-left: 2px;">
+                        <span style="font-size: 9px; font-weight: 600; color: #fff; background: ${themeColor}; padding: 2px 6px; border-radius: 3px;">[✓] Aceptado</span>
+                      </div>
+                    `;
+                  } else {
+                    entryHtml += `
+                      <div style="padding-left: 2px;">
+                        <span style="font-size: 9px; font-weight: 600; background: rgba(139,92,246,0.12); padding: 2px 6px; border-radius: 3px; border: 1px solid rgba(139,92,246,0.3);"><span style="${GRADIENT}">[✓] Aceptado</span></span>
+                      </div>
+                    `;
                   }
-                  return `<span style="font-size: 9px; color: var(--text-secondary); background: rgba(0,0,0,0.03); padding: 2px 6px; border-radius: 3px; border: 1px solid var(--border-color);">${label}</span>`;
-                })
-                .join(' ');
-              entryHtml += `
-                             <div style="display: flex; flex-wrap: wrap; gap: 3px; padding-left: 2px;">
-                                 ${optsHtml}
-                             </div>
-                           `;
+                } else {
+                  entryHtml += `
+                    <div style="padding-left: 2px;">
+                      <span style="font-size: 9px; color: var(--text-secondary); background: rgba(0,0,0,0.03); padding: 2px 6px; border-radius: 3px; border: 1px solid var(--border-color);">[ ] No marcado</span>
+                    </div>
+                  `;
+                }
+              } else {
+                const optsHtml = qOptions
+                  .map((o, idx) => {
+                    const rawLabel = o.text || o.label || String(o.value || o);
+                    const label = rawLabel.length > 45 ? `${rawLabel.slice(0, 42)}...` : rawLabel;
+                    if (idx === selectedIndex) {
+                      if (isApplied) {
+                        return `<span style="font-size: 9px; font-weight: 600; color: #fff; background: ${themeColor}; padding: 2px 6px; border-radius: 3px;" title="${rawLabel}">${label}</span>`;
+                      }
+                      return `<span style="font-size: 9px; font-weight: 600; background: rgba(139,92,246,0.12); padding: 2px 6px; border-radius: 3px; border: 1px solid rgba(139,92,246,0.3);" title="${rawLabel}"><span style="${GRADIENT}">${label}</span></span>`;
+                    }
+                    return `<span style="font-size: 9px; color: var(--text-secondary); background: rgba(0,0,0,0.03); padding: 2px 6px; border-radius: 3px; border: 1px solid var(--border-color);" title="${rawLabel}">${label}</span>`;
+                  })
+                  .join(' ');
+                entryHtml += `
+                               <div style="display: flex; flex-wrap: wrap; gap: 3px; padding-left: 2px; max-height: 90px; overflow-y: auto;">
+                                   ${optsHtml}
+                               </div>
+                             `;
+              }
             } else if (isMem && !isApplied && memOptions.length > 0) {
               let sHtml = '';
               if (isPassword) {
@@ -804,7 +862,7 @@ class CognilotSidebar {
               let valueStyle;
               if (isApplied) {
                 valueStyle = 'color: var(--text-secondary); font-weight: 500; opacity: 0.8;';
-              } else if (isMem) {
+              } else if (isMem || isAI) {
                 valueStyle = `${GRADIENT} font-weight: 600;`;
               } else if (isPreFilled) {
                 valueStyle = 'color: var(--text-secondary); font-weight: 500; opacity: 0.8;';
@@ -873,6 +931,24 @@ class CognilotSidebar {
                             ">
                       ${currentModeOpt.label}
                     </button>
+                    <button id="carousel-clear-cache-btn" class="status-pill" title="Limpiar caché de sugerencias y decisiones de este formulario"
+                            style="
+                              font-size: 8px; 
+                              padding: 1px 6px; 
+                              border-radius: 8px; 
+                              border: 1px solid var(--border-color); 
+                              background: rgba(255,255,255,0.04); 
+                              color: var(--text-secondary); 
+                              cursor: pointer; 
+                              font-weight: 700;
+                              display: inline-flex;
+                              align-items: center;
+                              gap: 3px;
+                              text-transform: uppercase;
+                              transition: all 0.2s ease;
+                            ">
+                      <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"></path><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path></svg>
+                    </button>
                   </div>
 
                   <div style="display: flex; gap: 4px; align-items: center;">
@@ -901,13 +977,15 @@ class CognilotSidebar {
             }
           });
 
-          // Wire click focus for form header (excluding mode button)
+          // Wire click focus for form header (excluding mode and clear buttons)
           const formHeader = document.getElementById('active-form-header');
           if (formHeader) {
             const selector = formHeader.getAttribute('data-selector');
             if (selector) {
               formHeader.addEventListener('click', (e) => {
-                if ((e.target as HTMLElement)?.id === 'carousel-mode-btn') return;
+                const targetId = (e.target as HTMLElement)?.id;
+                if (targetId === 'carousel-mode-btn' || targetId === 'carousel-clear-cache-btn')
+                  return;
                 this.safeSendMessage('sidebarFocusField', { selector });
               });
             }
@@ -925,6 +1003,33 @@ class CognilotSidebar {
             const nextIndex = (currentIndex + 1) % modeOptions.length;
             this.activeMode = modeOptions[nextIndex].id;
             this.updateContextPreview();
+          });
+
+          // Wire Clear Cache button listener
+          document.getElementById('carousel-clear-cache-btn')?.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const btn = e.currentTarget as HTMLElement;
+            btn.style.opacity = '0.5';
+            btn.innerHTML = `
+              <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="animate-spin"><path d="M21 12a9 9 0 1 1-6.219-8.56"></path></svg>
+              ...
+            `;
+            if (this.currentTab?.id) {
+              chrome.tabs
+                .sendMessage(this.currentTab.id, {
+                  action: 'cognilot-invalidate-cache-and-prefetch',
+                  data: { useClipboard: this.useClipboardContext },
+                })
+                .catch(() => {});
+            }
+            setTimeout(() => {
+              btn.style.opacity = '1';
+              btn.innerHTML = `
+                <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"></path><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path></svg>
+                Limpiar
+              `;
+              this.syncWithRegistry(2, 300);
+            }, 500);
           });
 
           // Wire Carousel Arrow Click Listeners
@@ -2029,19 +2134,24 @@ class CognilotSidebar {
         this.unlockDetectionAfterInspector();
         sendResponse({ received: true });
       } else if (request.action === 'fieldSuggestionResolved') {
-        const { fieldId, fieldName, value, source } = request.data;
+        const { fieldId, fieldName, value, options, source } = request.data;
         if (this.currentChatContext?.questions) {
           // Find matching question by id or name
           const qIndex = this.currentChatContext.questions.findIndex(
             (q) => (q.id && q.id === fieldId) || (q.name && q.name === fieldName)
           );
-          if (qIndex !== -1 && !this.currentChatContext.questions[qIndex].resolution?.success) {
+          if (qIndex !== -1) {
             this.currentChatContext.questions[qIndex].resolution = {
               success: true,
               source: source || 'suggestion',
               value: value,
             };
-            this.currentChatContext.questions[qIndex].applied = true;
+            if (Array.isArray(options) && options.length > 1) {
+              this.currentChatContext.questions[qIndex].options = options.map((opt: any) =>
+                typeof opt === 'string' ? { text: opt, value: opt } : opt
+              );
+            }
+            this.currentChatContext.questions[qIndex].applied = false;
             this.updateContextPreview();
           }
         }
@@ -2252,18 +2362,56 @@ class CognilotSidebar {
       formScore: f.formScore || 0,
       status: f.status,
       applied: false,
-      options: Array.isArray(f.options) ? f.options : [],
+      options:
+        Array.isArray(f.options) && f.options.length > 0
+          ? f.options
+          : Array.isArray((f.resolution as any)?.allChoices) &&
+              (f.resolution as any).allChoices.length > 0
+            ? (f.resolution as any).allChoices
+            : Array.isArray((f.resolution as any)?.options) &&
+                (f.resolution as any).options.length > 1
+              ? (f.resolution as any).options
+              : Array.isArray(f.options)
+                ? f.options
+                : [],
       resolution: (() => {
-        if (f.status !== 'resolved') return null;
+        if (f.status !== 'resolved' || !f.resolution) return null;
+        const hasVal =
+          (typeof f.resolution.value === 'string' && f.resolution.value.trim().length > 0) ||
+          (f.resolution.value !== null &&
+            f.resolution.value !== undefined &&
+            f.resolution.value !== '') ||
+          (Array.isArray((f.resolution as any)?.options) &&
+            (f.resolution as any).options.length > 0);
+        if (!hasVal) return null;
+
         const isChoice = f.type === 'radio' || f.type === 'checkbox' || f.type === 'select';
+        const isAIResolution =
+          f.resolution?.source === 'ai' ||
+          f.resolution?.source === 'llm' ||
+          (typeof f.resolution?.source === 'string' &&
+            (f.resolution.source.includes('openai') ||
+              f.resolution.source.includes('groq') ||
+              f.resolution.source.includes('gpt') ||
+              f.resolution.source.includes('claude') ||
+              f.resolution.source.includes('gemini')));
+
         if (isChoice) {
-          const fieldOpts = Array.isArray(f.options) ? f.options : [];
+          const fieldOpts =
+            Array.isArray(f.options) && f.options.length > 0
+              ? f.options
+              : (f.resolution as any)?.allChoices || [];
           const resOpts = ((f.resolution as any)?.options || []).map(String);
           if (f.resolution?.value) {
             resOpts.push(String(f.resolution.value));
           }
           const matched = this.matchChoiceValue(fieldOpts, resOpts);
-          if (!matched && f.resolution?.source !== 'existing_value') {
+          if (
+            !matched &&
+            f.resolution?.source !== 'existing_value' &&
+            !isAIResolution &&
+            fieldOpts.length > 0
+          ) {
             return null; // Choice options don't match memory value — degrade to IA
           }
         }
@@ -2272,7 +2420,8 @@ class CognilotSidebar {
           source:
             f.resolution?.source === 'existing_value' ? 'pre-filled' : f.resolution?.source || 'ai',
           value: f.resolution?.value,
-          options: (f.resolution as any)?.options || [],
+          options: [f.resolution?.value || ''].filter(Boolean),
+          allChoices: (f.resolution as any)?.allChoices || (f.options as any) || [],
           memoryKey: (f.resolution as any)?.memoryKey || null,
         };
       })(),
@@ -2281,11 +2430,19 @@ class CognilotSidebar {
     // Retain previous answer/applied states if any
     if (this.currentChatContext && this.currentChatContext.questions) {
       questions.forEach((q) => {
-        const oldQ = this.currentChatContext.questions.find((old) => old.id === q.id);
+        const oldQ = this.currentChatContext.questions.find(
+          (old) =>
+            (old.id && old.id === q.id) ||
+            (old.selector && q.selector && old.selector === q.selector) ||
+            (old.name && q.name && old.name === q.name)
+        );
         if (oldQ) {
           q.answer = oldQ.answer;
           q.success = oldQ.success;
           q.applied = oldQ.applied;
+          if ((!q.options || q.options.length === 0) && oldQ.options && oldQ.options.length > 0) {
+            q.options = oldQ.options;
+          }
         }
       });
     }
@@ -2358,7 +2515,7 @@ class CognilotSidebar {
           let source = 'alias_cache';
           if (!match && profile) {
             match = await profile.resolve(q);
-            source = 'profile_cache';
+            source = 'memory_cache';
           }
           if (match?.memoryKey) {
             const isChoice = q.type === 'radio' || q.type === 'checkbox' || q.type === 'select';
@@ -2450,7 +2607,7 @@ class CognilotSidebar {
     const assistantEl = this._assistantMsgEl || document.getElementById('solve-response');
 
     if (data.status === 'batch_start') {
-      if (infoText) infoText.innerHTML = `Resolviendo formulario (${data.total} campos)...`;
+      // Keep page title in infoText
     } else if (data.status === 'step') {
       // Update the context questions with the answer
       if (this.currentChatContext?.questions) {
@@ -2483,7 +2640,6 @@ class CognilotSidebar {
           `<span style="color:var(--danger-color);">❌ ${data.message}</span>`;
       }
     } else if (data.status === 'complete') {
-      if (infoText) infoText.innerHTML = 'Resolución finalizada.';
       const total = (data.solved || 0) + (data.failed || 0);
       if (assistantEl) {
         let current = assistantEl.innerHTML;
@@ -2766,12 +2922,8 @@ class CognilotSidebar {
 
     if (questions.length === 0) return;
 
-    // 2. Disable solve button while solving and update status bar
+    // 2. Disable solve button while solving
     this.updatePrimarySolveButtonState(false);
-    const infoText = document.getElementById('info-text');
-    if (infoText) {
-      infoText.innerHTML = `<span style="color:var(--accent-color);">Resolviendo ${questions.length} campos...</span>`;
-    }
 
     let clipboardData = null;
     if (this.useClipboardContext) {
@@ -2914,8 +3066,16 @@ class CognilotSidebar {
         .replace(/Texto de una sola línea/gi, '')
         .replace(/Obligatorio/gi, '')
         .replace(/Required/gi, '')
-        .replace(/\s*\*\s*$/, '') // Asterisk for required
-        .replace(/:\s*$/, '') // Trailing colons
+        .replace(
+          /\s*[([{\s*[*•·-]?\s*(obligatorio|requerido|required|mandatory)?\s*[*•·-]?\s*[)\]}]/gi,
+          ''
+        )
+        .replace(/\s*[([{\s*[*•·-]+\s*[)\]}]?/gi, '')
+        .replace(/\*/g, '')
+        .replace(/:/g, '')
+        .replace(/[\u200B-\u200D\uFEFF]/g, '')
+        .replace(/\s+/g, ' ')
+        .replace(/\s*[([{:/-]\s*$/, '')
         .trim() || 'Question'
     );
   }
@@ -3154,16 +3314,17 @@ class CognilotSidebar {
     if (!list) return;
 
     try {
-      const data = await chrome.storage.local.get(['Cognilot_profile_cache']);
-      let profile = data.Cognilot_profile_cache || {};
+      const data = await chrome.storage.local.get(['Cognilot_memory_cache']);
+      let profile = data.Cognilot_memory_cache || {};
 
       // Fallback for nested legacy structure
-      if (
+      if (profile.data && typeof profile.data === 'object' && !Array.isArray(profile.data)) {
+        profile = profile.data;
+      } else if (
         profile.data_learned &&
         typeof profile.data_learned === 'object' &&
         !Array.isArray(profile.data_learned)
       ) {
-        // If it has 'data_learned' key and it's an object, it's likely the legacy ProfileResponse structure
         profile = profile.data_learned;
       }
 
@@ -3227,8 +3388,7 @@ class CognilotSidebar {
 
     try {
       await chrome.storage.local.remove([
-        'Cognilot_profile_cache',
-        'Cognilot_alias_cache',
+        'Cognilot_memory_cache',
         'Cognilot_sync_queue',
         'Cognilot_preference_cache',
       ]);
@@ -3242,12 +3402,14 @@ class CognilotSidebar {
 
   async handleDeleteItem(key) {
     try {
-      const data = await chrome.storage.local.get(['Cognilot_profile_cache']);
-      const profile = data.Cognilot_profile_cache || {};
+      const data = await chrome.storage.local.get(['Cognilot_memory_cache']);
+      const profile = data.Cognilot_memory_cache || {};
 
       if (profile[key]) {
         delete profile[key];
-        await chrome.storage.local.set({ Cognilot_profile_cache: profile });
+        await chrome.storage.local.set({
+          Cognilot_memory_cache: profile,
+        });
         this.loadAndRenderLocalProfile();
       }
     } catch (error) {

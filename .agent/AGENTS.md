@@ -13,13 +13,13 @@ Estas reglas definen el comportamiento, arquitectura y estilo que deben seguir l
   - Next.js 15 (App Router).
   - Manejo de estados y asincronía moderno (React 19, Server Components donde aplique).
 
-## 2. Diseño y UI/UX (Terminal/IDE Aesthetic)
+## 2. Diseño y UI/UX (Modern Dark Minimalist)
 
-- Toda nueva página o componente debe seguir estrictamente la estética de Terminal/IDE definida en el sistema de diseño (skill).
-- Utilizar tipografía monoespaciada (`font-mono`).
-- Fondo oscuro (`#050505`) por defecto.
-- Elementos UI que simulen un editor de código (cabeceras con puntos macOS, metadatos tipo comentarios `//`, inputs con borde inferior, botones `.sh`).
-- Prohibido generar interfaces genéricas tipo dashboard SaaS tradicional.
+- Toda nueva página o componente debe seguir el sistema de diseño Modern Dark Minimalist definido en `DESIGN.md`.
+- Tipografía dual: `font-sans` (Geist / Inter) para la gran mayoría de la UI (títulos, cuerpo, controles). `font-mono` reservada exclusivamente para el logotipo `> cognilot_`, atajos de teclado `<kbd>`, badges técnicos y código.
+- Fondo oscuro (`#050505`) por defecto con ambientación sutil.
+- Botones modernos (`Get Started`, `Save Changes`, `Sign Out`) sin nombres de scripts `.sh`.
+- Mantener la jerarquía limpia: evitar saturación de comentarios `//`, títulos `# archivo.md` o footers con comandos terminal. El comentario JSDoc `/** ... */` se reserva solo como acento de marca en el Hero subtext.
 
 ## 3. Extensiones y SDK
 

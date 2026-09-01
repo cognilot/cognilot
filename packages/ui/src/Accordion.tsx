@@ -48,7 +48,7 @@ export function Accordion({
         const isOpen = openIds.includes(item.id);
 
         return (
-          <div key={item.id} className="border-b border-white/5">
+          <div key={item.id} className="border-b border-white/10">
             {renderTrigger ? (
               <div
                 onClick={() => toggle(item.id)}
@@ -64,32 +64,22 @@ export function Accordion({
               <button
                 onClick={() => toggle(item.id)}
                 aria-expanded={isOpen}
-                className="flex w-full items-center justify-between gap-4 px-3 py-6 text-left transition-colors hover:bg-white/[0.02] group -mx-3 rounded"
+                className="flex w-full items-center justify-between gap-6 py-7 md:py-8 text-left transition-colors group cursor-pointer"
               >
-                <span className="flex items-center gap-3 min-w-0">
-                  <span
-                    className={`font-mono font-bold text-sm select-none transition-colors ${
-                      isOpen ? 'text-accent-violet' : 'text-white/20 group-hover:text-white/40'
-                    }`}
-                    aria-hidden="true"
-                  >
-                    &gt;
-                  </span>
-                  <span
-                    className={`font-mono font-semibold text-[15px] md:text-base transition-colors ${
-                      isOpen ? 'text-white' : 'text-white/50 group-hover:text-white/80'
-                    }`}
-                  >
-                    {item.title}
-                  </span>
+                <span
+                  className={`font-sans font-bold text-xl sm:text-2xl md:text-[26px] tracking-tight transition-colors ${
+                    isOpen ? 'text-white' : 'text-white/70 group-hover:text-white'
+                  }`}
+                >
+                  {item.title}
                 </span>
                 <span
-                  className={`font-mono font-bold text-base shrink-0 transition-colors select-none ${
-                    isOpen ? 'text-accent-cyan' : 'text-white/20 group-hover:text-white/40'
+                  className={`font-sans font-light text-2xl md:text-3xl shrink-0 transition-colors select-none ${
+                    isOpen ? 'text-white' : 'text-white/40 group-hover:text-white'
                   }`}
                   aria-hidden="true"
                 >
-                  {isOpen ? '[-]' : '[+]'}
+                  {isOpen ? '−' : '+'}
                 </span>
               </button>
             )}
@@ -102,7 +92,7 @@ export function Accordion({
               {renderContent ? (
                 renderContent(item)
               ) : (
-                <div className="pb-6 pr-6 font-mono text-[13px] leading-relaxed text-white/50">
+                <div className="pb-8 pr-6 font-sans text-sm sm:text-base leading-relaxed text-dim max-w-xl">
                   {item.content}
                 </div>
               )}

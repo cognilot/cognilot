@@ -15,7 +15,7 @@ export const metadata: Metadata = {
  */
 export default function MarketingLayout({ children }: { children: React.ReactNode }) {
   return (
-    <main className="min-h-screen bg-background text-foreground overflow-hidden relative font-mono">
+    <main className="min-h-screen bg-background text-foreground overflow-hidden relative">
       {/* Ambient Background */}
       <div
         aria-hidden="true"

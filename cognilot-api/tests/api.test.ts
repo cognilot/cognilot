@@ -74,13 +74,12 @@ describe('404 Handler', () => {
  * The actual 401 behavior is tested via integration tests with a real Supabase instance.
  */
 describe('Route Registration', () => {
-  it('aliases route is registered and reachable', async () => {
-    const res = await app.request('/api/aliases', { method: 'GET' });
-    // Auth is mocked, DB is not — should fail at DB level (500) not route level (404)
+  it('memory route is registered and reachable', async () => {
+    const res = await app.request('/api/memory', { method: 'GET' });
     expect(res.status).not.toBe(404);
   });
 
-  it('profile route is registered and reachable', async () => {
+  it('profile compatibility route is registered and reachable', async () => {
     const res = await app.request('/api/profile', { method: 'GET' });
     expect(res.status).not.toBe(404);
   });
