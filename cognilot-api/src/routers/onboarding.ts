@@ -71,7 +71,7 @@ export function parsePhoneDetails(
     }
 
     const match = phone.match(/^(\+\d{1,4})[\s.-]?(.*)$/);
-    if (match) {
+    if (match && match[1] && match[2] !== undefined) {
       if (!countryCode) {
         countryCode = match[1];
       }
