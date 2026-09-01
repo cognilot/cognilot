@@ -391,7 +391,7 @@ export default function MemoryPage() {
   if (loading) {
     return (
       <DocLayout
-        filename="memory.md"
+        filename="Memory Profile"
         description="Profile data and context learned by your AI assistant"
         className="max-w-7xl"
       >
@@ -402,7 +402,7 @@ export default function MemoryPage() {
 
   return (
     <DocLayout
-      filename="memory.md"
+      filename="Memory Profile"
       description="Profile data and context learned by your AI assistant"
       className="max-w-7xl"
       action={

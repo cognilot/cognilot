@@ -100,6 +100,20 @@ export default function AuthPage() {
         />
       </div>
 
+      {/* Brand Logo in Top-Left (Back to Home) */}
+      <div className="absolute top-6 left-6 md:top-8 md:left-12 lg:left-20 z-20">
+        <Link
+          href="/home"
+          className="font-mono text-white font-bold text-base md:text-lg hover:opacity-80 transition-opacity flex items-center gap-1 group"
+        >
+          <span className="text-white font-extrabold group-hover:-translate-x-0.5 transition-transform">
+            &lt;
+          </span>
+          <span className="text-white">cognilot</span>
+          <span className="text-white">_</span>
+        </Link>
+      </div>
+
       {/* Content - centered */}
       <div className="relative z-10 min-h-screen flex items-center justify-center px-6 md:px-12 lg:px-20">
         <div className="w-full max-w-2xl">
@@ -119,25 +133,14 @@ export default function AuthPage() {
 
             {/* Card Content */}
             <div className="p-6">
-              {/* Terminal Prompt - static, already executed */}
-              <div className="mb-4 select-none">
-                <div className="font-mono text-xs text-white">
-                  <Link href="/" className="hover:text-white/80 transition-colors">
-                    ~/cognilot
-                  </Link>
-                  <span className="text-accent-violet"> $</span>
-                  <span className="text-ghost ml-2">auth</span>
-                </div>
-              </div>
-
               {/* ASCII Art - COGNILOT */}
-              <div className="mb-5 select-none overflow-x-auto">
-                <pre className="text-[9px] leading-[1.1] whitespace-pre text-white/8 inline-block">{`██████╗      ██████╗       ██████╗       ██╗  ██╗     ██╗  ██╗         ██████╗      ████████╗
-██╔════╝     ██╔═══██╗     ██╔════╝      ██║  ██║     ██║  ██║         ██╔═══██╗    ╚══██╔══╝
-██║          ██║   ██║     ██║  ███╗     ██║ ██╔╝     ██║  ██║         ██║   ██║       ██║
-██║          ██║   ██║     ██║   ██║     █████╔╝      ██║  ██║         ██║   ██║       ██║
-╚██████╗     ╚██████╔╝     ╚██████╔╝     ██╔═██╗      ╚██████╔╝       ╚██████╔╝       ██║
- ╚═════╝      ╚═════╝       ╚═════╝      ╚═╝ ╚═╝        ╚═════╝         ╚═════╝        ╚═╝`}</pre>
+              <div className="mb-6 select-none overflow-x-auto text-center sm:text-left">
+                <pre className="text-[8px] sm:text-[9.5px] leading-[1.1] whitespace-pre text-white/10 hover:text-white/20 transition-colors inline-block font-mono">{` ██████╗  ██████╗  ██████╗ ███╗   ██╗██╗██╗      ██████╗ ████████╗
+██╔════╝ ██╔═══██╗██╔════╝ ████╗  ██║██║██║     ██╔═══██╗╚══██╔══╝
+██║      ██║   ██║██║  ███╗██╔██╗ ██║██║██║     ██║   ██║   ██║   
+██║      ██║   ██║██║   ██║██║╚██╗██║██║██║     ██║   ██║   ██║   
+╚██████╗ ╚██████╔╝╚██████╔╝██║ ╚████║██║███████╗╚██████╔╝   ██║   
+ ╚═════╝  ╚═════╝  ╚═════╝ ╚═╝  ╚═══╝╚═╝╚══════╝ ╚═════╝    ╚═╝   `}</pre>
               </div>
 
               {/* Buttons */}
@@ -145,7 +148,7 @@ export default function AuthPage() {
                 {/* Google Button - Conventional Design */}
                 <button
                   onClick={handleGoogle}
-                  className="max-w-[280px] w-full py-2.5 px-5 bg-white hover:bg-gray-100 text-black rounded-lg font-sans font-semibold text-sm transition-colors flex items-center justify-center gap-3 shadow-sm"
+                  className="max-w-[280px] w-full py-2.5 px-5 bg-white hover:bg-gray-100 text-black rounded-lg font-sans font-semibold text-sm transition-colors flex items-center justify-center gap-3 shadow-sm cursor-pointer"
                 >
                   <svg className="w-4 h-4" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                     <path
@@ -175,17 +178,12 @@ export default function AuthPage() {
                   <div className="flex-1 h-px bg-white/10" />
                 </div>
 
-                {/* Email Button - Script Style */}
+                {/* Email Button - Clean Style */}
                 <button
                   onClick={() => openModal(false)}
-                  className="max-w-[280px] w-full py-2.5 px-5 bg-white/5 hover:bg-white/10 text-white rounded-lg transition-colors flex items-center gap-3 border border-white/10 group"
+                  className="max-w-[280px] w-full py-2.5 px-5 bg-white/5 hover:bg-white/10 text-white rounded-lg transition-colors flex items-center justify-center border border-white/10 group cursor-pointer text-sm font-sans font-medium"
                 >
-                  <span className="text-accent-violet font-bold opacity-60 group-hover:opacity-100 transition-opacity">
-                    &gt;
-                  </span>
-                  <span className="text-ghost group-hover:text-white transition-colors text-sm font-sans">
-                    Continue with Email
-                  </span>
+                  Continue with Email
                 </button>
               </div>
 

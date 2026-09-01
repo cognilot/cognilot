@@ -100,15 +100,10 @@ export default function HomePage() {
               {`/**\n * cognilot learns your personal data and preferences\n * and autofills web forms with ai-powered precision.\n */`}
             </div>
 
-            {/* Action scripts */}
+            {/* Action buttons */}
             <div className="md:col-span-6 flex flex-wrap gap-4 md:justify-end items-center">
-              <Button variant="terminal" size="lg" asChild>
-                <Link href="/auth?mode=signup">
-                  <span className="text-accent-violet opacity-60 group-hover:opacity-100 transition-opacity font-bold">
-                    &gt;
-                  </span>
-                  ./get_started.sh
-                </Link>
+              <Button variant="solid" size="lg" asChild>
+                <Link href="/auth?mode=signup">Get Started</Link>
               </Button>
               <a
                 href="https://chromewebstore.google.com"
@@ -290,15 +285,13 @@ export default function HomePage() {
             ].map((f) => (
               <div
                 key={f.title}
-                className={`p-8 bg-surface border-t-2 ${f.colorClass} border-x border-b border-white/5 rounded transition-all hover:bg-white/5 duration-300 group`}
+                className={`p-8 bg-surface border-t-2 ${f.colorClass} border-x border-b border-white/5 rounded-xl transition-all hover:bg-white/5 duration-300 group`}
               >
                 <div className="mb-6 text-accent-violet">{f.icon}</div>
-                <h3 className="font-mono text-white font-bold text-base mb-4 flex items-center gap-2">
+                <h3 className="font-sans text-white font-semibold text-lg mb-3 flex items-center gap-2 capitalize">
                   {f.title}
                 </h3>
-                <p className="font-mono text-dim text-[13px] leading-relaxed select-none">
-                  {f.desc}
-                </p>
+                <p className="font-sans text-dim text-sm leading-relaxed select-none">{f.desc}</p>
               </div>
             ))}
           </div>

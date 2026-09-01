@@ -13,7 +13,7 @@ const FEATURES: FeatureItem[] = [
   {
     id: 'learn-profile',
     slug: 'learn_your_profile',
-    title: 'learn_your_profile',
+    title: 'Learn your profile',
     desc: 'Cognilot scans the forms you interact with and builds a profile from your data — name, role, company, social URLs, API tokens, and more. The more you use it, the sharper the match.',
     preview: `// scanning form fields on linkedin.com/jobs/apply
 > fields_detected: 7
@@ -28,7 +28,7 @@ const FEATURES: FeatureItem[] = [
   {
     id: 'instant-fill',
     slug: 'instant_autofill',
-    title: 'instant_autofill',
+    title: 'Instant autofill',
     desc: 'In milliseconds, Cognilot maps the context of the active page — form labels, field types, surrounding copy — and propagates your stored data across all detected fields.',
     preview: `$ cognilot fill --tab=current
 
@@ -42,7 +42,7 @@ const FEATURES: FeatureItem[] = [
   {
     id: 'memory-engine',
     slug: 'memory_engine',
-    title: 'memory_engine',
+    title: 'Memory engine',
     desc: 'Your profile lives encrypted in your browser. The vector-based memory engine decides which stored entries are relevant for each form context — without ever sending your data to our servers.',
     preview: `// memory.db · encrypted · AES-256
 
@@ -56,7 +56,7 @@ const FEATURES: FeatureItem[] = [
   {
     id: 'local-inference',
     slug: 'local_inference',
-    title: 'local_inference',
+    title: 'Local inference',
     desc: 'Connect your own API key from Groq, Gemini Nano, or OpenAI. Cognilot routes inference requests through your key so no form data ever passes through our infrastructure.',
     preview: `// inference_router.config
 
@@ -90,7 +90,7 @@ export function FeatureShowcase() {
         defaultOpen={['learn-profile']}
         onOpenChange={(ids) => setActiveId(ids[0] ?? 'learn-profile')}
         renderContent={(item) => (
-          <p className="font-mono text-dim text-[13px] leading-relaxed pb-5 pr-6">
+          <p className="font-sans text-dim text-sm sm:text-base leading-relaxed pb-8 pr-6 max-w-xl">
             {(item as FeatureItem).desc}
           </p>
         )}
@@ -112,10 +112,7 @@ export function FeatureShowcase() {
                 <span className="font-mono text-[11px] text-ghost uppercase tracking-widest select-none">
                   // {feature.slug}.preview
                 </span>
-                <span className="font-mono text-[10px] text-white/20 select-none">
-                  cognilot
-                  <span className="text-accent-cyan">_</span>
-                </span>
+                <span className="font-mono text-[10px] text-white/30 select-none">cognilot_</span>
               </div>
 
               {/* Monospace code output */}

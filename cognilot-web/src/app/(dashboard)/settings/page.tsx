@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { createBrowserClient } from '@supabase/ssr';
 import { toast } from 'sonner';
-import { Shield, Eye, EyeOff, Trash2, Check } from 'lucide-react';
+import { Eye, EyeOff, Trash2, Sliders, Key, ShieldAlert } from 'lucide-react';
 import { extensionBridge } from '@/utils/extensionBridge';
 import { DocLayout } from '@/components/layout/DocLayout';
 import { Button } from '@/components/ui/button';
@@ -156,7 +156,6 @@ export default function SettingsPage() {
 
       const apiBase = process.env['NEXT_PUBLIC_API_URL'] || '';
 
-      // PATCH /api/profile with empty dataLearned resets the DB memory!
       const response = await fetch(`${apiBase}/api/profile`, {
         method: 'PATCH',
         headers: {
@@ -183,153 +182,180 @@ export default function SettingsPage() {
 
   if (loading) {
     return (
-      <DocLayout filename="settings.md" description="// loading system configurations...">
-        <div className="h-64 bg-white/2 rounded-xl animate-pulse" />
+      <DocLayout
+        filename="Settings"
+        description="Configure BYOK LLM models, extension behavior, and database security"
+      >
+        <div className="h-72 bg-white/[0.02] border border-white/5 rounded-2xl animate-pulse" />
       </DocLayout>
     );
   }
 
   return (
     <DocLayout
-      filename="settings.md"
+      filename="Settings"
       description="Configure BYOK LLM models, extension behavior, and database security"
     >
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Left Columns (Form & Prefs) */}
+        {/* Left Columns: BYOK & Extension Settings */}
         <div className="lg:col-span-2 space-y-8">
-          {/* BYOK Config */}
-          <div className="bg-bg-primary/90 backdrop-blur-2xl border border-white/10 rounded-xl shadow-2xl overflow-hidden">
-            <form onSubmit={handleSaveByok} className="p-6 space-y-5">
-              <div className="flex justify-between items-center mb-2">
-                <div className="text-xs font-semibold text-white/30 uppercase tracking-wider">
-                  LLM Provider
+          {/* BYOK Config Card */}
+          <div className="bg-surface border border-white/10 rounded-2xl p-6 md:p-8 backdrop-blur-xl shadow-lg">
+            <div className="flex items-center justify-between pb-6 border-b border-white/5 mb-6">
+              <div className="flex items-center gap-2.5">
+                <Key className="w-5 h-5 text-accent-violet" />
+                <div>
+                  <h2 className="text-base font-bold text-white">Custom LLM (BYOK)</h2>
+                  <p className="text-xs text-dim mt-0.5">
+                    Connect your own API key to bypass server models
+                  </p>
                 </div>
-                <span className="text-[10px] px-2 py-0.5 rounded bg-accent-violet/10 border border-accent-violet/20 text-accent-violet font-bold">
-                  {activeProviderBadge}
-                </span>
               </div>
+              <span className="text-[11px] px-2.5 py-0.5 rounded-full font-mono bg-accent-violet/10 border border-accent-violet/30 text-accent-violet">
+                {activeProviderBadge}
+              </span>
+            </div>
 
-              <div className="flex relative items-start hover:bg-white/5 -mx-4 px-4 rounded transition-colors py-1">
-                <div className="text-white/60 font-medium w-[140px] shrink-0 py-1.5">Provider</div>
+            <form onSubmit={handleSaveByok} className="space-y-5">
+              {/* Provider Selection */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-white/80">AI Provider</label>
                 <select
                   value={provider}
-                  onChange={(e) => setProvider(e.target.value as any)}
-                  className="bg-transparent text-white flex-1 py-1.5 min-w-0 focus:bg-white/5 rounded px-2 -mx-2 transition-colors outline-none cursor-pointer border-none"
+                  onChange={(e) => setProvider(e.target.value as 'openai' | 'anthropic' | 'groq')}
+                  className="w-full bg-white/[0.03] border border-white/10 text-white rounded-xl px-4 py-2.5 text-sm focus:border-accent-violet focus:ring-1 focus:ring-accent-violet outline-none transition-colors cursor-pointer"
                 >
-                  <option className="bg-slate-950 text-white" value="groq">
-                    Groq (Default Backend)
+                  <option className="bg-[#0a0a0f] text-white" value="groq">
+                    Groq (Default Cloud Llama-3.3-70B)
                   </option>
-                  <option className="bg-slate-950 text-white" value="openai">
-                    OpenAI (Direct)
+                  <option className="bg-[#0a0a0f] text-white" value="openai">
+                    OpenAI (Direct API)
                   </option>
-                  <option className="bg-slate-950 text-white" value="anthropic">
-                    Anthropic (Direct)
+                  <option className="bg-[#0a0a0f] text-white" value="anthropic">
+                    Anthropic (Direct API)
                   </option>
                 </select>
               </div>
 
-              <div className="flex relative items-center hover:bg-white/5 -mx-4 px-4 rounded transition-colors py-1">
-                <div className="text-white/60 font-medium w-[140px] shrink-0 py-1.5">API Key</div>
-                <div className="flex-1 flex items-center">
+              {/* API Key */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-white/80">API Key</label>
+                <div className="relative flex items-center">
                   <input
                     type={showKey ? 'text' : 'password'}
                     value={apiKey}
                     onChange={(e) => setApiKey(e.target.value)}
                     placeholder={
-                      apiKey ? '••••••••••••••••••••' : 'Leave empty to use server default'
+                      apiKey
+                        ? '••••••••••••••••••••'
+                        : 'Leave empty to use default server inference'
                     }
-                    className="bg-transparent text-white flex-1 py-1.5 min-w-0 placeholder:text-white/15 focus:bg-white/5 rounded px-2 -mx-2 transition-colors outline-none"
+                    className="w-full bg-white/[0.03] border border-white/10 text-white placeholder:text-white/20 rounded-xl px-4 py-2.5 pr-11 text-sm focus:border-accent-violet focus:ring-1 focus:ring-accent-violet outline-none font-mono text-xs transition-colors"
                   />
                   <button
                     type="button"
                     onClick={() => setShowKey(!showKey)}
-                    className="text-white/30 hover:text-white/70 p-1.5 transition-colors cursor-pointer"
+                    className="absolute right-3 text-white/40 hover:text-white transition-colors cursor-pointer"
                   >
                     {showKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
                 </div>
+                <p className="text-[11px] text-white/40">
+                  Your keys are encrypted in browser local storage and never stored on our servers.
+                </p>
               </div>
 
-              <div className="flex relative items-start hover:bg-white/5 -mx-4 px-4 rounded transition-colors py-1">
-                <div className="text-white/60 font-medium w-[140px] shrink-0 py-1.5">
-                  Model Override
-                </div>
+              {/* Model Override */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-white/80">
+                  Model Identifier (Optional)
+                </label>
                 <input
                   type="text"
                   value={modelOverride}
                   onChange={(e) => setModelOverride(e.target.value)}
                   placeholder={
                     provider === 'groq'
-                      ? 'openai/gpt-oss-120b'
+                      ? 'llama-3.3-70b-versatile'
                       : provider === 'openai'
                         ? 'gpt-4o-mini'
-                        : 'claude-3-haiku-20240307'
+                        : 'claude-3-5-haiku-latest'
                   }
-                  className="bg-transparent text-white flex-1 py-1.5 min-w-0 placeholder:text-white/15 focus:bg-white/5 rounded px-2 -mx-2 transition-colors outline-none"
+                  className="w-full bg-white/[0.03] border border-white/10 text-white placeholder:text-white/20 rounded-xl px-4 py-2.5 text-sm focus:border-accent-violet focus:ring-1 focus:ring-accent-violet outline-none font-mono text-xs transition-colors"
                 />
               </div>
 
-              <div className="pt-2 flex items-center gap-3">
-                <Button variant="terminal" size="sm" type="submit" disabled={savingByok}>
-                  {savingByok ? 'Saving...' : 'Save Configuration'}
+              <div className="pt-2">
+                <Button variant="solid" size="md" type="submit" disabled={savingByok}>
+                  <span>{savingByok ? 'Saving...' : 'Save LLM Settings'}</span>
                 </Button>
-                <div className="text-white/20 text-[11px]">
-                  Keys stored locally in browser cache
-                </div>
               </div>
             </form>
           </div>
 
-          {/* Preferences */}
-          <div className="bg-bg-primary/90 backdrop-blur-2xl border border-white/10 rounded-xl shadow-2xl overflow-hidden">
-            <form onSubmit={handleSavePrefs} className="p-6 space-y-5">
-              <div className="text-xs font-semibold text-white/30 uppercase tracking-wider">
-                Extension Preferences
+          {/* Extension Preferences Card */}
+          <div className="bg-surface border border-white/10 rounded-2xl p-6 md:p-8 backdrop-blur-xl shadow-lg">
+            <div className="flex items-center gap-2.5 pb-6 border-b border-white/5 mb-6">
+              <Sliders className="w-5 h-5 text-accent-cyan" />
+              <div>
+                <h2 className="text-base font-bold text-white">Extension Behavior</h2>
+                <p className="text-xs text-dim mt-0.5">
+                  Control how Cognilot interacts on webpages
+                </p>
               </div>
+            </div>
 
-              <div className="flex relative items-center hover:bg-white/5 -mx-4 px-4 rounded transition-colors py-1.5">
-                <div className="text-white/60 font-medium w-[140px] shrink-0">Ghost Text</div>
+            <form onSubmit={handleSavePrefs} className="space-y-6">
+              {/* Ghost text toggle */}
+              <div className="flex items-center justify-between py-2 border-b border-white/5">
+                <div>
+                  <div className="text-sm font-semibold text-white">Ghost Text Suggestions</div>
+                  <div className="text-xs text-dim mt-0.5">
+                    Show inline gray autocomplete predictions inside web inputs
+                  </div>
+                </div>
                 <button
                   type="button"
                   onClick={() => setPrefs({ ...prefs, ghostTextEnabled: !prefs.ghostTextEnabled })}
-                  className={`px-3 py-1 font-medium text-xs rounded transition-colors cursor-pointer ${
+                  className={`w-12 h-6 flex items-center rounded-full p-1 cursor-pointer transition-colors ${
                     prefs.ghostTextEnabled
-                      ? 'bg-success/10 border border-success/20 text-success hover:bg-success/20'
-                      : 'bg-white/5 border border-white/10 text-white/30 hover:bg-white/10'
+                      ? 'bg-accent-cyan justify-end'
+                      : 'bg-white/10 justify-start'
                   }`}
                 >
-                  {prefs.ghostTextEnabled ? 'Enabled' : 'Disabled'}
+                  <div className="bg-white w-4 h-4 rounded-full shadow-md" />
                 </button>
-                <span className="text-white/20 ml-4 text-[11px]">
-                  Shows gray shadow values inside inputs
-                </span>
               </div>
 
-              <div className="flex relative items-center hover:bg-white/5 -mx-4 px-4 rounded transition-colors py-1.5">
-                <div className="text-white/60 font-medium w-[140px] shrink-0">Profile Context</div>
+              {/* Profile Context toggle */}
+              <div className="flex items-center justify-between py-2 border-b border-white/5">
+                <div>
+                  <div className="text-sm font-semibold text-white">Profile Memory Context</div>
+                  <div className="text-xs text-dim mt-0.5">
+                    Use your learned personal facts and aliases to improve suggestions
+                  </div>
+                </div>
                 <button
                   type="button"
                   onClick={() =>
                     setPrefs({ ...prefs, useProfileContext: !prefs.useProfileContext })
                   }
-                  className={`px-3 py-1 font-medium text-xs rounded transition-colors cursor-pointer ${
+                  className={`w-12 h-6 flex items-center rounded-full p-1 cursor-pointer transition-colors ${
                     prefs.useProfileContext
-                      ? 'bg-success/10 border border-success/20 text-success hover:bg-success/20'
-                      : 'bg-white/5 border border-white/10 text-white/30 hover:bg-white/10'
+                      ? 'bg-accent-cyan justify-end'
+                      : 'bg-white/10 justify-start'
                   }`}
                 >
-                  {prefs.useProfileContext ? 'Enabled' : 'Disabled'}
+                  <div className="bg-white w-4 h-4 rounded-full shadow-md" />
                 </button>
-                <span className="text-white/20 ml-4 text-[11px]">
-                  Uses profile data and aliases for autofills
-                </span>
               </div>
 
-              <div className="flex relative items-start hover:bg-white/5 -mx-4 px-4 rounded transition-colors py-1">
-                <div className="text-white/60 font-medium w-[140px] shrink-0 py-1.5">
-                  Trigger Delay
-                </div>
-                <div className="flex-1 flex items-center gap-4">
+              {/* Delay */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-white/80">
+                  Trigger Scan Delay (ms)
+                </label>
+                <div className="flex items-center gap-3">
                   <input
                     type="number"
                     value={prefs.autocompleteDelay}
@@ -338,22 +364,17 @@ export default function SettingsPage() {
                     }
                     min="0"
                     max="5000"
-                    className="bg-transparent text-white py-1.5 max-w-[80px] border-b border-white/10 outline-none text-center"
+                    className="bg-white/[0.03] border border-white/10 text-white rounded-xl px-4 py-2 text-sm w-32 font-mono text-center focus:border-accent-cyan outline-none"
                   />
-                  <span className="text-white/20 text-[11px]">ms before triggering AI scan</span>
+                  <span className="text-xs text-dim">
+                    milliseconds debounce before AI prediction
+                  </span>
                 </div>
               </div>
 
-              <div className="flex relative items-start hover:bg-white/5 -mx-4 px-4 rounded transition-colors py-1">
-                <div className="text-white/60 font-medium w-[140px] shrink-0 py-1.5">Theme</div>
-                <span className="py-1.5 text-white/60">
-                  Dark <span className="text-white/20 text-[11px]">(only option available)</span>
-                </span>
-              </div>
-
               <div className="pt-2">
-                <Button variant="terminal" size="sm" type="submit" disabled={savingPrefs}>
-                  {savingPrefs ? 'Saving...' : 'Save Preferences'}
+                <Button variant="solid" size="md" type="submit" disabled={savingPrefs}>
+                  <span>{savingPrefs ? 'Saving...' : 'Save Preferences'}</span>
                 </Button>
               </div>
             </form>
@@ -362,39 +383,44 @@ export default function SettingsPage() {
 
         {/* Right Column: Danger Zone */}
         <div>
-          <div className="bg-bg-primary/90 backdrop-blur-2xl border border-red-500/20 rounded-xl shadow-2xl overflow-hidden">
-            <div className="p-6 space-y-6">
-              <div className="text-red-400/60 font-semibold uppercase tracking-wider text-xs">
-                Danger Zone
-              </div>
+          <div className="bg-surface border border-red-500/30 rounded-2xl p-6 md:p-8 backdrop-blur-xl shadow-lg">
+            <div className="flex items-center gap-2 text-red-400 font-bold text-sm mb-4">
+              <ShieldAlert className="w-4 h-4" />
+              <span>Danger Zone</span>
+            </div>
 
+            <div className="space-y-6">
               <div className="space-y-2">
-                <div className="text-white/80 font-medium">Clear AI Memory</div>
-                <div className="text-white/30 text-[11px] leading-relaxed">
-                  Permanently deletes all AI-learned facts from your profile. Aliases are untouched.
-                </div>
-                <button
-                  type="button"
+                <div className="text-sm font-semibold text-white">Clear AI Memory</div>
+                <p className="text-xs text-dim leading-relaxed">
+                  Permanently wipe all learned personal data and profile facts from your account.
+                </p>
+                <Button
+                  variant="destructive"
+                  size="sm"
                   onClick={handleClearMemory}
                   disabled={clearingMemory}
-                  className="w-full py-2 border border-red-500/20 bg-red-500/5 hover:bg-red-500/10 text-red-400 rounded transition-colors text-[11px] font-bold cursor-pointer"
+                  className="w-full mt-2 cursor-pointer"
                 >
-                  {clearingMemory ? 'Clearing...' : 'Clear AI Memory'}
-                </button>
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>{clearingMemory ? 'Clearing Memory...' : 'Clear All AI Facts'}</span>
+                </Button>
               </div>
 
-              <div className="space-y-2 border-t border-white/5 pt-4">
-                <div className="text-white/40 font-medium">Delete Account</div>
-                <div className="text-white/20 text-[11px] leading-relaxed">
-                  Wipes your data and terminates credentials. Disables extension sync immediately.
-                </div>
-                <button
-                  type="button"
-                  className="w-full py-2 border border-white/5 bg-white/2 text-white/20 rounded text-[11px] font-bold cursor-not-allowed"
+              <div className="space-y-2 pt-4 border-t border-white/5">
+                <div className="text-sm font-semibold text-white/50">Delete Account</div>
+                <p className="text-xs text-white/30 leading-relaxed">
+                  To permanently delete your Cognilot account and cloud profile, please contact
+                  support.
+                </p>
+                <Button
+                  variant="ghost"
+                  size="sm"
                   disabled
+                  className="w-full text-white/20 border border-white/5 cursor-not-allowed"
                 >
-                  Contact Support to Delete
-                </button>
+                  Contact Support
+                </Button>
               </div>
             </div>
           </div>

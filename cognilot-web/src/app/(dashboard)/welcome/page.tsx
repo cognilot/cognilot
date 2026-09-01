@@ -3,78 +3,85 @@
 import { useRouter } from 'next/navigation';
 import { OnboardingGuide } from '@/components/OnboardingGuide';
 import { Button } from '@/components/ui/button';
+import { DocLayout } from '@/components/layout/DocLayout';
+import { ArrowRight, Database, Sparkles } from 'lucide-react';
 
 export default function WelcomePage() {
   const router = useRouter();
 
   return (
-    <div className="p-8 max-w-4xl mx-auto font-mono text-[13px] animate-fade-in space-y-6">
-      <div className="bg-bg-primary/90 backdrop-blur-2xl border border-white/10 rounded-xl shadow-2xl overflow-hidden relative">
-        <div className="px-5 py-4 border-b border-white/5 bg-white/5 flex items-center justify-between select-none">
-          <div className="flex gap-2">
-            <div className="w-3 h-3 rounded-full bg-red-500/80 shadow-[0_0_8px_rgba(239,68,68,0.4)]" />
-            <div className="w-3 h-3 rounded-full bg-yellow-500/80 shadow-[0_0_8px_rgba(234,179,8,0.4)]" />
-            <div className="w-3 h-3 rounded-full bg-green-500/80 shadow-[0_0_8px_rgba(34,197,94,0.4)]" />
+    <DocLayout
+      filename="Getting Started"
+      description="Welcome to Cognilot! Your intelligent cognitive autofill assistant is ready."
+    >
+      <div className="space-y-8">
+        {/* Status Card */}
+        <div className="bg-surface border border-white/10 rounded-2xl p-6 md:p-8 backdrop-blur-xl shadow-lg">
+          <div className="flex items-center gap-3 mb-4">
+            <span className="flex h-3 w-3 relative">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-success opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-3 w-3 bg-success"></span>
+            </span>
+            <span className="text-sm font-semibold text-white">Cognilot Core Engine Active</span>
           </div>
-          <div className="text-white/30 text-[11px] uppercase tracking-[0.2em] font-sans font-bold">
-            welcome.md
+
+          <h2 className="text-xl font-bold text-white mb-2">Autofill with zero friction</h2>
+          <p className="text-sm text-dim leading-relaxed max-w-2xl">
+            When you browse job boards, government portals, or web applications, Cognilot
+            automatically detects field labels and suggests contextual answers from your learned
+            cognitive profile.
+          </p>
+
+          <div className="flex flex-wrap gap-4 pt-6 mt-6 border-t border-white/5">
+            <Button
+              variant="solid"
+              size="md"
+              onClick={() => router.push('/memory')}
+              className="cursor-pointer"
+            >
+              <Database className="w-4 h-4 text-accent-violet" />
+              <span>Configure Profile Memory</span>
+              <ArrowRight className="w-4 h-4 text-black/60" />
+            </Button>
+            <Button
+              variant="terminal"
+              size="md"
+              onClick={() => router.push('/playground')}
+              className="cursor-pointer"
+            >
+              <Sparkles className="w-4 h-4 text-accent-cyan" />
+              <span>Explore Custom Skills</span>
+            </Button>
           </div>
         </div>
 
-        <div className="p-6 md:p-8 space-y-8">
-          <div>
-            <div className="text-white/20 select-none mb-4 flex items-center gap-2">
-              <span className="text-cyan-400">#</span> System_Status
+        {/* Feature Highlights */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="bg-surface border border-white/10 rounded-2xl p-6 hover:border-white/20 transition-colors">
+            <div className="text-xs font-semibold uppercase tracking-wider text-accent-violet mb-2">
+              Privacy First
             </div>
-            <div className="text-green-400 font-bold flex items-center gap-2 mb-2">
-              [OK] Cognilot initialized successfully.
-            </div>
-            <p className="text-white/60 leading-relaxed max-w-2xl">
-              La extensión está activa y lista. Cuando visites cualquier formulario, detectará
-              automáticamente los campos y te sugerirá las respuestas en base a tu perfil local
-              configurado en la extensión o tu cuenta en la nube, manteniendo completa privacidad y
-              fricción casi nula.
+            <h3 className="text-base font-bold text-white mb-1.5">Local AI & Cloud Hybrid</h3>
+            <p className="text-xs text-dim leading-relaxed">
+              Use Chrome Gemini Nano for 100% private on-device executions, or sync to your secured
+              cloud profile.
             </p>
           </div>
 
-          <div className="flex flex-wrap gap-4 pt-4 border-t border-white/5">
-            <Button variant="terminal" size="sm" onClick={() => router.push('/memory')}>
-              <span className="text-accent-violet opacity-50 group-hover:opacity-100 transition-opacity font-bold">
-                {'>'}
-              </span>{' '}
-              ./edit_memory.sh
-            </Button>
-            <button
-              className="py-2.5 px-5 bg-violet-500/10 hover:bg-violet-500/20 text-violet-400 rounded transition-colors flex items-center gap-2 border border-violet-500/20 font-bold"
-              onClick={(e) => e.preventDefault()}
-            >
-              <span className="text-white/40">$</span> test_demo_form
-            </button>
+          <div className="bg-surface border border-white/10 rounded-2xl p-6 hover:border-accent-cyan/40 transition-colors">
+            <div className="text-xs font-semibold uppercase tracking-wider text-accent-cyan mb-2">
+              Cognitive Profile
+            </div>
+            <h3 className="text-base font-bold text-white mb-1.5">Continuous Learning</h3>
+            <p className="text-xs text-dim leading-relaxed">
+              Upload your CV or let Cognilot learn as you fill forms. Your data is structured
+              automatically.
+            </p>
           </div>
         </div>
-      </div>
 
-      <div className="grid md:grid-cols-2 gap-6 mt-6">
-        <div className="bg-bg-primary/90 border border-white/10 rounded-xl p-6 hover:border-white/20 transition-colors">
-          <div className="text-white/20 select-none mb-3">
-            <span className="text-violet-400">##</span> ANALYTICS
-          </div>
-          <p className="text-white/40 text-[12px] leading-relaxed">
-            Próximamente: Métricas sobre la cantidad de caracteres ahorrados y formularios
-            completados.
-          </p>
-        </div>
-        <div className="bg-bg-primary/90 border border-white/10 rounded-xl p-6 hover:border-cyan-500/30 transition-colors group">
-          <div className="text-white/20 select-none mb-3 group-hover:text-cyan-400 transition-colors">
-            <span className="text-cyan-400">##</span> UNLOCK_PRO
-          </div>
-          <p className="text-white/40 text-[12px] leading-relaxed">
-            Funciones avanzadas: múltiples alias comerciales y AI-Gen Cover Letters en un click.
-          </p>
-        </div>
+        <OnboardingGuide />
       </div>
-
-      <OnboardingGuide />
-    </div>
+    </DocLayout>
   );
 }

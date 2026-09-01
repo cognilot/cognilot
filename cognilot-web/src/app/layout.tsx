@@ -1,5 +1,18 @@
 import type { Metadata } from 'next';
+import { Geist, Geist_Mono } from 'next/font/google';
 import './globals.css';
+
+const geistSans = Geist({
+  variable: '--font-sans',
+  subsets: ['latin'],
+  display: 'swap',
+});
+
+const geistMono = Geist_Mono({
+  variable: '--font-mono',
+  subsets: ['latin'],
+  display: 'swap',
+});
 
 export const metadata: Metadata = {
   title: 'Cognilot — AI-Powered Form Autofill',
@@ -15,7 +28,7 @@ export const metadata: Metadata = {
 
 /**
  * Root layout — applied to all routes in the app.
- * Wraps everything with the dark design system globals.
+ * Injects modern dual-typography (Geist Sans + Geist Mono) and dark void foundation.
  */
 export default function RootLayout({
   children,
@@ -24,7 +37,9 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className="dark" suppressHydrationWarning>
-      <body className="font-mono bg-background text-foreground antialiased min-h-screen">
+      <body
+        className={`${geistSans.variable} ${geistMono.variable} font-sans bg-background text-foreground antialiased min-h-screen selection:bg-accent-violet/30 selection:text-white`}
+      >
         {children}
       </body>
     </html>

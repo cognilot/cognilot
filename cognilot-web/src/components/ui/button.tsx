@@ -9,21 +9,29 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
-        variable: 'font-mono text-white/60 hover:text-white',
         solid:
-          'font-sans font-medium px-5 py-2.5 bg-white hover:bg-gray-200 text-black rounded-md shadow-sm',
+          'font-sans font-medium px-5 py-2.5 bg-white hover:bg-white/90 text-black rounded-lg shadow-sm transition-all',
         terminal:
-          'bg-white/5 hover:bg-white/10 text-white rounded border border-white/10 font-mono shadow-sm',
+          'bg-white/[0.04] hover:bg-white/[0.08] text-white rounded-lg border border-white/10 font-sans shadow-sm transition-all',
+        variable:
+          'font-sans text-white/60 hover:text-white hover:bg-white/5 rounded-lg transition-colors',
+        ghost:
+          'font-sans text-white/60 hover:text-white hover:bg-white/5 rounded-lg transition-colors',
+        secondary:
+          'font-sans bg-white/10 hover:bg-white/15 text-white rounded-lg transition-colors',
+        destructive:
+          'font-sans bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 rounded-lg transition-colors',
       },
       size: {
         sm: 'h-8 gap-1.5 px-3 text-xs',
-        lg: 'h-[52px] px-8 text-sm',
+        md: 'h-10 px-4 text-sm',
+        lg: 'h-[48px] px-6 text-sm',
         icon: 'size-9',
       },
     },
     defaultVariants: {
       variant: 'terminal',
-      size: 'lg',
+      size: 'md',
     },
   }
 );
