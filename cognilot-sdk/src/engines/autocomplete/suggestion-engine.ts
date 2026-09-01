@@ -71,17 +71,16 @@ export class SuggestionEngine {
     // 1. Validation (Strictly resolvable text fields)
     const fieldType = (node.type || '').toLowerCase();
     const tagName = node.tagName.toLowerCase();
-    const isCombobox = (node as any).getAttribute?.('role') === 'combobox';
 
-    if (['radio', 'checkbox'].includes(fieldType) || tagName === 'select') {
+    if (['radio', 'checkbox'].includes(fieldType) || tagName === 'select' || fieldType === 'file') {
       return {
         error: 'Field is not textual. SuggestionEngine handles only text/inputs.',
       };
     }
 
-    if (!isResolvableFieldType(fieldType) || isCombobox) {
+    if (!isResolvableFieldType(fieldType)) {
       return {
-        error: `Field is detection-only (${fieldType || 'combobox'}) and cannot be resolved with AI suggestions.`,
+        error: `Field is detection-only (${fieldType}) and cannot be resolved with AI suggestions.`,
       };
     }
 
@@ -144,6 +143,17 @@ export class SuggestionEngine {
       if (match) {
         console.log(`[SuggestionEngine] Logic Match Found: Re-using metadata for "${match.text}"`);
         metadata = match.metadata;
+      }
+    }
+
+    // 2b. Re-use FieldRegistry metadata (populated by PageScanner)
+    if (!metadata && this.sdk.registry) {
+      const regEntry = this.sdk.registry.findByNode(node.getRawNode());
+      if (regEntry?.metadata) {
+        console.log(
+          `[SuggestionEngine] FieldRegistry Match Found: Re-using metadata for "${regEntry.text}"`
+        );
+        metadata = regEntry.metadata;
       }
     }
 
@@ -229,6 +239,11 @@ export class SuggestionEngine {
             tagName: node.tagName || 'INPUT',
             required: metadata.required || false,
             helperText: metadata.helper_text || undefined,
+            min: metadata.min ?? undefined,
+            max: metadata.max ?? undefined,
+            step: metadata.step ?? undefined,
+            maxlength: metadata.maxlength ?? undefined,
+            pattern: metadata.pattern ?? undefined,
           },
         },
       ],
@@ -487,8 +502,17 @@ export class SuggestionEngine {
         (item.node as any)?.tagName ||
         ''
       ).toLowerCase();
-      const isCombobox = (item.node as any)?.getAttribute?.('role') === 'combobox';
-      if (!isResolvableFieldType(fieldType) || isCombobox) continue;
+      const isCombobox =
+        (item.node as any)?.getAttribute?.('role') === 'combobox' ||
+        (item.node as any)?.getAttribute?.('aria-autocomplete') !== null;
+      if (
+        !isResolvableFieldType(fieldType) ||
+        fieldType === 'file' ||
+        fieldType === 'autocomplete' ||
+        isCombobox
+      ) {
+        continue;
+      }
 
       const fieldIdentifier = this.getUniqueFieldIdentifier(item.node, item.metadata);
       const cacheKey = `${domain}::${fieldIdentifier}`;
@@ -609,6 +633,11 @@ export class SuggestionEngine {
           tagName: p.item.node.tagName || 'INPUT',
           required: p.item.metadata.required || false,
           helperText: p.item.metadata.helper_text || undefined,
+          min: p.item.metadata.min ?? undefined,
+          max: p.item.metadata.max ?? undefined,
+          step: p.item.metadata.step ?? undefined,
+          maxlength: p.item.metadata.maxlength ?? undefined,
+          pattern: p.item.metadata.pattern ?? undefined,
         },
       })),
       user_context: {
@@ -813,6 +842,19 @@ export class SuggestionEngine {
       );
       regEntry.status = 'pending';
       regEntry.resolution = null;
+    }
+  }
+
+  /** Clears persistent suggestions cache to allow full re-resolution on context toggle */
+  async clearCache(): Promise<void> {
+    const storage = this.sdk.adapters?.storage;
+    if (storage) {
+      try {
+        await (storage as any).set('Cognilot_suggestions_cache', {});
+        console.log('[SuggestionEngine] 🗑️ Suggestions cache cleared.');
+      } catch (e) {
+        console.warn('[SuggestionEngine] Failed to clear storage cache:', e);
+      }
     }
   }
 }

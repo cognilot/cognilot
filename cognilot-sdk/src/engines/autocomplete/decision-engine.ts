@@ -25,12 +25,18 @@ export class DecisionEngine {
     // 1. Validation
     const fieldType = (node.type || '').toLowerCase();
     const tagName = node.tagName.toLowerCase();
-    const isChoice = ['radio', 'checkbox'].includes(fieldType) || tagName === 'select';
+    const role = (node as any).getAttribute?.('role');
+    const isCombobox =
+      role === 'combobox' || (node as any).getAttribute?.('aria-autocomplete') !== null;
+    const isChoice =
+      ['radio', 'checkbox', 'select', 'autocomplete'].includes(fieldType) ||
+      tagName === 'select' ||
+      isCombobox;
 
     if (!isChoice) {
       return {
         error:
-          'Field is not a supported selection type. DecisionEngine handles only choices (radio, checkbox, select).',
+          'Field is not a supported selection type. DecisionEngine handles only choices (radio, checkbox, select, autocomplete).',
       };
     }
 
@@ -63,11 +69,60 @@ export class DecisionEngine {
 
     if (!fieldMetadata) return null;
 
+    // 3.5 Live Option Harvesting: If options were empty at scan time (e.g. dynamic combobox), re-extract from DOM
+    if (!fieldMetadata.options || fieldMetadata.options.length === 0) {
+      const liveOptions = this.labelExtractor.collectChoiceOptions(node);
+      if (liveOptions.length > 0) {
+        fieldMetadata.options = liveOptions;
+      }
+    }
+
     // 4. Decision Logic (Session Cache -> Alias Cache -> Remote)
     const storage = this.sdk.adapters?.storage;
     if (storage) {
-      const cachedDecisions = (await storage.get('Cognilot_decisions_cache')) || {};
-      const cached = cachedDecisions[fieldMetadata.id || ''];
+      const storageResult = await storage.get('Cognilot_decisions_cache');
+      const cachedDecisions = storageResult?.Cognilot_decisions_cache || storageResult || {};
+      const globalContext = this.sdk.platform.getGlobalContext();
+      const domain = (globalContext?.location?.hostname || '').toLowerCase();
+      const rawNode = node.getRawNode() as any;
+      const rawId = rawNode?.id;
+      const rawName = rawNode?.name;
+      const cleanName = rawName
+        ? rawName.replace(/\[|\]/g, '_').replace(/_+/g, '_').replace(/^_|_$/g, '')
+        : null;
+      const text = fieldMetadata.text || fieldMetadata.metadata?.label;
+      const qId = fieldMetadata.id || fieldMetadata.name || text;
+
+      const candidateKeys = [
+        qId,
+        fieldMetadata.id,
+        rawId,
+        fieldMetadata.name,
+        rawName,
+        cleanName,
+        text,
+        fieldMetadata.metadata?.label,
+        domain && qId ? `${domain}::${qId}` : null,
+        domain && text ? `${domain}::${text}` : null,
+        domain && (fieldMetadata.name || rawName)
+          ? `${domain}::${fieldMetadata.name || rawName}`
+          : null,
+      ].filter(Boolean) as string[];
+
+      let cached: any = null;
+      for (const k of candidateKeys) {
+        if (cachedDecisions[k]) {
+          const cand = cachedDecisions[k];
+          if (
+            cand &&
+            ((Array.isArray(cand.selected_values) && cand.selected_values.length > 0) || cand.value)
+          ) {
+            cached = cand;
+            break;
+          }
+        }
+      }
+
       if (cached) {
         console.log(`[DecisionEngine] Decision Session Cache Hit for ${fieldMetadata.text}`);
         return cached;
@@ -107,6 +162,25 @@ export class DecisionEngine {
     }
 
     // 5. Remote Fetch (On-demand)
+    if (!fieldMetadata.options || fieldMetadata.options.length === 0) {
+      console.log(
+        `[DecisionEngine] No options available for "${fieldMetadata.text}". Delegating to SuggestionEngine...`
+      );
+      const sugResult = await this.sdk.suggestion.handleTrigger(node);
+      if (sugResult && sugResult.value) {
+        return {
+          value: sugResult.value,
+          selected_values: [sugResult.value],
+          selected_indices: [0],
+          ghost_indices: [0],
+          source: sugResult.source || 'ai',
+          allChoices: [],
+          options: [],
+        } as any;
+      }
+      return null;
+    }
+
     console.log(`[DecisionEngine] Fetching decision for "${fieldMetadata.text}"...`);
 
     const settings = this.sdk.adapters?.settings;
@@ -137,11 +211,44 @@ export class DecisionEngine {
           // Enrich result for the UI
           decision.ghost_indices = decision.selected_indices || [];
           decision.is_example = true;
+          decision.source = (response as any).meta?.model || 'llm';
+          decision.allChoices = fieldMetadata.options || [];
+          decision.options = fieldMetadata.options || [];
 
-          // Save back to cache
+          // Save back to cache across all candidate lookup keys
           if (storage) {
-            const cachedDecisions = (await (storage as any).get('Cognilot_decisions_cache')) || {};
-            cachedDecisions[fieldMetadata.id || ''] = decision;
+            const storageResult = await (storage as any).get('Cognilot_decisions_cache');
+            const cachedDecisions = storageResult?.Cognilot_decisions_cache || storageResult || {};
+            const globalContext = this.sdk.platform.getGlobalContext();
+            const domain = (globalContext?.location?.hostname || '').toLowerCase();
+            const rawNode = node.getRawNode() as any;
+            const rawId = rawNode?.id;
+            const rawName = rawNode?.name;
+            const cleanName = rawName
+              ? rawName.replace(/\[|\]/g, '_').replace(/_+/g, '_').replace(/^_|_$/g, '')
+              : null;
+            const text = fieldMetadata.text || fieldMetadata.metadata?.label;
+            const qId = fieldMetadata.id || fieldMetadata.name || text;
+
+            const candidateKeys = [
+              qId,
+              fieldMetadata.id,
+              rawId,
+              fieldMetadata.name,
+              rawName,
+              cleanName,
+              text,
+              fieldMetadata.metadata?.label,
+              domain && qId ? `${domain}::${qId}` : null,
+              domain && text ? `${domain}::${text}` : null,
+              domain && (fieldMetadata.name || rawName)
+                ? `${domain}::${fieldMetadata.name || rawName}`
+                : null,
+            ].filter(Boolean) as string[];
+
+            for (const key of candidateKeys) {
+              cachedDecisions[key] = decision;
+            }
             await (storage as any).set('Cognilot_decisions_cache', cachedDecisions);
           }
           return decision;
@@ -171,7 +278,10 @@ export class DecisionEngine {
     const pendingFields = [];
     for (const field of fields) {
       const type = (field.type || '').toLowerCase();
-      if (!['radio', 'checkbox', 'select'].includes(type)) continue;
+      const role = (field.node as any)?.getAttribute?.('role');
+      const isCombobox =
+        role === 'combobox' || (field.node as any)?.getAttribute?.('aria-autocomplete') !== null;
+      if (!['radio', 'checkbox', 'select', 'autocomplete'].includes(type) && !isCombobox) continue;
       if (cachedDecisions[field.id || '']) continue;
 
       // Check Memory Cache
@@ -199,6 +309,8 @@ export class DecisionEngine {
               selected_values,
               ghost_indices: selected_indices,
               source: 'memory',
+              allChoices: field.options || [],
+              options: field.options || [],
             };
             continue;
           }
@@ -244,6 +356,9 @@ export class DecisionEngine {
       );
       if (response && response.ok && response.results) {
         console.log('[DecisionEngine] <== Batch Response Received from AI:', response.results);
+        const globalContext = this.sdk.platform.getGlobalContext();
+        const domain = (globalContext?.location?.hostname || '').toLowerCase();
+
         for (let i = 0; i < pendingFields.length; i++) {
           const f = pendingFields[i];
           const rawNode =
@@ -271,6 +386,9 @@ export class DecisionEngine {
             cleanName,
             text,
             f.metadata?.label,
+            domain && qId ? `${domain}::${qId}` : null,
+            domain && text ? `${domain}::${text}` : null,
+            domain && (f.name || rawName) ? `${domain}::${f.name || rawName}` : null,
           ].filter(Boolean) as string[];
 
           let decision: any = null;
@@ -288,10 +406,14 @@ export class DecisionEngine {
               `[DecisionEngine] 💡 Prefetched decision for "${f.text || f.metadata?.label || qId}":`,
               hasSelection ? decision.selected_values : '[] (unselected)'
             );
-            decision.ghost_indices = decision.selected_indices || [];
-            decision.source = (response as any).meta?.model || 'llm';
-            for (const key of candidateLookupKeys) {
-              cachedDecisions[key] = decision;
+            if (hasSelection) {
+              decision.ghost_indices = decision.selected_indices || [];
+              decision.source = (response as any).meta?.model || 'llm';
+              decision.allChoices = f.options || [];
+              decision.options = f.options || [];
+              for (const key of candidateLookupKeys) {
+                cachedDecisions[key] = decision;
+              }
             }
           }
         }
@@ -301,5 +423,18 @@ export class DecisionEngine {
     }
 
     if (storage) await storage.set('Cognilot_decisions_cache', cachedDecisions);
+  }
+
+  /** Clears persistent decisions cache to allow full re-resolution on context toggle */
+  async clearCache(): Promise<void> {
+    const storage = this.sdk.adapters?.storage;
+    if (storage) {
+      try {
+        await storage.set('Cognilot_decisions_cache', {});
+        console.log('[DecisionEngine] 🗑️ Decisions cache cleared.');
+      } catch (e) {
+        console.warn('[DecisionEngine] Failed to clear storage cache:', e);
+      }
+    }
   }
 }

@@ -27,6 +27,9 @@ export const memories = pgTable('memories', {
     .references(() => users.id, { onDelete: 'cascade' }),
   data: jsonb('data').default({}).notNull(),
   cvRawText: text('cv_raw_text'),
+  cvStoragePath: text('cv_storage_path'),
+  cvFileName: text('cv_file_name'),
+  cvMimeType: text('cv_mime_type'),
   onboardingCompleted: timestamp('onboarding_completed', { withTimezone: true }),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 });

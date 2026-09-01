@@ -23,6 +23,34 @@ export class MemoryResolver {
     { memoryKey: 'email', patterns: ['email', 'e-mail', 'mail', 'correo', 'почта'] },
     { memoryKey: 'username', patterns: ['username', 'user name', 'usuario', 'nick', 'handle'] },
     {
+      memoryKey: 'phone_country_code',
+      patterns: [
+        'country code',
+        'código de país',
+        'codigo de pais',
+        'código país',
+        'codigo pais',
+        'prefijo',
+        'prefix',
+        'dial code',
+        'idd',
+      ],
+    },
+    {
+      memoryKey: 'phone_national',
+      patterns: [
+        'national number',
+        'número de teléfono',
+        'numero de telefono',
+        'número celular',
+        'numero celular',
+        'phone number',
+        'mobile number',
+        'número móvil',
+        'numero movil',
+      ],
+    },
+    {
       memoryKey: 'phone',
       patterns: ['phone', 'teléfono', 'telefono', 'celular', 'movil', 'mobile', 'tel', 'телефон'],
     },
@@ -103,6 +131,20 @@ export class MemoryResolver {
     {
       memoryKey: 'pronouns',
       patterns: ['pronoun', 'pronombre', 'pronoms', 'pronomen'],
+    },
+    {
+      memoryKey: 'cv_file_name',
+      patterns: [
+        'cv',
+        'resume',
+        'curriculum',
+        'currículum',
+        'hoja de vida',
+        'vida',
+        'portfolio file',
+        'adjuntar cv',
+        'subir cv',
+      ],
     },
   ];
 
@@ -193,6 +235,36 @@ export class MemoryResolver {
         return regex.test(textToMatch);
       });
       if (!matchingPattern) continue;
+
+      // Special handling for generic phone when phone_national is available
+      if (entry.memoryKey === 'phone' && (flatMemory['phone_national'] || flatMemory['phone'])) {
+        const nationalOptions = this._normalizeOptions(flatMemory['phone_national']);
+        const fullOptions = this._normalizeOptions(flatMemory['phone']);
+        const isExplicitInternational = /(internacional|international|full|e164|\+)/i.test(
+          textToMatch
+        );
+        const combined = isExplicitInternational
+          ? [...new Set([...fullOptions, ...nationalOptions])]
+          : [...new Set([...nationalOptions, ...fullOptions])];
+
+        if (combined.length > 0) {
+          const resolvedKey = isExplicitInternational
+            ? 'phone'
+            : nationalOptions.length > 0
+              ? 'phone_national'
+              : 'phone';
+          return {
+            success: true,
+            suggestion: {
+              options: combined.slice(0, 5),
+              type: 'discrete',
+              source: 'memory',
+            },
+            memoryKey: resolvedKey,
+            reasoning: `Seed "${matchingPattern}" → key "${resolvedKey}" → ${combined.length} value(s)`,
+          };
+        }
+      }
 
       const raw = flatMemory[entry.memoryKey];
       const options = this._normalizeOptions(raw);

@@ -286,6 +286,7 @@ export class MockSDK {
       handleTrigger: vi.fn(),
     };
     this.decision = {
+      handleTrigger: vi.fn(),
       handleDecision: vi.fn(),
       _resolveBestOption: vi.fn(),
     };

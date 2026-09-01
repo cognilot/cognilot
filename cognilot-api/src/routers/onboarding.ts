@@ -1,6 +1,8 @@
 import { Hono } from 'hono';
 import { ChatGroq } from '@langchain/groq';
 import { HumanMessage, SystemMessage } from '@langchain/core/messages';
+import { createClient } from '@supabase/supabase-js';
+import { eq } from 'drizzle-orm';
 import { db } from '../db/client.js';
 import { memories } from '../db/schema.js';
 import { authMiddleware } from '../middleware/auth.js';
@@ -50,6 +52,56 @@ async function customPageRender(pageData: any): Promise<string> {
   return text;
 }
 
+/**
+ * Deconstructs phone into { phone, phone_country_code, phone_national }
+ */
+export function parsePhoneDetails(
+  rawPhone?: string | null,
+  rawCountryCode?: string | null,
+  rawNational?: string | null
+): { phone?: string; phone_country_code?: string; phone_national?: string } {
+  let phone = rawPhone?.trim() || '';
+  let countryCode = rawCountryCode?.trim() || '';
+  let national = rawNational?.trim() || '';
+
+  // If phone is provided with a country code (e.g. "+51 933524448", "+1 (555) 0199", "0051 933524448")
+  if (phone) {
+    if (phone.startsWith('00') && !phone.startsWith('000')) {
+      phone = '+' + phone.slice(2).trim();
+    }
+
+    const match = phone.match(/^(\+\d{1,4})[\s.-]?(.*)$/);
+    if (match) {
+      if (!countryCode) {
+        countryCode = match[1];
+      }
+      if (!national) {
+        const digitsOnly = match[2].replace(/[^\d]/g, '').trim();
+        national = digitsOnly || match[2].trim();
+      }
+    } else if (!national) {
+      const digitsOnly = phone.replace(/[^\d]/g, '').trim();
+      national = digitsOnly || phone;
+    }
+  }
+
+  // If countryCode exists and national exists, but phone lacks prefix
+  if (countryCode && national && (!phone || !phone.startsWith('+'))) {
+    const formattedCode = countryCode.startsWith('+') ? countryCode : `+${countryCode}`;
+    phone = `${formattedCode} ${national}`.trim();
+    countryCode = formattedCode;
+  }
+
+  const result: { phone?: string; phone_country_code?: string; phone_national?: string } = {};
+  if (phone) result.phone = phone;
+  if (countryCode) {
+    result.phone_country_code = countryCode.startsWith('+') ? countryCode : `+${countryCode}`;
+  }
+  if (national) result.phone_national = national;
+
+  return result;
+}
+
 // Map the LLM snake_case fields into the data_learned Record<string, string[]> format
 export function mapLLMJsonToDataLearned(llmJson: Record<string, any>): Record<string, string[]> {
   const dataLearned: Record<string, string[]> = {};
@@ -75,7 +127,18 @@ export function mapLLMJsonToDataLearned(llmJson: Record<string, any>): Record<st
   }
 
   setField('email', llmJson.email);
-  setField('phone', llmJson.phone || llmJson.phone_number);
+
+  // Phone decomposition (full E.164, country code, and national number)
+  const phoneDetails = parsePhoneDetails(
+    llmJson.phone || llmJson.phone_number,
+    llmJson.phone_country_code,
+    llmJson.phone_national || llmJson.national_number
+  );
+  if (phoneDetails.phone) setField('phone', phoneDetails.phone);
+  if (phoneDetails.phone_country_code)
+    setField('phone_country_code', phoneDetails.phone_country_code);
+  if (phoneDetails.phone_national) setField('phone_national', phoneDetails.phone_national);
+
   setField('pronouns', llmJson.pronouns);
   setField('profession', llmJson.profession);
   setField('company', llmJson.company || llmJson.current_company);
@@ -148,6 +211,9 @@ export function mapLLMJsonToDataLearned(llmJson: Record<string, any>): Record<st
   // Exclude deprecated or redundant keys from fallback copying
   const excludedKeys = new Set([
     'phone_number',
+    'phone_national',
+    'phone_country_code',
+    'national_number',
     'current_company',
     'current_role',
     'experience_summary',
@@ -236,7 +302,9 @@ Required fields (use EXACTLY these keys):
 - family_name (string or null — last/family name only)
 - full_name (string or null — complete full name)
 - email (string or null)
-- phone (string or null)
+- phone (string or null — complete international format e.g. +51 933524448)
+- phone_country_code (string or null — country calling code with '+' prefix e.g. +51, +1, +34. If omitted in phone string, deduce from the candidate's country/location in CV)
+- phone_national (string or null — clean national phone number without country prefix e.g. 933524448)
 - pronouns (string or null — e.g. he/him, she/her, they/them, él/su, etc.)
 - profession (string or null)
 - company (string or null — most recent or current job)
@@ -283,15 +351,60 @@ Rules:
     const parsedProfile = JSON.parse(jsonMatch[0]) as Record<string, unknown>;
     const mappedProfile = mapLLMJsonToDataLearned(parsedProfile);
 
-    // Save to user memories
+    // 4. Upload file to Supabase Storage bucket 'user-resumes'
+    let storagePath: string | null = null;
+    try {
+      const supabaseUrl = process.env['SUPABASE_URL'] || 'https://mock.supabase.co';
+      const supabaseKey = process.env['SUPABASE_SERVICE_ROLE_KEY'] || 'mock-key';
+      const supabase = createClient(supabaseUrl, supabaseKey);
+
+      const mimeType =
+        file.type ||
+        (fileName.endsWith('.pdf')
+          ? 'application/pdf'
+          : 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+      const uploadPath = `resumes/${userId}/${Date.now()}_${file.name}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('user-resumes')
+        .upload(uploadPath, buffer, {
+          contentType: mimeType,
+          upsert: true,
+        });
+
+      if (!uploadError) {
+        storagePath = uploadPath;
+      }
+    } catch (storageErr) {
+      console.warn('[Onboarding] Supabase storage upload skipped or failed:', storageErr);
+    }
+
+    // 5. Save to user memories in DB
+    if (file.name) {
+      mappedProfile['cv_file_name'] = [file.name];
+    }
+
     await db
       .insert(memories)
-      .values({ userId, data: mappedProfile, cvRawText: cvText })
+      .values({
+        userId,
+        data: mappedProfile,
+        cvRawText: cvText,
+        cvStoragePath: storagePath,
+        cvFileName: file.name,
+        cvMimeType:
+          file.type || (fileName.endsWith('.pdf') ? 'application/pdf' : 'application/octet-stream'),
+      })
       .onConflictDoUpdate({
         target: memories.userId,
         set: {
           data: mappedProfile,
           cvRawText: cvText,
+          cvStoragePath: storagePath,
+          cvFileName: file.name,
+          cvMimeType:
+            file.type ||
+            (fileName.endsWith('.pdf') ? 'application/pdf' : 'application/octet-stream'),
           updatedAt: new Date(),
         },
       });
@@ -300,5 +413,47 @@ Rules:
   } catch (err) {
     console.error('[Onboarding] CV parse error:', err);
     return c.json({ error: 'LLM Error', message: 'Failed to parse CV.' }, 502);
+  }
+});
+
+/**
+ * GET /api/onboarding/cv
+ * Returns the metadata and signed download URL for the user's uploaded CV file.
+ */
+onboardingRouter.get('/cv', async (c) => {
+  const userId = c.get('userId');
+
+  try {
+    const userMemory = await db.query.memories.findFirst({
+      where: eq(memories.userId, userId),
+    });
+
+    if (!userMemory || !userMemory.cvStoragePath) {
+      return c.json({
+        available: false,
+        message: 'No CV uploaded for this user.',
+        fileName: null,
+        downloadUrl: null,
+      });
+    }
+
+    const supabaseUrl = process.env['SUPABASE_URL'] || 'https://mock.supabase.co';
+    const supabaseKey = process.env['SUPABASE_SERVICE_ROLE_KEY'] || 'mock-key';
+    const supabase = createClient(supabaseUrl, supabaseKey);
+
+    const { data: signedData, error: signedError } = await supabase.storage
+      .from('user-resumes')
+      .createSignedUrl(userMemory.cvStoragePath, 3600);
+
+    return c.json({
+      available: true,
+      fileName: userMemory.cvFileName || 'cv_candidato.pdf',
+      mimeType: userMemory.cvMimeType || 'application/pdf',
+      storagePath: userMemory.cvStoragePath,
+      downloadUrl: signedError ? null : signedData?.signedUrl || null,
+    });
+  } catch (err) {
+    console.error('[Onboarding] Failed to fetch CV details:', err);
+    return c.json({ error: 'Internal Error', message: 'Could not fetch CV information.' }, 500);
   }
 });

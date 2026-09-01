@@ -33,8 +33,6 @@ export interface FieldResolution {
 }
 
 export const NON_RESOLVABLE_FIELD_TYPES = new Set([
-  'autocomplete',
-  'file',
   'search',
   'range',
   'color',

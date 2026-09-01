@@ -239,6 +239,8 @@ async function handleAutocomplete(element: HTMLElement, forceShowHint = false): 
 
       if (hasValidOption) {
         try {
+          const allChoices =
+            (suggestion as any).allChoices || (suggestion as any)._allOptions || options;
           chrome.runtime
             .sendMessage({
               action: 'fieldSuggestionResolved',
@@ -246,6 +248,7 @@ async function handleAutocomplete(element: HTMLElement, forceShowHint = false): 
                 fieldId: (element as HTMLInputElement).id,
                 fieldName: (element as HTMLInputElement).name,
                 value: options[0],
+                options: allChoices,
                 source: suggestion.source || 'suggestion',
               },
             })
@@ -619,14 +622,61 @@ function handleKeyboard(e: KeyboardEvent): void {
       const acceptedValue = options[suggestion._activeIndex || 0];
       const inputEl = element as HTMLInputElement;
 
+      let cleanValue = acceptedValue;
+      if (inputEl.type === 'number') {
+        cleanValue = cleanValue.replace(/[^0-9.-]/g, '');
+      }
+
       element._isTabCompletion = true;
-      inputEl.value = acceptedValue;
+      inputEl.value = cleanValue;
       element.classList.add('Cognilot-suggested');
       element.dispatchEvent(new Event('input', { bubbles: true }));
       element.dispatchEvent(new Event('change', { bubbles: true }));
 
+      // If combobox/autocomplete, commit React/framework state by clicking matching option in the live portal
+      const role = element.getAttribute('role');
+      const isCombobox = role === 'combobox' || element.getAttribute('aria-autocomplete') !== null;
+      if (isCombobox) {
+        const doc = element.ownerDocument || document;
+        const inputId = element.id;
+        const controlsId = element.getAttribute('aria-controls');
+        const listboxEl =
+          (controlsId ? doc.getElementById(controlsId) : null) ||
+          (inputId
+            ? doc.getElementById(`${inputId}-listbox`) || doc.getElementById(`${inputId}_list`)
+            : null) ||
+          doc.querySelector(
+            '.MuiAutocomplete-popper [role="listbox"], .p-autocomplete-panel [role="listbox"], .p-autocomplete-panel, .ant-select-dropdown, [data-radix-popper-content-wrapper] [role="listbox"], [role="listbox"]'
+          );
+
+        if (listboxEl) {
+          const optElements = Array.from(
+            listboxEl.querySelectorAll(
+              '[role="option"], .MuiAutocomplete-option, .p-autocomplete-item, li[role="option"]'
+            )
+          );
+          const target = cleanValue.toLowerCase().trim();
+          for (const optEl of optElements) {
+            const optText = (optEl.textContent || '').toLowerCase().trim();
+            const optVal = (
+              (optEl as HTMLElement).getAttribute('data-value') ||
+              (optEl as HTMLElement).getAttribute('data-val') ||
+              optEl.getAttribute('value') ||
+              ''
+            )
+              .toLowerCase()
+              .trim();
+
+            if (optText === target || optVal === target || optText.includes(target)) {
+              (optEl as HTMLElement).click();
+              break;
+            }
+          }
+        }
+      }
+
       // Autocomplete corresponding password field if matching saved credential exists for this domain
-      CredentialsService.getCredentialForEmail(acceptedValue, window.location.hostname).then(
+      CredentialsService.getCredentialForEmail(cleanValue, window.location.hostname).then(
         (cred) => {
           if (cred && cred.password) {
             const form = element.closest('form') || element.ownerDocument;
@@ -648,7 +698,7 @@ function handleKeyboard(e: KeyboardEvent): void {
       if (isInput && sdk && sdk.suggestion && sdk.suggestion.confirmSuggestion) {
         const node = sdk.wrap(element);
         if (node) {
-          sdk.suggestion.confirmSuggestion(node, acceptedValue).catch(() => {
+          sdk.suggestion.confirmSuggestion(node, cleanValue).catch(() => {
             // silently ignore
           });
         }
@@ -674,7 +724,7 @@ function handleKeyboard(e: KeyboardEvent): void {
 export function init(): void {
   if (_listeners.length > 0) dispose();
 
-  const focusHandler = ((e: FocusEvent): void => {
+  const focusHandler = ((e: Event): void => {
     const el = e.target as HTMLElement;
     if (!el || !el.tagName) return;
 
@@ -687,20 +737,27 @@ export function init(): void {
       const isEligible = isChoice || EligibilityLib.isEligibleForTrigger(el, true);
       if (isEligible) {
         const sdk = window.Cognilot?.SDK;
-        const matchedField = sdk?.facade?.matchField(el) || null;
-        const isFormContext = !!matchedField;
+        const registry = sdk?.registry;
+        const matchedField = registry?.findByNode(el) || sdk?.facade?.matchField(el) || null;
+
+        // Reactive scan: If the field is not in the registry (e.g., opened in accordion/modal),
+        // trigger proactive scan immediately to discover newly visible fields and sync the sidebar!
+        if (!matchedField && sdk?.initUniversalScan) {
+          sdk.initUniversalScan().catch(() => {});
+        }
+
+        const isFormContext = !!matchedField || (registry ? registry.getAll().length > 0 : false);
 
         if (isTextField && !isChoice) {
           CursorUI.paint(el, isFormContext);
           (el as HTMLInputElement)._CognilotFocusValue = (el as HTMLInputElement).value;
         }
 
-        if (isFormContext) {
-          if (el._CognilotSuggestion) {
-            updateUI(el, el._CognilotSuggestion);
-          }
-          handleAutocomplete(el);
+        paintSiblingGhostTexts(el);
+        if (el._CognilotSuggestion) {
+          updateUI(el, el._CognilotSuggestion);
         }
+        handleAutocomplete(el);
       }
     }
   }) as EventListener;
@@ -831,6 +888,7 @@ export function init(): void {
   }) as EventListener;
 
   document.addEventListener('focus', focusHandler, true);
+  document.addEventListener('click', focusHandler, true);
   document.addEventListener('change', changeHandler, true);
   document.addEventListener('keydown', keydownHandler, true);
   document.addEventListener('input', inputHandler, true);
@@ -861,6 +919,7 @@ export function init(): void {
 
   _listeners.push(
     { type: 'focus', fn: focusHandler },
+    { type: 'click', fn: focusHandler },
     { type: 'change', fn: changeHandler },
     { type: 'keydown', fn: keydownHandler },
     { type: 'input', fn: inputHandler },

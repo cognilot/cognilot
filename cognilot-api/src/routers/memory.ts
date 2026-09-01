@@ -72,6 +72,11 @@ memoryRouter.get('/', async (c) => {
 
   const FREE_CREDITS_PER_DAY = Number(process.env['COGNILOT_FREE_CREDITS_PER_DAY'] ?? 50);
 
+  const memoryData = (mem?.data as Record<string, unknown>) || {};
+  if (mem?.cvFileName && !memoryData['cv_file_name']) {
+    memoryData['cv_file_name'] = [mem.cvFileName];
+  }
+
   return c.json({
     user: {
       id: user.id,
@@ -84,12 +89,14 @@ memoryRouter.get('/', async (c) => {
       resetsAt: `${today}T23:59:59Z`,
     },
     memory: {
-      data: mem?.data ?? {},
+      data: memoryData,
+      cvFileName: mem?.cvFileName ?? null,
       onboardingCompleted: mem?.onboardingCompleted ?? null,
     },
     // Backward compatibility payload
     profile: {
-      dataLearned: mem?.data ?? {},
+      dataLearned: memoryData,
+      cvFileName: mem?.cvFileName ?? null,
       onboardingCompleted: mem?.onboardingCompleted ?? null,
     },
   });

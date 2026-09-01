@@ -237,6 +237,9 @@ chrome.commands.onCommand.addListener((command) => {
       });
     } else if (command === 'Cognilot-manual') {
       console.log('⌨️ Keyboard shortcut intercepted: Manual Mode via tab messaging!');
+      if (chrome.sidePanel) {
+        chrome.sidePanel.open({ tabId: tab.id }).catch(() => {});
+      }
       chrome.tabs.sendMessage(tab.id, { action: 'sidebarEnableInspector' }, (_response) => {
         if (chrome.runtime.lastError) {
           console.warn(
@@ -258,19 +261,24 @@ chrome.contextMenus.onClicked.addListener(
     try {
       switch (info.menuItemId) {
         case 'aiden-manual-inspect':
-          await chrome.scripting.executeScript({
-            target: { tabId: tab.id },
-            func: () => {
-              const api = (window as unknown as Record<string, { enableInspector?(): void }>)
-                .CognilotAPI;
-              if (api?.enableInspector) {
-                api.enableInspector();
-              } else if ((window as unknown as Record<string, () => void>).aidenEnableInspector) {
-                (window as unknown as Record<string, () => void>).aidenEnableInspector();
-              } else {
-                console.error('Manual inspector function not available');
-              }
-            },
+          if (chrome.sidePanel) {
+            chrome.sidePanel.open({ tabId: tab.id }).catch(() => {});
+          }
+          chrome.tabs.sendMessage(tab.id, { action: 'sidebarEnableInspector' }, (_response) => {
+            if (chrome.runtime.lastError) {
+              chrome.scripting
+                .executeScript({
+                  target: { tabId: tab.id! },
+                  func: () => {
+                    const api = (window as unknown as Record<string, { enableInspector?(): void }>)
+                      .CognilotAPI;
+                    if (api?.enableInspector) {
+                      api.enableInspector();
+                    }
+                  },
+                })
+                .catch(() => {});
+            }
           });
           break;
 

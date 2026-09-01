@@ -204,23 +204,23 @@ describe('SuggestionEngine', () => {
     expect(result.value).toBe('resolved-from-ai@email.com');
   });
 
-  it('should reject detection-only fields like search, file, and combobox', async () => {
+  it('should reject detection-only fields like search, file, and range', async () => {
     const searchNode = new MockNode('INPUT', '', { type: 'search' });
     const fileNode = new MockNode('INPUT', '', { type: 'file' });
-    const comboNode = new MockNode('INPUT', '', { role: 'combobox' });
+    const rangeNode = new MockNode('INPUT', '', { type: 'range' });
 
     const searchRes = await engine.handleTrigger(searchNode);
     const fileRes = await engine.handleTrigger(fileNode);
-    const comboRes = await engine.handleTrigger(comboNode);
+    const rangeRes = await engine.handleTrigger(rangeNode);
 
     expect(searchRes).toHaveProperty('error');
     expect((searchRes as any).error).toContain('detection-only');
 
     expect(fileRes).toHaveProperty('error');
-    expect((fileRes as any).error).toContain('detection-only');
+    expect((fileRes as any).error).toContain('not textual');
 
-    expect(comboRes).toHaveProperty('error');
-    expect((comboRes as any).error).toContain('detection-only');
+    expect(rangeRes).toHaveProperty('error');
+    expect((rangeRes as any).error).toContain('detection-only');
   });
 
   describe('handleRefine', () => {

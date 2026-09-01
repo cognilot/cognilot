@@ -113,17 +113,15 @@ describe('PageScanner', () => {
     expect(fields[0].resolution?.source).toBe('ai');
   });
 
-  it('should mark autocomplete, file, and search fields as detected and skip local resolution', async () => {
+  it('should mark non-resolvable fields (search, range) as detected and skip local resolution', async () => {
     const searchNode = new MockNode('INPUT', '', { type: 'search' });
-    const fileNode = new MockNode('INPUT', '', { type: 'file' });
-    const autoNode = new MockNode('INPUT', '', { role: 'combobox' });
+    const rangeNode = new MockNode('INPUT', '', { type: 'range' });
 
     const searchField = { id: 'search-1', node: searchNode, type: 'search', status: 'pending' };
-    const fileField = { id: 'file-1', node: fileNode, type: 'file', status: 'pending' };
-    const autoField = { id: 'auto-1', node: autoNode, type: 'autocomplete', status: 'pending' };
+    const rangeField = { id: 'range-1', node: rangeNode, type: 'range', status: 'pending' };
 
     sdk.detection.scanAllFields.mockReturnValue({
-      fields: [searchField, fileField, autoField],
+      fields: [searchField, rangeField],
       formScopes: [],
     });
 
@@ -136,13 +134,143 @@ describe('PageScanner', () => {
     await scanner.scanOnPageLoad();
 
     const fields = registry.getAll();
-    expect(fields.length).toBe(3);
+    expect(fields.length).toBe(2);
 
     for (const f of fields) {
       expect(f.status).toBe('detected');
       expect(f.resolvable).toBe(false);
       expect(f.resolution).toBeNull();
     }
+  });
+
+  it('should resolve file fields locally with fallback CV attachment filename', async () => {
+    const fileNode = new MockNode('INPUT', '', { type: 'file' });
+    const fileField = { id: 'file-1', node: fileNode, type: 'file', status: 'pending' };
+
+    sdk.detection.scanAllFields.mockReturnValue({
+      fields: [fileField],
+      formScopes: [],
+    });
+
+    await scanner.scanOnPageLoad();
+
+    const fields = registry.getAll();
+    expect(fields.length).toBe(1);
+    expect(fields[0].status).toBe('resolved');
+    expect(fields[0].resolution?.value).toBe('cv_candidato.pdf');
+    expect(fields[0].resolution?.memoryKey).toBe('cv_file_name');
+  });
+
+  it('should resolve file fields locally using cv_file_name from memory cache', async () => {
+    const fileNode = new MockNode('INPUT', '', { type: 'file', accept: '.pdf' });
+    const fileField = { id: 'file-2', node: fileNode, type: 'file', status: 'pending' };
+
+    sdk.adapters.storage = {
+      get: vi.fn().mockImplementation((key: string | string[]) => {
+        const k = Array.isArray(key) ? key[0] : key;
+        if (k === 'Cognilot_memory_cache') {
+          return {
+            Cognilot_memory_cache: {
+              data: {
+                cv_file_name: ['jack_arana_resume.pdf'],
+              },
+            },
+          };
+        }
+        return {};
+      }),
+      set: vi.fn(),
+    };
+
+    sdk.detection.scanAllFields.mockReturnValue({
+      fields: [fileField],
+      formScopes: [],
+    });
+
+    await scanner.scanOnPageLoad();
+
+    const fields = registry.getAll();
+    expect(fields.length).toBe(1);
+    expect(fields[0].status).toBe('resolved');
+    expect(fields[0].resolution?.value).toBe('jack_arana_resume.pdf');
+    expect(fields[0].resolution?.memoryKey).toBe('cv_file_name');
+  });
+
+  it('should resolve multiple autocomplete and combobox fields simultaneously from persistent decisions cache', async () => {
+    const node1 = new MockNode('INPUT', '', {
+      role: 'combobox',
+      'aria-autocomplete': 'list',
+    });
+    const node2 = new MockNode('INPUT', '', {
+      role: 'combobox',
+      'aria-autocomplete': 'list',
+    });
+    const field1 = {
+      id: 'country-select',
+      node: node1,
+      type: 'autocomplete',
+      text: 'What country are you located in?',
+      options: [],
+      status: 'pending',
+    };
+    const field2 = {
+      id: 'auth-select',
+      node: node2,
+      type: 'autocomplete',
+      text: 'Are you legally authorized to work in this country?',
+      options: [],
+      status: 'pending',
+    };
+
+    sdk.adapters.storage = {
+      get: vi.fn().mockImplementation((key: string) => {
+        if (key === 'Cognilot_decisions_cache') {
+          return {
+            Cognilot_decisions_cache: {
+              'localhost::What country are you located in?': {
+                selected_values: ['Peru'],
+                selected_indices: [1],
+                allChoices: [
+                  { text: 'Argentina', value: 'Argentina' },
+                  { text: 'Peru', value: 'Peru' },
+                  { text: 'USA', value: 'USA' },
+                ],
+                source: 'openai/gpt-oss-120b',
+              },
+              'localhost::Are you legally authorized to work in this country?': {
+                selected_values: ['Yes'],
+                selected_indices: [0],
+                allChoices: [
+                  { text: 'Yes', value: 'Yes' },
+                  { text: 'No', value: 'No' },
+                ],
+                source: 'openai/gpt-oss-120b',
+              },
+            },
+          };
+        }
+        return {};
+      }),
+      set: vi.fn(),
+    };
+
+    sdk.detection.scanAllFields.mockReturnValue({
+      fields: [field1, field2],
+      formScopes: [],
+    });
+
+    await scanner.scanOnPageLoad();
+
+    const fields = registry.getAll();
+    expect(fields.length).toBe(2);
+
+    expect(fields[0].status).toBe('resolved');
+    expect(fields[0].resolution?.value).toBe('Peru');
+    expect(fields[0].options.length).toBe(3);
+
+    expect(fields[1].status).toBe('resolved');
+    expect(fields[1].resolution?.value).toBe('Yes');
+    expect(fields[1].options.length).toBe(2);
   });
 
   it('should stop observer when stopObserving is called', () => {

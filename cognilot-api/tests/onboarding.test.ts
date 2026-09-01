@@ -25,7 +25,37 @@ vi.mock('@supabase/supabase-js', () => ({
   })),
 }));
 
-import { mapLLMJsonToDataLearned } from '../src/routers/onboarding.js';
+import { mapLLMJsonToDataLearned, parsePhoneDetails } from '../src/routers/onboarding.js';
+
+describe('parsePhoneDetails', () => {
+  it('parses international phone with prefix correctly', () => {
+    const res = parsePhoneDetails('+51 933524448');
+    expect(res.phone).toBe('+51 933524448');
+    expect(res.phone_country_code).toBe('+51');
+    expect(res.phone_national).toBe('933524448');
+  });
+
+  it('parses phone with separate country code and national number', () => {
+    const res = parsePhoneDetails(null, '+51', '933524448');
+    expect(res.phone).toBe('+51 933524448');
+    expect(res.phone_country_code).toBe('+51');
+    expect(res.phone_national).toBe('933524448');
+  });
+
+  it('handles US format with parentheses and dashes', () => {
+    const res = parsePhoneDetails('+1 (555) 019-9888');
+    expect(res.phone).toBe('+1 (555) 019-9888');
+    expect(res.phone_country_code).toBe('+1');
+    expect(res.phone_national).toBe('5550199888');
+  });
+
+  it('handles national number only when country code is omitted', () => {
+    const res = parsePhoneDetails('933524448');
+    expect(res.phone).toBe('933524448');
+    expect(res.phone_country_code).toBeUndefined();
+    expect(res.phone_national).toBe('933524448');
+  });
+});
 
 describe('mapLLMJsonToDataLearned', () => {
   it('maps standard fields and synthesizes full_name when full_name is omitted', () => {
@@ -55,6 +85,8 @@ describe('mapLLMJsonToDataLearned', () => {
     expect(result.full_name).toEqual(['John Doe']);
     expect(result.email).toEqual(['john.doe@example.com']);
     expect(result.phone).toEqual(['+1 555-0199']);
+    expect(result.phone_country_code).toEqual(['+1']);
+    expect(result.phone_national).toEqual(['5550199']);
     expect(result.pronouns).toEqual(['he/him']);
     expect(result.company).toEqual(['Acme Corp']);
     expect(result.job_title).toEqual(['Senior Developer']);
@@ -115,6 +147,8 @@ describe('mapLLMJsonToDataLearned', () => {
 
     const result = mapLLMJsonToDataLearned(legacyLlm);
     expect(result.phone).toEqual(['+34 600 000 000']);
+    expect(result.phone_country_code).toEqual(['+34']);
+    expect(result.phone_national).toEqual(['600000000']);
     expect(result.company).toEqual(['Globex Inc']);
     expect(result.job_title).toEqual(['Tech Lead']);
     expect(result.github).toEqual(['https://github.com/techlead']);
