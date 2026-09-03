@@ -2,15 +2,10 @@
 
 import { useEffect, useState, type ReactNode } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
-import { createBrowserClient } from '@supabase/ssr';
+import { supabase } from '@/lib/supabase';
 import Link from 'next/link';
 import type { User } from '@supabase/supabase-js';
 import { Compass, Database, Sparkles, Settings, CreditCard, LogOut } from 'lucide-react';
-
-const supabase = createBrowserClient(
-  process.env['NEXT_PUBLIC_SUPABASE_URL'] ?? '',
-  process.env['NEXT_PUBLIC_SUPABASE_ANON_KEY'] ?? ''
-);
 
 /**
  * Dashboard Layout — Client Component.
@@ -40,12 +35,15 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
 
       setUser(session.user);
 
-      // Fetch local user profile and sync with extension
+      // Sync tokens with extension without redundant blocking calls
       try {
-        const { authService } = await import('../../services/auth.service');
         const { extensionBridge } = await import('../../utils/extensionBridge');
-        const localUser = await authService.getCurrentUser(session.access_token);
-        extensionBridge.syncTokens(session.access_token, session.refresh_token, localUser);
+        extensionBridge.syncTokens(session.access_token, session.refresh_token, {
+          id: session.user.id,
+          email: session.user.email ?? '',
+          plan: 'free',
+          onboarding_completed: true,
+        });
       } catch (error) {
         console.error('Failed to sync with extension:', error);
       }
@@ -66,21 +64,28 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
       }
     });
 
+    let focusTimeout: NodeJS.Timeout | null = null;
     const handleVisibilityChange = async () => {
       if (document.visibilityState === 'visible') {
-        const {
-          data: { session },
-        } = await supabase.auth.getSession();
-        if (session) {
-          try {
-            const { authService } = await import('../../services/auth.service');
-            const { extensionBridge } = await import('../../utils/extensionBridge');
-            const localUser = await authService.getCurrentUser(session.access_token);
-            extensionBridge.syncTokens(session.access_token, session.refresh_token, localUser);
-          } catch (e) {
-            // ignore
+        if (focusTimeout) clearTimeout(focusTimeout);
+        focusTimeout = setTimeout(async () => {
+          const {
+            data: { session },
+          } = await supabase.auth.getSession();
+          if (session) {
+            try {
+              const { extensionBridge } = await import('../../utils/extensionBridge');
+              extensionBridge.syncTokens(session.access_token, session.refresh_token, {
+                id: session.user.id,
+                email: session.user.email ?? '',
+                plan: 'free',
+                onboarding_completed: true,
+              });
+            } catch (e) {
+              // ignore
+            }
           }
-        }
+        }, 500);
       }
     };
     document.addEventListener('visibilitychange', handleVisibilityChange);
@@ -90,6 +95,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
       subscription.unsubscribe();
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       window.removeEventListener('focus', handleVisibilityChange);
+      if (focusTimeout) clearTimeout(focusTimeout);
     };
   }, [router]);
 
@@ -98,8 +104,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
   };
 
   const navItems = [
-    { href: '/welcome', label: 'Welcome', icon: Compass, hint: 'Getting started' },
-    { href: '/memory', label: 'Memory', icon: Database, hint: 'Learned profile' },
+    { href: '/overview', label: 'Overview', icon: Compass, hint: 'Brain & quick actions' },
     { href: '/playground', label: 'Playground', icon: Sparkles, hint: 'Skills & prompts' },
     { href: '/settings', label: 'Settings', icon: Settings, hint: 'BYOK & preferences' },
     { href: '/plan', label: 'Plan & Billing', icon: CreditCard, hint: 'Usage limits' },

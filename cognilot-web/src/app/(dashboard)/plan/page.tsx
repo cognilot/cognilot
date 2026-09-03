@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { createBrowserClient } from '@supabase/ssr';
+import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
 import { RefreshCw, Check, Sparkles, HelpCircle, Zap } from 'lucide-react';
 import { DocLayout } from '@/components/layout/DocLayout';
@@ -31,11 +31,6 @@ export default function PlanPage() {
   const [creditsUsed, setCreditsUsed] = useState(0);
   const [maxCredits, setMaxCredits] = useState(50);
   const [resetsAt, setResetsAt] = useState<string>('');
-
-  const supabase = createBrowserClient(
-    process.env['NEXT_PUBLIC_SUPABASE_URL'] ?? '',
-    process.env['NEXT_PUBLIC_SUPABASE_ANON_KEY'] ?? ''
-  );
 
   const fetchPlanStatus = async () => {
     try {

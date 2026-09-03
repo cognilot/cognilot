@@ -4,12 +4,14 @@ import type { ApiError } from '../services/api';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { toast } from 'sonner';
+import { UploadCloud, FileText, Loader2 } from 'lucide-react';
 
 interface CVUploaderProps {
-  onUploadSuccess: (data: any) => void;
+  onUploadSuccess: (data: unknown) => void;
+  className?: string;
 }
 
-export const CVUploader: React.FC<CVUploaderProps> = ({ onUploadSuccess }) => {
+export const CVUploader: React.FC<CVUploaderProps> = ({ onUploadSuccess, className = '' }) => {
   const [isDragging, setIsDragging] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -47,10 +49,13 @@ export const CVUploader: React.FC<CVUploaderProps> = ({ onUploadSuccess }) => {
     });
 
     try {
-      const result = await api.uploadFile<any>('/onboarding/parse-cv', file);
+      const result = await api.uploadFile<Record<string, unknown>>('/onboarding/parse-cv', file);
 
       // Check if result has any data
-      const hasData = Object.values(result).some((v) => v !== null && v !== '');
+      const hasData =
+        result &&
+        typeof result === 'object' &&
+        Object.values(result).some((v) => v !== null && v !== '');
 
       if (!hasData) {
         toast.warning('No se pudo extraer mucha información', {
@@ -105,23 +110,29 @@ export const CVUploader: React.FC<CVUploaderProps> = ({ onUploadSuccess }) => {
     setIsDragging(false);
 
     if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-      processFile(e.dataTransfer.files[0]);
+      const file = e.dataTransfer.files[0];
+      if (file) {
+        void processFile(file);
+      }
     }
   };
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
-      processFile(e.target.files[0]);
+      const file = e.target.files[0];
+      if (file) {
+        void processFile(file);
+      }
     }
   };
 
   return (
     <div
-      className={`relative overflow-hidden rounded-xl border-2 border-dashed p-4 transition-all duration-300 ${
+      className={`relative overflow-hidden rounded-xl border border-dashed p-6 transition-all duration-200 ${
         isDragging
-          ? 'border-brand-secondary bg-surface-elevated'
-          : 'border-surface-soft hover:border-white/20'
-      }`}
+          ? 'border-accent-cyan bg-accent-cyan/5'
+          : 'border-white/10 hover:border-white/20 bg-white/[0.02]'
+      } ${className}`}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
@@ -136,28 +147,33 @@ export const CVUploader: React.FC<CVUploaderProps> = ({ onUploadSuccess }) => {
       />
 
       {isUploading ? (
-        <div className="flex flex-col items-center justify-center py-2 animate-pulse">
-          <div className="text-3xl mb-1">⚡</div>
-          <p className="text-sm font-medium gradient-text">Analizando con IA...</p>
-          <p className="text-[10px] text-ghost">Extrayendo datos...</p>
-          <div className="w-full h-1 bg-surface-soft mt-4 rounded-full overflow-hidden">
-            <div className="h-full bg-brand-gradient animate-shimmer w-full"></div>
-          </div>
+        <div className="flex flex-col items-center justify-center py-4 text-center">
+          <Loader2 className="w-8 h-8 text-accent-cyan animate-spin mb-3" />
+          <p className="text-sm font-medium text-white">Analizando CV con IA...</p>
+          <p className="text-xs text-white/50 mt-1">Extrayendo experiencia laboral y habilidades</p>
         </div>
       ) : (
         <div
-          className="flex flex-col items-center justify-center cursor-pointer text-center"
+          className="flex flex-col items-center justify-center cursor-pointer text-center group"
           onClick={() => fileInputRef.current?.click()}
         >
-          <div className="text-3xl mb-1">📄</div>
-          <h3 className="text-sm font-bold mb-0.5">
-            <span className="gradient-text">Completar con IA</span>
+          <div className="w-10 h-10 rounded-full bg-white/5 border border-white/10 flex items-center justify-center mb-3 group-hover:border-accent-cyan/40 group-hover:text-accent-cyan transition-colors text-white/60">
+            <UploadCloud className="w-5 h-5" />
+          </div>
+          <h3 className="text-sm font-semibold text-white mb-1">
+            Completar con IA <span className="text-white/40 font-normal">o arrastra tu CV</span>
           </h3>
-          <p className="text-[10px] text-dim mb-2 leading-tight">
-            Arrastra tu CV aquí o haz click para subir (PDF o DOCX)
+          <p className="text-xs text-white/50 mb-4 max-w-sm">
+            Arrastra tu CV aquí o haz click para subir (archivos PDF o DOCX de hasta 5MB)
           </p>
-          <Button variant="terminal" size="sm" className="text-[10px] h-7 px-2.5">
-            Subir Archivo
+          <Button
+            variant="terminal"
+            size="sm"
+            type="button"
+            className="pointer-events-none group-hover:bg-white/10"
+          >
+            <FileText className="w-3.5 h-3.5 text-accent-cyan" />
+            <span>Seleccionar Archivo</span>
           </Button>
         </div>
       )}

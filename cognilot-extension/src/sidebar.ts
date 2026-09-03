@@ -655,6 +655,11 @@ class CognilotSidebar {
                 /\s*[([{\s*[*•·-]?\s*(obligatorio|requerido|required|mandatory)?\s*[*•·-]?\s*[)\]}]/gi,
                 ''
               )
+              .replace(/\b(obligatorio|requerido|required|mandatory)\b/gi, '')
+              .replace(
+                /\s*(Texto de una sola línea|Texto de varias líneas|Texto de una sola linea|Texto de varias lineas|Single line text|Multiple line text)\.?/gi,
+                ''
+              )
               .replace(/\s*[([{\s*[*•·-]+\s*[)\]}]?/gi, '')
               .replace(/\*/g, '')
               .replace(/:/g, '')
@@ -757,12 +762,14 @@ class CognilotSidebar {
             let entryHtml = `
                     <div class="cognilot-field-card" data-selector="${q.selector || ''}" style="margin-bottom: 12px; transition: background-color 0.2s ease; border-radius: 4px; padding: 2px;">
                         <div style="display: flex; align-items: flex-start; gap: 8px;">
-                            <div style="font-size: 10px; color: ${themeColor}; font-weight: 700; width: 14px; margin-top: 1px;">${i + 1}.</div>
+                            <div style="font-size: 10px; color: var(--text-secondary); font-weight: 600; width: 14px; margin-top: 1px;">${i + 1}.</div>
                             <div style="flex: 1; min-width: 0;">
-                                <div style="display: flex; align-items: center; gap: 4px; flex-wrap: wrap; margin-bottom: 4px;">
-                                    <span style="font-size: 11px; font-weight: 600; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 120px;">${cleanLabel}</span>
-                                    <span style="font-size: 8px; color: var(--text-secondary); text-transform: uppercase; background: rgba(0,0,0,0.03); padding: 0 4px; border-radius: 3px; border: 1px solid var(--border-color);">${type}</span>
-                                    ${headerBadge}
+                                <div style="display: flex; align-items: center; justify-content: space-between; gap: 6px; min-width: 0; margin-bottom: 4px;">
+                                    <span style="font-size: 11px; font-weight: 600; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; flex: 1 1 auto;" title="${cleanLabel}">${cleanLabel}</span>
+                                    <div style="display: flex; align-items: center; gap: 4px; flex-shrink: 0;">
+                                        <span style="font-size: 8px; color: var(--text-secondary); text-transform: uppercase; background: rgba(0,0,0,0.03); padding: 0 4px; border-radius: 3px; border: 1px solid var(--border-color); white-space: nowrap;">${type}</span>
+                                        ${headerBadge}
+                                    </div>
                                 </div>
               `;
 
@@ -1012,8 +1019,21 @@ class CognilotSidebar {
             btn.style.opacity = '0.5';
             btn.innerHTML = `
               <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="animate-spin"><path d="M21 12a9 9 0 1 1-6.219-8.56"></path></svg>
-              ...
             `;
+
+            // Reset current sidebar resolutions to reload preview view cleanly
+            if (this.currentChatContext?.questions) {
+              this.currentChatContext.questions.forEach((q: any) => {
+                if (q.resolution?.source !== 'pre-filled') {
+                  q.resolution = null;
+                  q.answer = null;
+                  q.applied = false;
+                  q.success = false;
+                }
+              });
+              this.updateContextPreview();
+            }
+
             if (this.currentTab?.id) {
               chrome.tabs
                 .sendMessage(this.currentTab.id, {
@@ -1026,10 +1046,9 @@ class CognilotSidebar {
               btn.style.opacity = '1';
               btn.innerHTML = `
                 <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"></path><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path></svg>
-                Limpiar
               `;
-              this.syncWithRegistry(2, 300);
-            }, 500);
+              this.syncWithRegistry(3, 400);
+            }, 600);
           });
 
           // Wire Carousel Arrow Click Listeners

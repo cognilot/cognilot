@@ -653,12 +653,11 @@ async function handleProxyRequest(
   url: string,
   options: RequestInit & { headers?: Record<string, string> } = {}
 ): Promise<ProxyResult> {
-  let BACKEND_URL =
-    import.meta.env.VITE_API_BASE_URL || 'https://vague-felita-Cognilot-7f5d4232.koyeb.app';
+  let BACKEND_URL = import.meta.env.VITE_API_BASE_URL || 'https://cognilot-api.vercel.app';
 
-  // Automatically target local server when developer-loaded (unpacked)
+  // Automatically target local server when developer-loaded in dev mode
   const isUnpacked = !chrome.runtime.getManifest().update_url;
-  if (isUnpacked && BACKEND_URL.includes('koyeb.app')) {
+  if (isUnpacked && import.meta.env.DEV) {
     BACKEND_URL = 'http://localhost:8000';
   }
 
@@ -776,9 +775,10 @@ async function attemptTokenRefresh(): Promise<boolean> {
     if (!refreshToken) return false;
 
     const isUnpacked = !chrome.runtime.getManifest().update_url;
-    const backendUrl = isUnpacked
-      ? 'http://localhost:8000'
-      : 'https://vague-felita-Cognilot-7f5d4232.koyeb.app';
+    const backendUrl =
+      isUnpacked && import.meta.env.DEV
+        ? 'http://localhost:8000'
+        : 'https://cognilot-api.vercel.app';
 
     const response = await fetch(`${backendUrl}/api/auth/refresh`, {
       method: 'POST',
