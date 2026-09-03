@@ -21,10 +21,7 @@ const SidebarContent: FC = () => {
     navigate('/auth');
   };
 
-  const navItems = [
-    { label: 'welcome.md', path: '/welcome' },
-    { label: 'memory.md', path: '/memory' },
-  ];
+  const navItems = [{ label: 'overview.md', path: '/overview' }];
 
   return (
     <div className="h-full flex flex-col font-mono text-[13px] bg-background border-r border-white/5">

@@ -54,6 +54,11 @@ export class WebNode implements CognilotNode {
   }
 
   get textContent() {
+    const raw = this.element as HTMLElement;
+    const inner = raw.innerText;
+    if (inner !== undefined && inner !== null && inner.trim().length > 0) {
+      return inner;
+    }
     return this.element.textContent || '';
   }
 
@@ -62,7 +67,12 @@ export class WebNode implements CognilotNode {
   }
 
   getInnerText(): string {
-    return (this.element as any).innerText || this.element.textContent || '';
+    const raw = this.element as HTMLElement;
+    const inner = raw.innerText;
+    if (inner !== undefined && inner !== null && inner.trim().length > 0) {
+      return inner;
+    }
+    return this.element.textContent || '';
   }
 
   getStyle(prop: string): string {

@@ -59,6 +59,20 @@ describe('LabelExtractor', () => {
     parent3.appendChild(input3);
 
     expect(extractor.extractFieldMetadata(input3).label).toBe('Correo electrónico');
+
+    const parent4 = new MockNode('DIV', '', { id: 'parent4' });
+    const label4 = new MockNode(
+      'LABEL',
+      '¿A cuál oficina de Whitestack pertenece tu postulación en caso de ser seleccionado? (*)',
+      { id: 'l4' }
+    );
+    const input4 = new MockNode('INPUT', '', { id: 'i4' });
+    parent4.appendChild(label4);
+    parent4.appendChild(input4);
+
+    expect(extractor.extractFieldMetadata(input4).label).toBe(
+      '¿A cuál oficina de Whitestack pertenece tu postulación en caso de ser seleccionado?'
+    );
   });
 
   it('should extract HTML5 validation constraints (min, max, step, maxlength, pattern)', () => {
