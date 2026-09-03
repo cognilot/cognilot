@@ -4,6 +4,13 @@
   "version": "1.0.0",
   "description": "Automatically solve form questions using AI - supports Coursera, Google Forms, Microsoft Forms",
 
+  "icons": {
+    "16": "icons/icon-16.png",
+    "32": "icons/icon-32.png",
+    "48": "icons/icon-48.png",
+    "128": "icons/icon-128.png"
+  },
+
   "permissions": [
     "activeTab",
     "tabs",
@@ -21,8 +28,7 @@
     "https://*.coursera.org/*",
     "https://forms.office.com/*",
     "https://docs.google.com/forms/*",
-    "http://localhost:8000/*",
-    "https://vague-felita-Cognilot-7f5d4232.koyeb.app/*",
+    "https://cognilot-api.vercel.app/*",
     "https://chatgpt.com/*",
     "https://api.openai.com/*",
     "https://api.anthropic.com/*",
@@ -31,9 +37,9 @@
 
   "externally_connectable": {
     "matches": [
-      "http://localhost:5173/*",
-      "http://localhost:3000/*",
-      "https://Cognilot-web.vercel.app/*",
+      "https://cognilot.com/*",
+      "https://*.cognilot.com/*",
+      "https://cognilot-web.vercel.app/*",
       "https://*.web.app/*",
       "https://*.firebaseapp.com/*"
     ]
@@ -45,7 +51,13 @@
   },
 
   "action": {
-    "default_title": "Cognilot AI"
+    "default_title": "Cognilot AI",
+    "default_icon": {
+      "16": "icons/icon-16.png",
+      "32": "icons/icon-32.png",
+      "48": "icons/icon-48.png",
+      "128": "icons/icon-128.png"
+    }
   },
 
   "side_panel": {
