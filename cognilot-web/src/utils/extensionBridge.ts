@@ -45,6 +45,26 @@ class ChromeExtensionBridge implements ExtensionBridge {
       return;
     }
 
+    // 1. Universal in-page Content Script Bridge (Works dynamically with any unpacked or store extension ID)
+    try {
+      if (typeof window !== 'undefined') {
+        window.postMessage(
+          {
+            type: 'Cognilot_AUTH',
+            payload: {
+              accessToken,
+              refreshToken,
+              user,
+            },
+          },
+          '*'
+        );
+      }
+    } catch (error) {
+      console.warn('Extension bridge: postMessage sync failed:', error);
+    }
+
+    // 2. Direct chrome.runtime.sendMessage (Requires matching extensionId)
     console.log('Extension bridge: isExtensionPresent:', this.isExtensionPresent());
     console.log('Extension bridge: current extensionId from env:', this.extensionId);
 
@@ -53,9 +73,6 @@ class ChromeExtensionBridge implements ExtensionBridge {
       !this.extensionId ||
       this.extensionId === 'YOUR_EXTENSION_ID_HERE'
     ) {
-      console.log(
-        'Extension bridge: skipping sync (extensionId missing or window.chrome not present)'
-      );
       return;
     }
 
@@ -86,6 +103,14 @@ class ChromeExtensionBridge implements ExtensionBridge {
   }
 
   clearTokens(): void {
+    try {
+      if (typeof window !== 'undefined') {
+        window.postMessage({ type: 'Cognilot_LOGOUT' }, '*');
+      }
+    } catch (error) {
+      console.warn('Extension bridge: postMessage clear failed:', error);
+    }
+
     if (
       !this.isExtensionPresent() ||
       !this.extensionId ||
