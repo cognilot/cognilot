@@ -28,8 +28,9 @@ interface ProxyResponse {
 export function normalizeLabel(text: string, toLower = false): string {
   const raw = String(text || '');
   const cleaned = raw
+    .replace(/\n/g, ' ')
     .replace(
-      /\s*[([{\s*[*•·-]?\s*(obligatorio|requerido|required|mandatory)?\s*[*•·-]?\s*[)\]}]/gi,
+      /\s*[({[]\s*[*•·-]?\s*(obligatorio|requerido|required|mandatory)?\s*[*•·-]?\s*[)}\]]/gi,
       ''
     )
     .replace(/\b(obligatorio|requerido|required|mandatory)\b/gi, '')
@@ -37,12 +38,14 @@ export function normalizeLabel(text: string, toLower = false): string {
       /\s*(Texto de una sola línea|Texto de varias líneas|Texto de una sola linea|Texto de varias lineas|Single line text|Multiple line text)\.?/gi,
       ''
     )
-    .replace(/\s*[([{\s*[*•·-]+\s*[)\]}]?/gi, '')
+    .replace(/\s*[({[]\s*[*•·-]+\s*[)}\]]?/gi, '')
+    .replace(/\s*[({[]\s*[)}\]]/g, '')
     .replace(/\*/g, '')
     .replace(/:/g, '')
     .replace(/[\u200B-\u200D\uFEFF]/g, '')
     .replace(/\s+/g, ' ')
-    .replace(/\s*[([{:/-]\s*$/, '')
+    .replace(/\s*[({[:-]\s*$/, '')
+    .replace(/\s*\/\s*$/, '')
     .trim();
   return toLower ? cleaned.toLowerCase() : cleaned;
 }

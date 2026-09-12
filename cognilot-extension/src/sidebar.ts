@@ -11,6 +11,7 @@ import { registerGlobals as registerConfigGlobals } from './config';
 import '@cognilot/sdk';
 import { initHostAdapters } from './host_adapters';
 import { readClipboardDirect } from './utils/clipboard';
+import { normalizeLabel } from './utils/common';
 
 // Register globals before class instantiation
 registerConfigGlobals();
@@ -649,24 +650,7 @@ class CognilotSidebar {
           const renderField = (q, i) => {
             const type = q.type || 'text';
             const labelStr = q.text || q.label || q.question || `Field ${i + 1}`;
-            const cleanLabel = labelStr
-              .replace(/\n/g, ' ')
-              .replace(
-                /\s*[([{\s*[*•·-]?\s*(obligatorio|requerido|required|mandatory)?\s*[*•·-]?\s*[)\]}]/gi,
-                ''
-              )
-              .replace(/\b(obligatorio|requerido|required|mandatory)\b/gi, '')
-              .replace(
-                /\s*(Texto de una sola línea|Texto de varias líneas|Texto de una sola linea|Texto de varias lineas|Single line text|Multiple line text)\.?/gi,
-                ''
-              )
-              .replace(/\s*[([{\s*[*•·-]+\s*[)\]}]?/gi, '')
-              .replace(/\*/g, '')
-              .replace(/:/g, '')
-              .replace(/[\u200B-\u200D\uFEFF]/g, '')
-              .replace(/\s+/g, ' ')
-              .replace(/\s*[([{:/-]\s*$/, '')
-              .trim();
+            const cleanLabel = normalizeLabel(labelStr);
 
             const NON_RESOLVABLE_TYPES = new Set([
               'search',
@@ -3080,23 +3064,7 @@ class CognilotSidebar {
 
   cleanupQuestionText(text) {
     if (!text) return 'Unknown Question';
-    return (
-      text
-        .replace(/Texto de una sola línea/gi, '')
-        .replace(/Obligatorio/gi, '')
-        .replace(/Required/gi, '')
-        .replace(
-          /\s*[([{\s*[*•·-]?\s*(obligatorio|requerido|required|mandatory)?\s*[*•·-]?\s*[)\]}]/gi,
-          ''
-        )
-        .replace(/\s*[([{\s*[*•·-]+\s*[)\]}]?/gi, '')
-        .replace(/\*/g, '')
-        .replace(/:/g, '')
-        .replace(/[\u200B-\u200D\uFEFF]/g, '')
-        .replace(/\s+/g, ' ')
-        .replace(/\s*[([{:/-]\s*$/, '')
-        .trim() || 'Question'
-    );
+    return normalizeLabel(text) || 'Question';
   }
 
   async saveSessionToHistory(entries, type = 'solve_all') {
