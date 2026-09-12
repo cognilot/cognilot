@@ -430,6 +430,11 @@ import { Modules, init as initModules } from './index';
                 // silently ignore
               }
             }
+            if (sdk.scanner?.scanOnPageLoad) {
+              try {
+                await sdk.scanner.scanOnPageLoad();
+              } catch (_e) {}
+            }
             const formScopes = sdk.registry?.getFormScopes() || [];
             for (const scope of formScopes) {
               const fields = sdk.registry?.getByFormScope(scope.id) || [];

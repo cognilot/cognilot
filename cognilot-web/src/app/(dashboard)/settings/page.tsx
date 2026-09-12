@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { createBrowserClient } from '@supabase/ssr';
+import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
 import { Eye, EyeOff, Trash2, Sliders, Key, ShieldAlert } from 'lucide-react';
 import { extensionBridge } from '@/utils/extensionBridge';
@@ -35,11 +35,6 @@ export default function SettingsPage() {
     theme: 'dark',
     useProfileContext: true,
   });
-
-  const supabase = createBrowserClient(
-    process.env['NEXT_PUBLIC_SUPABASE_URL'] ?? '',
-    process.env['NEXT_PUBLIC_SUPABASE_ANON_KEY'] ?? ''
-  );
 
   const checkSessionStatus = async () => {
     const {

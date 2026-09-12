@@ -21,7 +21,25 @@ const app = new Hono().basePath('/api');
 app.use(
   '*',
   cors({
-    origin: process.env['COGNILOT_CORS_ORIGIN'] ?? 'http://localhost:3000',
+    origin: (origin) => {
+      if (!origin) return 'https://cognilot.com';
+      const allowed = [
+        'https://cognilot.com',
+        'https://www.cognilot.com',
+        'https://cognilot-web.vercel.app',
+        'http://localhost:3000',
+        'http://localhost:5173',
+      ];
+      if (
+        allowed.includes(origin) ||
+        origin.endsWith('.cognilot.com') ||
+        origin.endsWith('.vercel.app') ||
+        (process.env['COGNILOT_CORS_ORIGIN'] && origin === process.env['COGNILOT_CORS_ORIGIN'])
+      ) {
+        return origin;
+      }
+      return process.env['COGNILOT_CORS_ORIGIN'] || 'https://cognilot.com';
+    },
     allowHeaders: ['Content-Type', 'Authorization'],
     allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   })

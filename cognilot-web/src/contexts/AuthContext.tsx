@@ -39,16 +39,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Sync session and local user profile
   const syncUserSession = async (session: Session | null) => {
     if (session) {
+      const basicUser: User = {
+        id: session.user.id,
+        email: session.user.email ?? '',
+        plan: 'free',
+        onboarding_completed: true,
+      };
+
+      // 1. Immediate sync with extension without blocking on backend
+      extensionBridge.syncTokens(session.access_token, session.refresh_token || '', basicUser);
+
       try {
         console.log('AuthContext: Session detected, fetching local profile...');
         const userData = await authService.getCurrentUser(session.access_token);
         setUser(userData);
 
-        // Sync with extension
+        // 2. Re-sync with detailed user profile
         extensionBridge.syncTokens(session.access_token, session.refresh_token || '', userData);
       } catch (error) {
         console.error('AuthContext: Failed to fetch user profile:', error);
-        // If we can't get the profile, we might still have a session but it's unusable for our app
+        setUser(basicUser);
       }
     } else {
       setUser(null);

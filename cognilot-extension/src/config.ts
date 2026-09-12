@@ -10,12 +10,12 @@ export const Environment = {
   isDevelopment: (): boolean => import.meta.env.DEV,
   getBackendURL: (): string => {
     return Environment.isProduction()
-      ? 'https://vague-felita-Cognilot-7f5d4232.koyeb.app'
+      ? 'https://cognilot-api.vercel.app'
       : import.meta.env.VITE_API_BASE_URL_LOCAL || 'http://localhost:8000';
   },
   getWebAppURL: (): string => {
     return Environment.isProduction()
-      ? 'https://Cognilot-web.vercel.app'
+      ? 'https://cognilot.com'
       : import.meta.env.VITE_WEB_APP_URL_LOCAL || 'http://localhost:5173';
   },
 } as const;

@@ -18,13 +18,32 @@ export const LabelUtil = {
   },
 
   /**
-   * Removes duplicate words/patterns (e.g. "NameName").
+   * Removes duplicate words/patterns (e.g. "NameName" or "First Name First Name").
    */
   deduplicate(text: string): string {
     if (!text) return '';
-    const words = text.split(' ');
-    const unique = [...new Set(words)];
-    return unique.join(' ');
+    const trimmed = text.trim();
+
+    // Check if the entire string is an exact repeated half (e.g. "Full Name Full Name" -> "Full Name")
+    const words = trimmed.split(/\s+/);
+    if (words.length >= 2 && words.length % 2 === 0) {
+      const half = words.length / 2;
+      const firstHalf = words.slice(0, half).join(' ');
+      const secondHalf = words.slice(half).join(' ');
+      if (firstHalf.toLowerCase() === secondHalf.toLowerCase()) {
+        return firstHalf;
+      }
+    }
+
+    // Deduplicate only immediately adjacent identical words/tokens (e.g. "Email Email" -> "Email")
+    const dedupedWords: string[] = [];
+    for (let i = 0; i < words.length; i++) {
+      if (i > 0 && words[i].toLowerCase() === words[i - 1].toLowerCase()) {
+        continue;
+      }
+      dedupedWords.push(words[i]);
+    }
+    return dedupedWords.join(' ');
   },
 
   /**

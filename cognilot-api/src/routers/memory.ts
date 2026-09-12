@@ -54,15 +54,18 @@ memoryRouter.get('/', async (c) => {
   const userId = c.get('userId');
   const user = c.get('user');
 
-  // Get or create user memory record
-  const [mem] = await db
-    .insert(memories)
-    .values({ userId, data: {} })
-    .onConflictDoUpdate({
-      target: memories.userId,
-      set: { updatedAt: new Date() },
-    })
-    .returning();
+  // Get or initialize user memory record
+  let [mem] = await db.select().from(memories).where(eq(memories.userId, userId));
+  if (!mem) {
+    [mem] = await db
+      .insert(memories)
+      .values({ userId, data: {} })
+      .onConflictDoNothing()
+      .returning();
+    if (!mem) {
+      [mem] = await db.select().from(memories).where(eq(memories.userId, userId));
+    }
+  }
 
   const today = new Date().toISOString().split('T')[0] as string;
   const [usage] = await db

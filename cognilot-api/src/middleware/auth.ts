@@ -47,19 +47,23 @@ export const authMiddleware = createMiddleware<AuthEnv>(async (c, next) => {
     return c.json({ error: 'Unauthorized', message: 'Invalid or expired token.' }, 401);
   }
 
-  // Upsert user into our public.users table (sync with Supabase Auth)
-  const [user] = await db
-    .insert(users)
-    .values({
-      id: supabaseUser.id,
-      email: supabaseUser.email ?? '',
-      plan: 'free',
-    })
-    .onConflictDoUpdate({
-      target: users.id,
-      set: { email: supabaseUser.email ?? '' },
-    })
-    .returning();
+  // Sync user with our public.users table if not present or changed
+  let [user] = await db.select().from(users).where(eq(users.id, supabaseUser.id));
+
+  if (!user || user.email !== (supabaseUser.email ?? '')) {
+    [user] = await db
+      .insert(users)
+      .values({
+        id: supabaseUser.id,
+        email: supabaseUser.email ?? '',
+        plan: 'free',
+      })
+      .onConflictDoUpdate({
+        target: users.id,
+        set: { email: supabaseUser.email ?? '' },
+      })
+      .returning();
+  }
 
   if (!user) {
     return c.json({ error: 'Internal Server Error', message: 'Could not sync user.' }, 500);

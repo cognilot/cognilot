@@ -1,7 +1,7 @@
 // API base configuration and fetch wrapper
 import { supabase } from '../lib/supabase';
 
-const rawApiUrl = process.env.NEXT_PUBLIC_API_URL || '';
+const rawApiUrl = (process.env.NEXT_PUBLIC_API_URL || '').trim().replace(/\/+$/, '');
 const API_BASE_URL = rawApiUrl.endsWith('/api') ? rawApiUrl : `${rawApiUrl}/api`;
 
 export interface ApiError {
@@ -11,6 +11,11 @@ export interface ApiError {
 }
 
 class ApiClient {
+  private getUrl(endpoint: string): string {
+    const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+    return `${API_BASE_URL}${cleanEndpoint}`;
+  }
+
   /**
    * Retrieves the current Supabase JWT access token via the official SDK.
    * Falls back to an explicitly provided token (e.g. for SSR callers).
@@ -71,7 +76,7 @@ class ApiClient {
       headers['Authorization'] = `Bearer ${authToken}`;
     }
 
-    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+    const response = await fetch(this.getUrl(endpoint), {
       method: 'GET',
       headers,
     });
@@ -89,7 +94,7 @@ class ApiClient {
       headers['Authorization'] = `Bearer ${token}`;
     }
 
-    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+    const response = await fetch(this.getUrl(endpoint), {
       method: 'POST',
       headers,
       body: data ? JSON.stringify(data) : undefined,
@@ -108,7 +113,7 @@ class ApiClient {
       headers['Authorization'] = `Bearer ${token}`;
     }
 
-    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+    const response = await fetch(this.getUrl(endpoint), {
       method: 'PUT',
       headers,
       body: JSON.stringify(data),
@@ -127,7 +132,7 @@ class ApiClient {
       headers['Authorization'] = `Bearer ${token}`;
     }
 
-    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+    const response = await fetch(this.getUrl(endpoint), {
       method: 'PATCH',
       headers,
       body: JSON.stringify(data),
@@ -146,7 +151,7 @@ class ApiClient {
       headers['Authorization'] = `Bearer ${token}`;
     }
 
-    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+    const response = await fetch(this.getUrl(endpoint), {
       method: 'DELETE',
       headers,
     });
@@ -164,7 +169,7 @@ class ApiClient {
       headers['Authorization'] = `Bearer ${token}`;
     }
 
-    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+    const response = await fetch(this.getUrl(endpoint), {
       method: 'POST',
       headers,
       body: formData,

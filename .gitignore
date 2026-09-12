@@ -60,3 +60,6 @@ dist/
 # project audit report
 .audit-report.md
 
+# Release packages
+*.zip
+

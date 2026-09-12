@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { createBrowserClient } from '@supabase/ssr';
+import { supabase } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
 
 /**
@@ -19,18 +19,13 @@ export default function AuthPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  const supabase = createBrowserClient(
-    process.env['NEXT_PUBLIC_SUPABASE_URL'] ?? '',
-    process.env['NEXT_PUBLIC_SUPABASE_ANON_KEY'] ?? ''
-  );
-
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session) {
-        router.replace('/memory');
+        router.replace('/overview');
       }
     });
-  }, [router, supabase.auth]);
+  }, [router]);
 
   useEffect(() => {
     if (showModal) {
@@ -56,7 +51,7 @@ export default function AuthPage() {
         const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
         if (signInError) throw signInError;
       }
-      router.replace('/memory');
+      router.replace('/overview');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Authentication failed.');
     } finally {
@@ -67,7 +62,7 @@ export default function AuthPage() {
   const handleGoogle = async () => {
     await supabase.auth.signInWithOAuth({
       provider: 'google',
-      options: { redirectTo: `${window.location.origin}/memory` },
+      options: { redirectTo: `${window.location.origin}/overview` },
     });
   };
 

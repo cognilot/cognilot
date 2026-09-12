@@ -32,6 +32,11 @@ export function normalizeLabel(text: string, toLower = false): string {
       /\s*[([{\s*[*•·-]?\s*(obligatorio|requerido|required|mandatory)?\s*[*•·-]?\s*[)\]}]/gi,
       ''
     )
+    .replace(/\b(obligatorio|requerido|required|mandatory)\b/gi, '')
+    .replace(
+      /\s*(Texto de una sola línea|Texto de varias líneas|Texto de una sola linea|Texto de varias lineas|Single line text|Multiple line text)\.?/gi,
+      ''
+    )
     .replace(/\s*[([{\s*[*•·-]+\s*[)\]}]?/gi, '')
     .replace(/\*/g, '')
     .replace(/:/g, '')

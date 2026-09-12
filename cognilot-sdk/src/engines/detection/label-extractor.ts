@@ -57,7 +57,11 @@ export class LabelExtractor {
       required = true;
     }
 
-    const getCleanText = (el: CognilotNode) => (el.textContent || '').trim();
+    const getCleanText = (el: CognilotNode) => {
+      if (!el) return '';
+      const text = typeof el.getInnerText === 'function' ? el.getInnerText() : el.textContent || '';
+      return text.trim();
+    };
     const containsInteractive = (el: CognilotNode) =>
       el.querySelectorAll(
         'input, textarea, select, [contenteditable="true"], [role="textbox"], [role="combobox"]'
@@ -328,6 +332,7 @@ export class LabelExtractor {
         /\s*[\(\[\{]\s*[\*•·-]?\s*(obligatorio|requerido|required|mandatory)?\s*[\*•·-]?\s*[\)\]\}]/gi,
         ''
       )
+      .replace(/\b(obligatorio|requerido|required|mandatory)\b/gi, '')
       .replace(/\s*[\(\[\{]\s*[\*•·-]+\s*[\)\]\}]?/gi, '')
       .replace(/\*/g, '')
       .replace(/:/g, '')
