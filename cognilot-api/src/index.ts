@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { logger } from 'hono/logger';
 import { prettyJSON } from 'hono/pretty-json';
-import { serve } from '@hono/node-server';
+import { serve, getRequestListener } from '@hono/node-server';
 
 import { memoryRouter } from './routers/memory.js';
 import { suggestionsRouter } from './routers/suggestions.js';
@@ -93,4 +93,12 @@ if (
   });
 }
 
-export default app;
+const handler = getRequestListener(app.fetch);
+Object.assign(handler, {
+  app,
+  fetch: app.fetch.bind(app),
+  request: app.request.bind(app),
+});
+
+export { app };
+export default handler;
