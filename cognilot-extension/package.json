@@ -26,7 +26,7 @@
     "prettier": "^3.8.2",
     "sharp": "^0.35.4",
     "typescript": "^6.0.2",
-    "typescript-eslint": "^8.58.2",
+    "typescript-eslint": "^8.70.0",
     "vite": "^6.4.2",
     "vitest": "^4.1.2"
   }
