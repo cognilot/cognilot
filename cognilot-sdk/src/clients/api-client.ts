@@ -40,7 +40,14 @@ export class ApiClient {
         const data = JSON.parse(response.text);
         return { ...response, ...data }; // Merge parsed data (results, results_meta, etc)
       } catch (e) {
-        console.warn(`[ApiClient] Failed to parse response text as JSON:`, e);
+        if (response.ok) {
+          console.warn(`[ApiClient] Failed to parse response text as JSON:`, e);
+        } else {
+          return {
+            ...response,
+            error: response.text || response.statusText || 'Server Error',
+          };
+        }
       }
     }
 
