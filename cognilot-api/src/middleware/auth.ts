@@ -6,14 +6,28 @@ import { eq } from 'drizzle-orm';
 import type { AuthEnv } from '../types/hono.js';
 
 /**
- * Supabase Admin client for JWT verification.
+ * Lazy-initialized Supabase Admin client for JWT verification.
  * Uses service_role key to bypass RLS when verifying tokens.
+ * Throws only when authentication is attempted without configured keys,
+ * allowing health check and server boot to succeed.
  */
-const supabaseAdmin = createClient(
-  process.env['SUPABASE_URL'] ?? '',
-  process.env['SUPABASE_SERVICE_ROLE_KEY'] ?? '',
-  { auth: { autoRefreshToken: false, persistSession: false } }
-);
+let _supabaseAdmin: ReturnType<typeof createClient> | null = null;
+
+export const getSupabaseAdmin = () => {
+  if (_supabaseAdmin) return _supabaseAdmin;
+
+  const supabaseUrl =
+    process.env['SUPABASE_URL'] ||
+    process.env['NEXT_PUBLIC_SUPABASE_URL'] ||
+    'https://placeholder.supabase.co';
+  const supabaseKey =
+    process.env['SUPABASE_SERVICE_ROLE_KEY'] || process.env['SUPABASE_ANON_KEY'] || 'placeholder';
+
+  _supabaseAdmin = createClient(supabaseUrl, supabaseKey, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  });
+  return _supabaseAdmin;
+};
 
 /**
  * JWT Authentication Middleware.
@@ -37,11 +51,20 @@ export const authMiddleware = createMiddleware<AuthEnv>(async (c, next) => {
 
   const token = authorization.slice(7);
 
+  const supabaseUrl = process.env['SUPABASE_URL'] || process.env['NEXT_PUBLIC_SUPABASE_URL'];
+  if (!supabaseUrl) {
+    return c.json(
+      { error: 'Configuration Error', message: 'SUPABASE_URL is not configured on the server.' },
+      500
+    );
+  }
+
   // Verify token with Supabase Auth
+  const admin = getSupabaseAdmin();
   const {
     data: { user: supabaseUser },
     error,
-  } = await supabaseAdmin.auth.getUser(token);
+  } = await admin.auth.getUser(token);
 
   if (error || !supabaseUser) {
     return c.json({ error: 'Unauthorized', message: 'Invalid or expired token.' }, 401);
