@@ -81,11 +81,8 @@ app.onError((err, c) => {
   return c.json({ error: 'Internal Server Error', message: err.message }, 500);
 });
 
-if (
-  (process.env['COGNILOT_ENVIRONMENT'] === 'development' || !process.env['VERCEL']) &&
-  !process.env['VITEST']
-) {
-  const port = 8000;
+if (!process.env['VERCEL'] && !process.env['VITEST']) {
+  const port = Number(process.env['PORT'] ?? 8000);
   console.log(`[Cognilot API] Server is running on port ${port}`);
   serve({
     fetch: app.fetch,
@@ -93,7 +90,50 @@ if (
   });
 }
 
-const handler = getRequestListener(app.fetch);
+const nodeHandler = getRequestListener(app.fetch);
+
+/**
+ * Universal Serverless Handler for Vercel
+ * Supports both Node.js IncomingMessage/ServerResponse (@vercel/node)
+ * and Web Standard Request/Response fetch signatures.
+ */
+const handler = async (req: any, res?: any) => {
+  // If invoked as Node.js HTTP listener: (incoming: IncomingMessage, outgoing: ServerResponse)
+  if (res && typeof res.writeHead === 'function') {
+    if (typeof req.url === 'string') {
+      // 1. Ensure leading slash to prevent RequestError in @hono/node-server
+      if (!req.url.startsWith('/')) {
+        req.url = '/' + req.url;
+      }
+      // 2. Restore original URI if rewritten to /src/index.ts
+      const forwardedUri = req.headers?.['x-forwarded-uri'] || req.headers?.['x-matched-path'];
+      if (req.url.startsWith('/src/index') && typeof forwardedUri === 'string') {
+        req.url = forwardedUri;
+      }
+      // 3. Ensure path matches Hono basePath('/api')
+      if (!req.url.startsWith('/api')) {
+        req.url = `/api${req.url}`;
+      }
+    }
+    return nodeHandler(req, res);
+  }
+
+  // If invoked with Web Standard Request (Edge or Web runtime)
+  if (req && typeof req.url === 'string') {
+    try {
+      const urlObj = new URL(req.url);
+      if (!urlObj.pathname.startsWith('/api')) {
+        urlObj.pathname = `/api${urlObj.pathname}`;
+        req = new Request(urlObj.toString(), req);
+      }
+    } catch (_) {
+      // Fallback if URL parsing fails
+    }
+  }
+
+  return app.fetch(req);
+};
+
 Object.assign(handler, {
   app,
   fetch: app.fetch.bind(app),
