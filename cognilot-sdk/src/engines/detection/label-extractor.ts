@@ -448,16 +448,36 @@ export class LabelExtractor {
       }
 
       // Strategy 5: scan all listboxes in the document for MUI / PrimeNG / AntD / Radix Autocomplete popper
+      // STRICT GUARD: Only search global popper listboxes if THIS element is actively expanded or focused!
       if (!listboxEl) {
-        listboxEl = doc.querySelector(
-          '.MuiAutocomplete-popper [role="listbox"], .p-autocomplete-panel [role="listbox"], .p-autocomplete-panel, .ant-select-dropdown, [data-radix-popper-content-wrapper] [role="listbox"], [role="listbox"]'
-        );
+        const rawEl =
+          typeof (element as any).getRawNode === 'function'
+            ? (element as any).getRawNode()
+            : (element as any);
+        const isExpanded =
+          element.getAttribute('aria-expanded') === 'true' ||
+          element.getAttribute('data-state') === 'open';
+        const isElementActive =
+          doc.activeElement === rawEl ||
+          (rawEl &&
+            typeof rawEl.contains === 'function' &&
+            doc.activeElement &&
+            rawEl.contains(doc.activeElement)) ||
+          (parentContainer &&
+            typeof (parentContainer as any).getRawNode === 'function' &&
+            (parentContainer as any).getRawNode()?.contains?.(doc.activeElement));
+
+        if (isExpanded || isElementActive) {
+          listboxEl = doc.querySelector(
+            '.MuiAutocomplete-popper [role="listbox"], .p-autocomplete-panel [role="listbox"], .p-autocomplete-panel, .ant-select-dropdown, [data-radix-popper-content-wrapper] [role="listbox"], .vs__dropdown-menu, .v-select-menu, [role="listbox"]'
+          );
+        }
       }
 
       if (listboxEl) {
         const items = Array.from(
           listboxEl.querySelectorAll(
-            '[role="option"], .MuiAutocomplete-option, .p-autocomplete-item, li[role="option"]'
+            '[role="option"], .MuiAutocomplete-option, .p-autocomplete-item, li[role="option"], .vs__dropdown-option, .v-select-menu li'
           )
         );
         return items
@@ -509,6 +529,26 @@ export class LabelExtractor {
 
     if (placeholder) {
       return `${el.tagName.toLowerCase()}[placeholder="${escape(placeholder)}"]`;
+    }
+
+    // Check parent unique identifiers (dusk, data-testid, data-slot, label, etc.)
+    const parentContainer = el.closest(
+      '[dusk], [data-testid], [data-field-id], [data-slot="form-item"], [data-slot="control"], .v-select[label], [id]'
+    );
+    if (parentContainer && parentContainer.getRawNode() !== el.getRawNode()) {
+      const parentDusk = parentContainer.getAttribute('dusk');
+      const parentTestId = parentContainer.getAttribute('data-testid');
+      const parentFieldId = parentContainer.getAttribute('data-field-id');
+      const parentLabel = parentContainer.getAttribute('label');
+      const parentId = parentContainer.id;
+
+      if (parentDusk) return `[dusk="${escape(parentDusk)}"] ${el.tagName.toLowerCase()}`;
+      if (parentTestId)
+        return `[data-testid="${escape(parentTestId)}"] ${el.tagName.toLowerCase()}`;
+      if (parentFieldId)
+        return `[data-field-id="${escape(parentFieldId)}"] ${el.tagName.toLowerCase()}`;
+      if (parentLabel) return `[label="${escape(parentLabel)}"] ${el.tagName.toLowerCase()}`;
+      if (parentId) return `#${escape(parentId)} ${el.tagName.toLowerCase()}`;
     }
 
     const tag = el.tagName.toLowerCase();

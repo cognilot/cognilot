@@ -143,4 +143,35 @@ describe('Custom Select & Dropdown Detection (Cobrix / OpnForm / Nuxt UI)', () =
     const meta = extractor.extractFieldMetadata(buttonNode);
     expect(meta.label).toContain('Dónde vives actualmente');
   });
+
+  it('should NOT leak options from an open listbox to closed sibling select fields', () => {
+    // 1. Simulate opening a listbox for Field 2 (Location / Countries)
+    const listbox = dom.window.document.createElement('div');
+    listbox.setAttribute('role', 'listbox');
+    listbox.innerHTML = `
+      <div role="option" data-value="VE">Venezuela</div>
+      <div role="option" data-value="CO">Colombia</div>
+      <div role="option" data-value="PE">Perú</div>
+    `;
+    dom.window.document.body.appendChild(listbox);
+
+    // Field 3 (Remote availability) is CLOSED (aria-expanded is "false" or omitted, not active)
+    const remoteBtn = dom.window.document.getElementById('remote-select')!;
+    const remoteNode = platform.wrap(remoteBtn)!;
+
+    const remoteOptions = extractor.collectChoiceOptions(remoteNode);
+    // Must be empty because Field 3 is not expanded or active
+    expect(remoteOptions).toEqual([]);
+
+    // When Field 2 is expanded (aria-expanded="true"), it extracts the options
+    const locationBtn = dom.window.document.querySelector(
+      '.v-select[label*="Dónde vives"] button'
+    )!;
+    locationBtn.setAttribute('aria-expanded', 'true');
+    const locationNode = platform.wrap(locationBtn)!;
+
+    const locationOptions = extractor.collectChoiceOptions(locationNode);
+    expect(locationOptions.length).toBe(3);
+    expect(locationOptions[2].text).toBe('Perú');
+  });
 });

@@ -57,7 +57,27 @@ export class ActionEngine {
     }
 
     // ── Registry lookup ──────────────────────────────────────────────────────
-    const entry = this.sdk.registry.findByNode(node.getRawNode());
+    let entry = this.sdk.registry.findByNode(node.getRawNode());
+
+    // Search Proxy Input in custom select: If this node is an input inside a custom select container
+    // whose primary button/trigger is registered in FieldRegistry, inherit its registry entry!
+    if (!entry) {
+      const parentSelectContainer = node.closest?.(
+        '.v-select, [role="combobox"], [data-slot="control"], [data-reka-select-trigger], [data-radix-select-trigger], .form-group, .form-item'
+      );
+      if (parentSelectContainer) {
+        const trigger = parentSelectContainer.querySelector?.(
+          'button, [role="combobox"], [data-reka-select-trigger], [data-radix-select-trigger]'
+        );
+        if (trigger) {
+          const rawTrigger =
+            typeof trigger.getRawNode === 'function' ? trigger.getRawNode() : (trigger as object);
+          if (rawTrigger && typeof rawTrigger === 'object') {
+            entry = this.sdk.registry.findByNode(rawTrigger as object);
+          }
+        }
+      }
+    }
 
     if (type === 'file') {
       const fileName = entry?.resolution?.value || 'cv_candidato.pdf';
@@ -70,7 +90,12 @@ export class ActionEngine {
       };
     }
 
-    let isChoice = ['radio', 'checkbox', 'select'].includes(type) || tagName === 'select';
+    let isChoice =
+      ['radio', 'checkbox', 'select'].includes(type) ||
+      tagName === 'select' ||
+      node.getAttribute('aria-haspopup') === 'listbox' ||
+      node.getAttribute('role') === 'combobox' ||
+      node.closest('.v-select') !== null;
     if (!isChoice && (isCombobox || type === 'autocomplete')) {
       const liveOptions = this.labelExtractor.collectChoiceOptions(node) || [];
       if (liveOptions.length > 0 || (entry?.options && entry.options.length > 0)) {
@@ -509,17 +534,28 @@ export class ActionEngine {
           : null;
         const text = entry.text || entry.metadata?.label;
 
+        const isSpecificSelector =
+          entry.selector &&
+          (entry.selector.startsWith('#') ||
+            entry.selector.includes('[dusk=') ||
+            entry.selector.includes('[data-') ||
+            entry.selector.includes('[label=') ||
+            entry.selector.includes('[name=') ||
+            entry.selector.includes('[aria-label='));
+
         const candidateKeys = [
           entry.id,
           rawId,
           strippedCognilotId,
-          name,
-          cleanName,
-          text,
-          entry.selector,
+          name && name.length >= 2 ? name : null,
+          cleanName && cleanName.length >= 2 ? cleanName : null,
+          text && text.length >= 3 ? text : null,
+          isSpecificSelector ? entry.selector : null,
           domain && entry.id ? `${domain}::${entry.id}` : null,
-          domain && text ? `${domain}::${text}` : null,
-          domain && (name || cleanName) ? `${domain}::${name || cleanName}` : null,
+          domain && text && text.length >= 3 ? `${domain}::${text}` : null,
+          domain && (name || cleanName) && (name || cleanName)!.length >= 2
+            ? `${domain}::${name || cleanName}`
+            : null,
         ].filter(Boolean) as string[];
 
         let decision: any = null;
