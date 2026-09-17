@@ -443,7 +443,9 @@ export class LabelExtractor {
             ? parentContainer.getRawNode<Element>()
             : (parentContainer as any);
         if (rawParent && typeof rawParent.querySelector === 'function') {
-          listboxEl = rawParent.querySelector('[role="listbox"], ul, ol');
+          listboxEl = rawParent.querySelector(
+            '[role="listbox"], .vs__dropdown-menu, .v-select-menu, ul, ol'
+          );
         }
       }
 
@@ -454,18 +456,31 @@ export class LabelExtractor {
           typeof (element as any).getRawNode === 'function'
             ? (element as any).getRawNode()
             : (element as any);
+        const rawParent =
+          parentContainer && typeof (parentContainer as any).getRawNode === 'function'
+            ? (parentContainer as any).getRawNode()
+            : (parentContainer as any);
         const isExpanded =
           element.getAttribute('aria-expanded') === 'true' ||
-          element.getAttribute('data-state') === 'open';
+          element.getAttribute('data-state') === 'open' ||
+          (parentContainer &&
+            (parentContainer.getAttribute('aria-expanded') === 'true' ||
+              parentContainer.getAttribute('data-state') === 'open' ||
+              String(parentContainer.className || '').includes('vs--open') ||
+              (rawParent &&
+                typeof rawParent.querySelector === 'function' &&
+                rawParent.querySelector('.vs__dropdown-menu, [role="listbox"]') !== null)));
+
         const isElementActive =
           doc.activeElement === rawEl ||
           (rawEl &&
             typeof rawEl.contains === 'function' &&
             doc.activeElement &&
             rawEl.contains(doc.activeElement)) ||
-          (parentContainer &&
-            typeof (parentContainer as any).getRawNode === 'function' &&
-            (parentContainer as any).getRawNode()?.contains?.(doc.activeElement));
+          (rawParent &&
+            typeof rawParent.contains === 'function' &&
+            doc.activeElement &&
+            rawParent.contains(doc.activeElement));
 
         if (isExpanded || isElementActive) {
           listboxEl = doc.querySelector(
@@ -477,7 +492,7 @@ export class LabelExtractor {
       if (listboxEl) {
         const items = Array.from(
           listboxEl.querySelectorAll(
-            '[role="option"], .MuiAutocomplete-option, .p-autocomplete-item, li[role="option"], .vs__dropdown-option, .v-select-menu li'
+            '[role="option"], .MuiAutocomplete-option, .p-autocomplete-item, li[role="option"], .vs__dropdown-option, .v-select-menu li, li'
           )
         );
         return items
@@ -490,7 +505,10 @@ export class LabelExtractor {
               text;
             return text ? { text, value, index: i } : null;
           })
-          .filter((o): o is { text: string; value: string; index: number } => o !== null);
+          .filter(
+            (o): o is { text: string; value: string; index: number } =>
+              o !== null && !isDummyPlaceholder(o.text)
+          );
       }
     }
 

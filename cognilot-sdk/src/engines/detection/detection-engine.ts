@@ -654,11 +654,21 @@ export class DetectionEngine {
   private isElementSeed(node: CognilotNode): boolean {
     const tag = node.tagName.toLowerCase();
     const type = (node.getAttribute('type') || '').toLowerCase();
+    const role = node.getAttribute('role');
+    const ariaHasPopup = node.getAttribute('aria-haspopup');
     const isInput = tag === 'input' && !['hidden', 'button', 'submit', 'image'].includes(type);
+    const isCustomSelect =
+      ariaHasPopup === 'listbox' ||
+      role === 'combobox' ||
+      role === 'listbox' ||
+      node.getAttribute('data-reka-select-trigger') !== null ||
+      node.getAttribute('data-radix-select-trigger') !== null ||
+      (tag === 'button' && (node.closest('.v-select') !== null || ariaHasPopup === 'listbox'));
     const isOther =
       ['textarea', 'select'].includes(tag) ||
       node.getAttribute('contenteditable') === 'true' ||
-      node.getAttribute('role') === 'textbox';
+      node.getAttribute('role') === 'textbox' ||
+      isCustomSelect;
     return isInput || isOther;
   }
 

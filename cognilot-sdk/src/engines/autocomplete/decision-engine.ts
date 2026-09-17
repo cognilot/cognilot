@@ -71,7 +71,12 @@ export class DecisionEngine {
 
     // 3.5 Live Option Harvesting: If options were empty at scan time (e.g. dynamic combobox), re-extract from DOM
     if (!fieldMetadata.options || fieldMetadata.options.length === 0) {
-      const liveOptions = this.labelExtractor.collectChoiceOptions(node);
+      let liveOptions = this.labelExtractor.collectChoiceOptions(node);
+      if (liveOptions.length === 0) {
+        // Dropdown menu may mount asynchronously on click in Vue/React — brief wait
+        await new Promise((resolve) => setTimeout(resolve, 50));
+        liveOptions = this.labelExtractor.collectChoiceOptions(node);
+      }
       if (liveOptions.length > 0) {
         fieldMetadata.options = liveOptions;
       }
@@ -206,7 +211,35 @@ export class DecisionEngine {
         'DecisionEngine'
       );
       if (response && response.ok && response.results) {
-        const decision = response.results[fieldMetadata.id || ''] || null;
+        const rawNode = node.getRawNode() as any;
+        const rawId = rawNode?.id;
+        const rawName = rawNode?.name;
+        const text = fieldMetadata.text || fieldMetadata.metadata?.label;
+        const qId = fieldMetadata.id || fieldMetadata.name || text;
+
+        const candidateKeys = [
+          qId,
+          fieldMetadata.id,
+          rawId,
+          fieldMetadata.name,
+          rawName,
+          text,
+          fieldMetadata.metadata?.label,
+        ].filter(Boolean) as string[];
+
+        let decision: any = response.results[fieldMetadata.id || ''] || null;
+        if (!decision) {
+          for (const k of candidateKeys) {
+            if (response.results[k]) {
+              decision = response.results[k];
+              break;
+            }
+          }
+        }
+        if (!decision && Object.keys(response.results).length === 1) {
+          decision = Object.values(response.results)[0];
+        }
+
         if (decision) {
           // Enrich result for the UI
           decision.ghost_indices = decision.selected_indices || [];

@@ -365,7 +365,7 @@ export function paintChoiceGhost(element: HTMLElement, resolvedValues: string[])
   // 3. Handle custom dropdown / listbox options (OpnForm, vue-select, Nuxt UI, Radix, MUI, PrimeNG)
   const listboxOptions: HTMLElement[] = Array.from(
     element.querySelectorAll(
-      '[role="option"], .vs__dropdown-option, .v-select-menu li, .p-autocomplete-item, .MuiAutocomplete-option, li[role="option"]'
+      '[role="option"], .vs__dropdown-option, .v-select-menu li, .p-autocomplete-item, .MuiAutocomplete-option, li[role="option"], .vs__dropdown-menu li, [role="listbox"] li'
     )
   );
 
@@ -376,11 +376,21 @@ export function paintChoiceGhost(element: HTMLElement, resolvedValues: string[])
     if (parentContainer) {
       const containerOptions = Array.from(
         parentContainer.querySelectorAll(
-          '[role="option"], .vs__dropdown-option, .v-select-menu li, .p-autocomplete-item, .MuiAutocomplete-option, li[role="option"]'
+          '[role="option"], .vs__dropdown-option, .v-select-menu li, .p-autocomplete-item, .MuiAutocomplete-option, li[role="option"], .vs__dropdown-menu li, [role="listbox"] li, li'
         )
       ) as HTMLElement[];
       listboxOptions.push(...containerOptions);
     }
+  }
+
+  // If still empty, search active open dropdown menus in the document
+  if (listboxOptions.length === 0) {
+    const openMenuOptions = Array.from(
+      doc.querySelectorAll(
+        '.vs__dropdown-menu [role="option"], .vs__dropdown-menu li, .v-select-menu li, .MuiAutocomplete-popper [role="option"], .p-autocomplete-panel li, [data-radix-popper-content-wrapper] [role="option"]'
+      )
+    ) as HTMLElement[];
+    listboxOptions.push(...openMenuOptions);
   }
 
   for (const optEl of listboxOptions) {

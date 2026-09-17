@@ -98,6 +98,7 @@ function updateUI(element: HTMLElement, suggestion: SuggestionState): void {
     return;
   }
 
+  const isTextField = ['INPUT', 'TEXTAREA'].includes(element.tagName);
   const role = element.getAttribute('role');
   const ariaHasPopup = element.getAttribute('aria-haspopup');
   const isCustomSelect =
@@ -113,14 +114,18 @@ function updateUI(element: HTMLElement, suggestion: SuggestionState): void {
     element.tagName.toLowerCase() === 'select' ||
     isCustomSelect;
 
+  // 1. Text/search inputs always receive inline ghost text overlay
+  if (isTextField) {
+    GhostUI.paint(element, suggestion);
+  }
+
+  // 2. Choice fields and dropdown options receive choice ghost highlight
   if (isChoice) {
     if (suggestion.options && suggestion.options.length > 0) {
       GhostUI.paintChoiceGhost(element, suggestion.options);
     } else if (suggestion.value) {
       GhostUI.paintChoiceGhost(element, [suggestion.value]);
     }
-  } else {
-    GhostUI.paint(element, suggestion);
   }
 
   if (!suggestion.isError) {
@@ -793,7 +798,7 @@ export function init(): void {
 
         const isFormContext = !!matchedField || (registry ? registry.getAll().length > 0 : false);
 
-        if (isTextField && !isChoice) {
+        if (isTextField) {
           CursorUI.paint(el, isFormContext);
           (el as HTMLInputElement)._CognilotFocusValue = (el as HTMLInputElement).value;
         }

@@ -52,12 +52,19 @@ export class ActionEngine {
     const isCombobox =
       role === 'combobox' || (node as any).getAttribute?.('aria-autocomplete') !== null;
 
-    if (!isResolvableFieldType(type)) {
+    const isSearchProxy =
+      (type === 'search' || type === 'text') &&
+      (node.closest?.(
+        '.v-select, [role="combobox"], [role="listbox"], [data-slot="control"], .form-group, .form-item'
+      ) !== null ||
+        /buscar|search|selecciona/i.test(node.getAttribute?.('placeholder') || ''));
+
+    if (!isResolvableFieldType(type) && !isSearchProxy) {
       return { error: `Field is detection-only (${type}) and cannot be resolved` };
     }
 
     // ── Registry lookup ──────────────────────────────────────────────────────
-    let entry = this.sdk.registry.findByNode(node.getRawNode());
+    let entry = this.sdk.registry?.findByNode?.(node.getRawNode());
 
     // Search Proxy Input in custom select: If this node is an input inside a custom select container
     // whose primary button/trigger is registered in FieldRegistry, inherit its registry entry!
@@ -67,13 +74,24 @@ export class ActionEngine {
       );
       if (parentSelectContainer) {
         const trigger = parentSelectContainer.querySelector?.(
-          'button, [role="combobox"], [data-reka-select-trigger], [data-radix-select-trigger]'
+          'button, [role="combobox"], [data-reka-select-trigger], [data-radix-select-trigger], input'
         );
-        if (trigger) {
+        if (trigger && trigger !== node) {
           const rawTrigger =
             typeof trigger.getRawNode === 'function' ? trigger.getRawNode() : (trigger as object);
           if (rawTrigger && typeof rawTrigger === 'object') {
-            entry = this.sdk.registry.findByNode(rawTrigger as object);
+            entry = this.sdk.registry?.findByNode?.(rawTrigger as object);
+          }
+        }
+        if (!entry && typeof this.sdk.registry?.getAll === 'function') {
+          const containerLabel =
+            parentSelectContainer.getAttribute?.('label') ||
+            this.labelExtractor.extractFieldMetadata(node)?.label;
+          if (containerLabel) {
+            const all = this.sdk.registry.getAll();
+            entry =
+              all.find((e) => e.text === containerLabel || e.metadata?.label === containerLabel) ||
+              null;
           }
         }
       }
