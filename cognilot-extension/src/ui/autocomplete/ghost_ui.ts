@@ -361,6 +361,63 @@ export function paintChoiceGhost(element: HTMLElement, resolvedValues: string[])
     // Clean any residual label highlight
     if (labelEl) labelEl.classList.remove('Cognilot-ghost-choice-label-highlight');
   }
+
+  // 3. Handle custom dropdown / listbox options (OpnForm, vue-select, Nuxt UI, Radix, MUI, PrimeNG)
+  const listboxOptions: HTMLElement[] = Array.from(
+    element.querySelectorAll(
+      '[role="option"], .vs__dropdown-option, .v-select-menu li, .p-autocomplete-item, .MuiAutocomplete-option, li[role="option"], .vs__dropdown-menu li, [role="listbox"] li'
+    )
+  );
+
+  if (listboxOptions.length === 0) {
+    const parentContainer = element.closest(
+      '.v-select, [role="combobox"], [data-slot="control"], .form-group, .form-item'
+    );
+    if (parentContainer) {
+      const containerOptions = Array.from(
+        parentContainer.querySelectorAll(
+          '[role="option"], .vs__dropdown-option, .v-select-menu li, .p-autocomplete-item, .MuiAutocomplete-option, li[role="option"], .vs__dropdown-menu li, [role="listbox"] li, li'
+        )
+      ) as HTMLElement[];
+      listboxOptions.push(...containerOptions);
+    }
+  }
+
+  // If still empty, search active open dropdown menus in the document
+  if (listboxOptions.length === 0) {
+    const openMenuOptions = Array.from(
+      doc.querySelectorAll(
+        '.vs__dropdown-menu [role="option"], .vs__dropdown-menu li, .v-select-menu li, .MuiAutocomplete-popper [role="option"], .p-autocomplete-panel li, [data-radix-popper-content-wrapper] [role="option"]'
+      )
+    ) as HTMLElement[];
+    listboxOptions.push(...openMenuOptions);
+  }
+
+  for (const optEl of listboxOptions) {
+    const text = (optEl.textContent || '').trim();
+    const val =
+      optEl.getAttribute('data-value') ||
+      optEl.getAttribute('data-val') ||
+      optEl.getAttribute('value') ||
+      text;
+
+    const normVal = normalize(val);
+    const normText = normalize(text);
+
+    const isMatch = normTargetVals.some(
+      (tv) =>
+        tv === normVal ||
+        tv === normText ||
+        (tv.length >= 3 && normText.includes(tv)) ||
+        (normText.length >= 3 && tv.includes(normText))
+    );
+
+    if (isMatch) {
+      optEl.classList.add('Cognilot-ghost-choice-highlight');
+    } else {
+      optEl.classList.remove('Cognilot-ghost-choice-highlight');
+    }
+  }
 }
 
 export function clearChoiceGhost(element: HTMLElement): void {

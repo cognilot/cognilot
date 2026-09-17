@@ -73,7 +73,10 @@ export class DetectionEngine {
     if (!root) {
       // Find best form in page if no scope provided
       const allSeedsSelector =
-        'input:not([type="hidden"]), textarea, select, [contenteditable="true"], [role="textbox"], iframe';
+        'input:not([type="hidden"]):not([type="button"]):not([type="submit"]):not([type="image"]):not([type="reset"]), ' +
+        'textarea, select, [contenteditable="true"], [role="textbox"], [role="combobox"], [role="listbox"], ' +
+        'button[aria-haspopup="listbox"], button[role="combobox"], button[data-slot="control"], ' +
+        '[data-reka-select-trigger], [data-radix-select-trigger], .v-select button, iframe';
       const pageRoot = this.adapter.getRootNode();
       const seeds = pageRoot
         ? pageRoot.querySelectorAll(allSeedsSelector).filter((el) => el.isVisible)
@@ -113,7 +116,10 @@ export class DetectionEngine {
 
         if (!singleField && scopeElement) {
           const allSeedsSelector =
-            'input:not([type="hidden"]), textarea, select, [contenteditable="true"], [role="textbox"]';
+            'input:not([type="hidden"]):not([type="button"]):not([type="submit"]):not([type="image"]):not([type="reset"]), ' +
+            'textarea, select, [contenteditable="true"], [role="textbox"], [role="combobox"], [role="listbox"], ' +
+            'button[aria-haspopup="listbox"], button[role="combobox"], button[data-slot="control"], ' +
+            '[data-reka-select-trigger], [data-radix-select-trigger], .v-select button';
           const childFields = scopeElement
             .querySelectorAll(allSeedsSelector)
             .filter((el) => el.isVisible);
@@ -221,8 +227,10 @@ export class DetectionEngine {
 
     // ── 1. Collect ALL visible inputs from the page root ─────────────────────
     const allSeedsSelector =
-      'input:not([type="hidden"]):not([type="button"]):not([type="submit"]):not([type="image"]), ' +
-      'textarea, select, [contenteditable="true"], [role="textbox"]';
+      'input:not([type="hidden"]):not([type="button"]):not([type="submit"]):not([type="image"]):not([type="reset"]), ' +
+      'textarea, select, [contenteditable="true"], [role="textbox"], [role="combobox"], [role="listbox"], ' +
+      'button[aria-haspopup="listbox"], button[role="combobox"], button[data-slot="control"], ' +
+      '[data-reka-select-trigger], [data-radix-select-trigger], .v-select button';
 
     const allRaw = root.querySelectorAll(allSeedsSelector).filter((el) => el.isVisible);
     const seeds = allRaw.slice(0, maxFields);
@@ -315,18 +323,31 @@ export class DetectionEngine {
           status: 'pending',
         });
       } else {
-        // ── Text-like field: one entry per seed ────────────────────────
+        // ── Text-like / Select / Autocomplete field: one entry per seed ────────────────────────
         const metadata = this.extractor.extractFieldMetadata(el);
         const label = metadata?.label;
         if (!label?.trim()) continue;
 
         const isContentEditable = el.getAttribute('contenteditable') === 'true';
         const isTextbox = el.getAttribute('role') === 'textbox';
-        const isCombobox = el.getAttribute('role') === 'combobox';
+        const role = el.getAttribute('role');
+        const ariaHasPopup = el.getAttribute('aria-haspopup');
+        const isCombobox =
+          role === 'combobox' ||
+          el.getAttribute('aria-autocomplete') !== null ||
+          el.getAttribute('data-slot') === 'combobox';
+        const isSelectTrigger =
+          tagName === 'select' ||
+          ariaHasPopup === 'listbox' ||
+          role === 'listbox' ||
+          el.getAttribute('data-reka-select-trigger') !== null ||
+          el.getAttribute('data-radix-select-trigger') !== null ||
+          el.closest('.v-select') !== null;
+
         const cleanType =
           isContentEditable || isTextbox
             ? 'text'
-            : tagName === 'select'
+            : isSelectTrigger || tagName === 'select'
               ? 'select'
               : isCombobox
                 ? 'autocomplete'
@@ -398,10 +419,51 @@ export class DetectionEngine {
       }
     }
 
-    // ── 3. Identify form scopes and assign flags ──────────────────────────────
-    const formScopes = this._identifyFormScopes(fields);
+    // ── 3. Deduplicate fields sharing identical label / container ──────────────
+    const deduplicatedFields: FieldRegistryEntry[] = [];
+    const seenFieldMap = new Map<string, FieldRegistryEntry>();
 
-    return { fields, formScopes };
+    for (const field of fields) {
+      const normLabel = (field.text || '').toLowerCase().trim();
+      const normName = (field.name || field.id || '').toLowerCase().trim();
+      const key = normLabel || normName;
+
+      if (!key) {
+        deduplicatedFields.push(field);
+        continue;
+      }
+
+      if (!seenFieldMap.has(key)) {
+        seenFieldMap.set(key, field);
+        deduplicatedFields.push(field);
+      } else {
+        const existing = seenFieldMap.get(key)!;
+        // Merge options if one has them and the other doesn't
+        if ((field.options?.length || 0) > (existing.options?.length || 0)) {
+          existing.options = field.options;
+        }
+
+        // If existing is a hidden / sr-only element and current is visible/interactive, swap to the interactive node
+        const isExistingSrOnly =
+          existing.node?.getAttribute('class')?.includes('sr-only') ||
+          existing.node?.getAttribute('aria-hidden') === 'true';
+        if (isExistingSrOnly) {
+          if ((!field.options || field.options.length === 0) && existing.options?.length) {
+            field.options = existing.options;
+          }
+          seenFieldMap.set(key, field);
+          const idx = deduplicatedFields.indexOf(existing);
+          if (idx !== -1) {
+            deduplicatedFields[idx] = field;
+          }
+        }
+      }
+    }
+
+    // ── 4. Identify form scopes and assign flags ──────────────────────────────
+    const formScopes = this._identifyFormScopes(deduplicatedFields);
+
+    return { fields: deduplicatedFields, formScopes };
   }
 
   /**
@@ -592,11 +654,21 @@ export class DetectionEngine {
   private isElementSeed(node: CognilotNode): boolean {
     const tag = node.tagName.toLowerCase();
     const type = (node.getAttribute('type') || '').toLowerCase();
+    const role = node.getAttribute('role');
+    const ariaHasPopup = node.getAttribute('aria-haspopup');
     const isInput = tag === 'input' && !['hidden', 'button', 'submit', 'image'].includes(type);
+    const isCustomSelect =
+      ariaHasPopup === 'listbox' ||
+      role === 'combobox' ||
+      role === 'listbox' ||
+      node.getAttribute('data-reka-select-trigger') !== null ||
+      node.getAttribute('data-radix-select-trigger') !== null ||
+      (tag === 'button' && (node.closest('.v-select') !== null || ariaHasPopup === 'listbox'));
     const isOther =
       ['textarea', 'select'].includes(tag) ||
       node.getAttribute('contenteditable') === 'true' ||
-      node.getAttribute('role') === 'textbox';
+      node.getAttribute('role') === 'textbox' ||
+      isCustomSelect;
     return isInput || isOther;
   }
 

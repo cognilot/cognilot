@@ -264,10 +264,13 @@ select.Cognilot-ghost-choice-highlight {
   box-shadow: none !important;
 }
 
-/* Suggested <option> inside dropdowns */
-option.Cognilot-ghost-choice-highlight {
-  outline: none !important;
-  box-shadow: none !important;
+/* Suggested <option> and custom dropdown list items inside dropdowns */
+option.Cognilot-ghost-choice-highlight,
+li.Cognilot-ghost-choice-highlight,
+.vs__dropdown-option.Cognilot-ghost-choice-highlight,
+[role='option'].Cognilot-ghost-choice-highlight {
+  outline: 1px solid rgba(168, 85, 247, 0.6) !important;
+  box-shadow: 0 0 10px rgba(168, 85, 247, 0.3) !important;
   background-color: rgba(168, 85, 247, 0.25) !important;
   color: #c084fc !important;
   font-weight: 600 !important;

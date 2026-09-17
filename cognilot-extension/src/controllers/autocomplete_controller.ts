@@ -98,19 +98,34 @@ function updateUI(element: HTMLElement, suggestion: SuggestionState): void {
     return;
   }
 
+  const isTextField = ['INPUT', 'TEXTAREA'].includes(element.tagName);
+  const role = element.getAttribute('role');
+  const ariaHasPopup = element.getAttribute('aria-haspopup');
+  const isCustomSelect =
+    ariaHasPopup === 'listbox' ||
+    role === 'combobox' ||
+    element.getAttribute('data-reka-select-trigger') !== null ||
+    element.getAttribute('data-radix-select-trigger') !== null ||
+    (element.tagName === 'BUTTON' && element.closest('.v-select') !== null);
+
   const isChoice =
     (element as HTMLInputElement).type === 'radio' ||
     (element as HTMLInputElement).type === 'checkbox' ||
-    element.tagName.toLowerCase() === 'select';
+    element.tagName.toLowerCase() === 'select' ||
+    isCustomSelect;
 
+  // 1. Text/search inputs always receive inline ghost text overlay
+  if (isTextField) {
+    GhostUI.paint(element, suggestion);
+  }
+
+  // 2. Choice fields and dropdown options receive choice ghost highlight
   if (isChoice) {
     if (suggestion.options && suggestion.options.length > 0) {
       GhostUI.paintChoiceGhost(element, suggestion.options);
     } else if (suggestion.value) {
       GhostUI.paintChoiceGhost(element, [suggestion.value]);
     }
-  } else {
-    GhostUI.paint(element, suggestion);
   }
 
   if (!suggestion.isError) {
@@ -158,10 +173,20 @@ function clearUI(element: HTMLElement, keepCache = false, skipSiblings = false):
 async function handleAutocomplete(element: HTMLElement, forceShowHint = false): Promise<void> {
   if (element._blockCognilotTrigger) return;
 
+  const role = element.getAttribute('role');
+  const ariaHasPopup = element.getAttribute('aria-haspopup');
+  const isCustomSelect =
+    ariaHasPopup === 'listbox' ||
+    role === 'combobox' ||
+    element.getAttribute('data-reka-select-trigger') !== null ||
+    element.getAttribute('data-radix-select-trigger') !== null ||
+    (element.tagName === 'BUTTON' && element.closest('.v-select') !== null);
+
   const isChoice =
     element.tagName === 'SELECT' ||
     (element as HTMLInputElement).type === 'radio' ||
-    (element as HTMLInputElement).type === 'checkbox';
+    (element as HTMLInputElement).type === 'checkbox' ||
+    isCustomSelect;
 
   if (!isChoice && !EligibilityLib.isEligibleForTrigger(element, true)) {
     return;
@@ -633,26 +658,35 @@ function handleKeyboard(e: KeyboardEvent): void {
       element.dispatchEvent(new Event('input', { bubbles: true }));
       element.dispatchEvent(new Event('change', { bubbles: true }));
 
-      // If combobox/autocomplete, commit React/framework state by clicking matching option in the live portal
+      // If combobox/autocomplete/custom select, commit React/Vue/framework state by clicking matching option in the live portal
       const role = element.getAttribute('role');
-      const isCombobox = role === 'combobox' || element.getAttribute('aria-autocomplete') !== null;
+      const isCombobox =
+        role === 'combobox' ||
+        element.getAttribute('aria-autocomplete') !== null ||
+        element.closest('.v-select, [role="combobox"], [role="listbox"]') !== null;
       if (isCombobox) {
         const doc = element.ownerDocument || document;
         const inputId = element.id;
         const controlsId = element.getAttribute('aria-controls');
+        const parentContainer = element.closest(
+          '.v-select, [role="combobox"], [data-slot="control"], .form-group, .form-item'
+        );
         const listboxEl =
           (controlsId ? doc.getElementById(controlsId) : null) ||
           (inputId
             ? doc.getElementById(`${inputId}-listbox`) || doc.getElementById(`${inputId}_list`)
             : null) ||
+          (parentContainer
+            ? parentContainer.querySelector('[role="listbox"], .vs__dropdown-menu, .v-select-menu')
+            : null) ||
           doc.querySelector(
-            '.MuiAutocomplete-popper [role="listbox"], .p-autocomplete-panel [role="listbox"], .p-autocomplete-panel, .ant-select-dropdown, [data-radix-popper-content-wrapper] [role="listbox"], [role="listbox"]'
+            '.MuiAutocomplete-popper [role="listbox"], .p-autocomplete-panel [role="listbox"], .p-autocomplete-panel, .ant-select-dropdown, [data-radix-popper-content-wrapper] [role="listbox"], .vs__dropdown-menu, .v-select-menu, [role="listbox"]'
           );
 
         if (listboxEl) {
           const optElements = Array.from(
             listboxEl.querySelectorAll(
-              '[role="option"], .MuiAutocomplete-option, .p-autocomplete-item, li[role="option"]'
+              '[role="option"], .MuiAutocomplete-option, .p-autocomplete-item, li[role="option"], .vs__dropdown-option, .v-select-menu li'
             )
           );
           const target = cleanValue.toLowerCase().trim();
@@ -667,7 +701,11 @@ function handleKeyboard(e: KeyboardEvent): void {
               .toLowerCase()
               .trim();
 
-            if (optText === target || optVal === target || optText.includes(target)) {
+            if (
+              optText === target ||
+              optVal === target ||
+              (target.length >= 3 && (optText.includes(target) || target.includes(optText)))
+            ) {
               (optEl as HTMLElement).click();
               break;
             }
@@ -730,8 +768,20 @@ export function init(): void {
 
     const isTextField = ['INPUT', 'TEXTAREA'].includes(el.tagName);
     const type = (el.getAttribute('type') || '').toLowerCase();
+    const role = el.getAttribute('role');
+    const ariaHasPopup = el.getAttribute('aria-haspopup');
+    const isCustomSelectTrigger =
+      ariaHasPopup === 'listbox' ||
+      role === 'combobox' ||
+      role === 'listbox' ||
+      el.getAttribute('data-reka-select-trigger') !== null ||
+      el.getAttribute('data-radix-select-trigger') !== null ||
+      (el.tagName === 'BUTTON' && el.closest('.v-select') !== null);
+
     const isChoice =
-      el.tagName === 'SELECT' || (el.tagName === 'INPUT' && ['radio', 'checkbox'].includes(type));
+      el.tagName === 'SELECT' ||
+      (el.tagName === 'INPUT' && ['radio', 'checkbox'].includes(type)) ||
+      isCustomSelectTrigger;
 
     if ((isTextField || isChoice) && !el._blockCognilotTrigger) {
       const isEligible = isChoice || EligibilityLib.isEligibleForTrigger(el, true);
@@ -748,7 +798,7 @@ export function init(): void {
 
         const isFormContext = !!matchedField || (registry ? registry.getAll().length > 0 : false);
 
-        if (isTextField && !isChoice) {
+        if (isTextField) {
           CursorUI.paint(el, isFormContext);
           (el as HTMLInputElement)._CognilotFocusValue = (el as HTMLInputElement).value;
         }
