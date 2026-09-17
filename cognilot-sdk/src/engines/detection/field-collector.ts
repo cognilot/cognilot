@@ -12,7 +12,10 @@ export class FieldCollector {
   private adapter: PlatformAdapter;
   private labelExtractor: LabelExtractor;
   private readonly signatureBase =
-    'input:not([type="hidden"]):not([type="button"]):not([type="submit"]):not([type="image"]), textarea, [contenteditable="true"], [role="textbox"], select';
+    'input:not([type="hidden"]):not([type="button"]):not([type="submit"]):not([type="image"]):not([type="reset"]), ' +
+    'textarea, select, [contenteditable="true"], [role="textbox"], [role="combobox"], [role="listbox"], ' +
+    'button[aria-haspopup="listbox"], button[role="combobox"], button[data-slot="control"], ' +
+    '[data-reka-select-trigger], [data-radix-select-trigger], .v-select button';
 
   constructor(adapter: PlatformAdapter, labelExtractor: LabelExtractor) {
     this.adapter = adapter;
@@ -41,8 +44,22 @@ export class FieldCollector {
       const isIframe = element.tagName.toLowerCase() === 'iframe';
       if (!isIframe && !element.isVisible) return;
 
-      // Skip ignored fields (placeholder for IgnoreRules)
-      const isCombobox = !isIframe && element.getAttribute('role') === 'combobox'; // Simple check
+      const tag = element.tagName.toLowerCase();
+      const role = element.getAttribute('role');
+      const ariaHasPopup = element.getAttribute('aria-haspopup');
+      const isCombobox =
+        !isIframe &&
+        (role === 'combobox' ||
+          element.getAttribute('aria-autocomplete') !== null ||
+          element.getAttribute('data-slot') === 'combobox');
+      const isSelectTrigger =
+        !isIframe &&
+        (tag === 'select' ||
+          ariaHasPopup === 'listbox' ||
+          role === 'listbox' ||
+          element.getAttribute('data-reka-select-trigger') !== null ||
+          element.getAttribute('data-radix-select-trigger') !== null ||
+          element.closest('.v-select') !== null);
 
       const metadata: LabelMetadata = isIframe
         ? {
@@ -69,9 +86,11 @@ export class FieldCollector {
         ? 'iframe-input'
         : element.getAttribute('contenteditable') === 'true'
           ? 'text'
-          : isCombobox
-            ? 'autocomplete'
-            : element.type || element.tagName.toLowerCase();
+          : isSelectTrigger || tag === 'select'
+            ? 'select'
+            : isCombobox
+              ? 'autocomplete'
+              : element.type || tag;
 
       // Choice Group Handling (Radio / Checkbox)
       if (cleanType === 'radio' || cleanType === 'checkbox') {
@@ -115,7 +134,7 @@ export class FieldCollector {
 
       // Select / Autocomplete Handling
       let options: any[] = [];
-      if (cleanType.startsWith('select')) {
+      if (cleanType === 'select' || cleanType.startsWith('select')) {
         cleanType = 'select';
         options = this.labelExtractor.collectChoiceOptions(element);
       } else if (cleanType === 'autocomplete') {

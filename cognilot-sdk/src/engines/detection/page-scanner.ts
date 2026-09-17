@@ -127,18 +127,19 @@ export class PageScanner {
     const docBody = globalCtx.document?.body;
     if (!docBody) return;
 
+    const scanQuery =
+      'input:not([type="hidden"]):not([type="button"]):not([type="submit"]):not([type="image"]):not([type="reset"]), ' +
+      'textarea, select, [contenteditable="true"], [role="textbox"], [role="combobox"], [role="listbox"], ' +
+      'button[aria-haspopup="listbox"], button[role="combobox"], button[data-slot="control"], ' +
+      '[data-reka-select-trigger], [data-radix-select-trigger], .v-select button';
+
     this._observer = new MutationObserver((mutations) => {
       const hasChanges = mutations.some((m) => {
         if (m.type === 'childList') {
           return Array.from(m.addedNodes).some(
             (n) =>
               n instanceof HTMLElement &&
-              (n.matches(
-                'input:not([type="hidden"]), textarea, select, [contenteditable="true"], [role="textbox"]'
-              ) ||
-                n.querySelector(
-                  'input:not([type="hidden"]), textarea, select, [contenteditable="true"], [role="textbox"]'
-                ))
+              (n.matches(scanQuery) || n.querySelector(scanQuery) !== null)
           );
         }
         if (m.type === 'attributes') {
@@ -146,11 +147,8 @@ export class PageScanner {
           if (!target || !target.tagName) return false;
           return (
             target.matches(
-              'input:not([type="hidden"]), textarea, select, [contenteditable="true"], [role="textbox"], form, fieldset, [role="group"], [role="region"], details, .collapse, .accordion, [class*="collapse"], [class*="accordion"], [class*="modal"], [class*="dialog"], [class*="tab"]'
-            ) ||
-            target.querySelector(
-              'input:not([type="hidden"]), textarea, select, [contenteditable="true"], [role="textbox"]'
-            ) !== null
+              `${scanQuery}, form, fieldset, [role="group"], [role="region"], details, .collapse, .accordion, [class*="collapse"], [class*="accordion"], [class*="modal"], [class*="dialog"], [class*="tab"]`
+            ) || target.querySelector(scanQuery) !== null
           );
         }
         return false;

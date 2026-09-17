@@ -582,7 +582,17 @@ class CognilotSidebar {
       const textTypes = ['text', 'textarea', 'email', 'tel', 'url', 'number', 'search', 'password'];
       targetQuestions = targetQuestions.filter((q) => textTypes.includes(q.type || 'text'));
     } else if (this.activeMode === 'opciones') {
-      const choiceTypes = ['radio', 'checkbox', 'select', 'file', 'date', 'time', 'color', 'range'];
+      const choiceTypes = [
+        'radio',
+        'checkbox',
+        'select',
+        'autocomplete',
+        'file',
+        'date',
+        'time',
+        'color',
+        'range',
+      ];
       targetQuestions = targetQuestions.filter((q) => choiceTypes.includes(q.type));
     }
 

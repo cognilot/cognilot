@@ -402,6 +402,36 @@ function unbindEvents(): void {
 
 export function enable(activeFormId?: string): void {
   if (_active) return;
+
+  const registry = window.Cognilot?.SDK?.registry;
+  const allEntries = registry?.getAll() || [];
+
+  // Frame Guard 1: If activeFormId was specified, only activate the frame that contains it
+  if (activeFormId) {
+    const matchingEntries = allEntries.filter(
+      (e: any) =>
+        String(e.formScopeId || e.formId || e.form_id || e.formIndex || '') ===
+          String(activeFormId) || String(activeFormId) === String(e.formIndex || '')
+    );
+    if (matchingEntries.length === 0) {
+      Logger.debug(`[Inspector] Skipping frame without activeFormId "${activeFormId}"`);
+      return;
+    }
+  }
+
+  // Frame Guard 2: If no activeFormId and running in a child frame with 0 fields, skip it
+  if (!activeFormId && window !== window.top) {
+    const hasAnyField =
+      allEntries.length > 0 ||
+      document.querySelector(
+        'input:not([type="hidden"]), textarea, select, [role="textbox"], [role="combobox"], [aria-haspopup="listbox"]'
+      ) !== null;
+    if (!hasAnyField) {
+      Logger.debug('[Inspector] Skipping child frame without form fields');
+      return;
+    }
+  }
+
   _active = true;
 
   Logger.info('🕵️ Inspector Enabled');
@@ -462,28 +492,25 @@ export function enable(activeFormId?: string): void {
 
   // PRIORITY 0: Use activeFormId if provided by the sidebar
   let container: HTMLElement | null = null;
-  if (activeFormId) {
+  if (activeFormId && registry) {
     try {
-      const registry = window.Cognilot?.SDK?.registry;
-      if (registry) {
-        const entries = registry
-          .getAll()
-          .filter(
-            (e: any) =>
-              String(e.formScopeId || e.formId || e.form_id || e.formIndex || '') ===
-                String(activeFormId) || String(activeFormId) === String(e.formIndex || '')
-          );
-        if (entries.length > 0) {
-          const firstEntry = entries[0];
-          const rawNode =
-            firstEntry.node && typeof firstEntry.node.getRawNode === 'function'
-              ? firstEntry.node.getRawNode()
-              : firstEntry.node;
-          const firstEl =
-            rawNode || (firstEntry.selector ? document.querySelector(firstEntry.selector) : null);
-          if (firstEl) {
-            container = InspectorLib.resolveContainerFromElement(firstEl as HTMLElement);
-          }
+      const entries = registry
+        .getAll()
+        .filter(
+          (e: any) =>
+            String(e.formScopeId || e.formId || e.form_id || e.formIndex || '') ===
+              String(activeFormId) || String(activeFormId) === String(e.formIndex || '')
+        );
+      if (entries.length > 0) {
+        const firstEntry = entries[0];
+        const rawNode =
+          firstEntry.node && typeof firstEntry.node.getRawNode === 'function'
+            ? firstEntry.node.getRawNode()
+            : firstEntry.node;
+        const firstEl =
+          rawNode || (firstEntry.selector ? document.querySelector(firstEntry.selector) : null);
+        if (firstEl) {
+          container = InspectorLib.resolveContainerFromElement(firstEl as HTMLElement);
         }
       }
     } catch (e) {

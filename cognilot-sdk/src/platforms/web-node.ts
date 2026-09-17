@@ -41,8 +41,15 @@ export class WebNode implements CognilotNode {
       this.element.offsetHeight > 0 ||
       this.element.getClientRects().length > 0;
 
+    const tag = this.tagName.toLowerCase();
+    const isFormControl =
+      ['input', 'textarea', 'select', 'button'].includes(tag) ||
+      this.element.getAttribute('contenteditable') === 'true' ||
+      this.element.getAttribute('role') === 'textbox' ||
+      this.element.getAttribute('role') === 'combobox';
+
     // For ChatGPT specifically: textarea.wcDTda_fallbackTextarea is always display:none, but just in case
-    return isVisibleCSS && (hasDimensions || this.tagName.toLowerCase() === 'input');
+    return isVisibleCSS && (hasDimensions || isFormControl);
   }
 
   get isInteractive(): boolean {
