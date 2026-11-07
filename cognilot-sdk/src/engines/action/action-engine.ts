@@ -52,12 +52,78 @@ export class ActionEngine {
     const isCombobox =
       role === 'combobox' || (node as any).getAttribute?.('aria-autocomplete') !== null;
 
-    if (!isResolvableFieldType(type)) {
+    const isSearchProxy =
+      (type === 'search' || type === 'text') &&
+      (node.closest?.(
+        '.v-select, [role="combobox"], [role="listbox"], [data-slot="control"], .form-group, .form-item'
+      ) !== null ||
+        /buscar|search|selecciona/i.test(node.getAttribute?.('placeholder') || ''));
+
+    if (!isResolvableFieldType(type) && !isSearchProxy) {
       return { error: `Field is detection-only (${type}) and cannot be resolved` };
     }
 
     // ── Registry lookup ──────────────────────────────────────────────────────
-    const entry = this.sdk.registry.findByNode(node.getRawNode());
+    let entry = this.sdk.registry?.findByNode?.(node.getRawNode());
+
+    // Search Proxy Input in custom select: If this node is an input inside a custom select container
+    // whose primary button/trigger is registered in FieldRegistry, inherit its registry entry!
+    if (!entry) {
+      let triggerEl: Element | null = null;
+      const rawNode = node.getRawNode() as Element;
+
+      // 1. Try to find the container if it's not a portal
+      const parentSelectContainer = node.closest?.(
+        '.v-select, [role="combobox"], [data-slot="control"], [data-reka-select-trigger], [data-radix-select-trigger], .form-group, .form-item'
+      );
+      if (parentSelectContainer) {
+        triggerEl = parentSelectContainer.querySelector?.(
+          'button, [role="combobox"], [data-reka-select-trigger], [data-radix-select-trigger], input'
+        ) as Element | null;
+      }
+
+      // 2. If inside a portal, use ARIA links to find the trigger
+      if (!triggerEl && typeof document !== 'undefined') {
+        const listbox = node.closest?.(
+          '[role="listbox"], [role="dialog"], [id^="headlessui-"], [id^="radix-"], .p-autocomplete-panel, [data-radix-popper-content-wrapper]'
+        ) as Element | null;
+        if (listbox) {
+          const listboxId = listbox.id;
+          if (listboxId) {
+            triggerEl = document.querySelector(`[aria-controls="${CSS.escape(listboxId)}"]`);
+          }
+          if (!triggerEl) {
+            const labelledBy = listbox.getAttribute('aria-labelledby');
+            if (labelledBy) {
+              triggerEl = document.getElementById(labelledBy);
+            }
+          }
+          // Nuxt UI / Headless UI Combobox wrapper might not have ID, but might be linked via aria-controls on the trigger pointing to the inner ul
+          if (!triggerEl) {
+            const innerUl = listbox.querySelector('ul[id]');
+            if (innerUl && innerUl.id) {
+              triggerEl = document.querySelector(`[aria-controls="${CSS.escape(innerUl.id)}"]`);
+            }
+          }
+        }
+      }
+
+      if (triggerEl && triggerEl !== rawNode) {
+        entry = this.sdk.registry?.findByNode?.(triggerEl as object);
+      }
+
+      if (!entry && typeof this.sdk.registry?.getAll === 'function') {
+        const containerLabel =
+          parentSelectContainer?.getAttribute?.('label') ||
+          this.labelExtractor.extractFieldMetadata(node)?.label;
+        if (containerLabel) {
+          const all = this.sdk.registry.getAll();
+          entry =
+            all.find((e) => e.text === containerLabel || e.metadata?.label === containerLabel) ||
+            null;
+        }
+      }
+    }
 
     if (type === 'file') {
       const fileName = entry?.resolution?.value || 'cv_candidato.pdf';
@@ -70,7 +136,14 @@ export class ActionEngine {
       };
     }
 
-    let isChoice = ['radio', 'checkbox', 'select'].includes(type) || tagName === 'select';
+    let isChoice =
+      ['radio', 'checkbox', 'select'].includes(type) ||
+      tagName === 'select' ||
+      node.getAttribute('aria-haspopup') === 'listbox' ||
+      node.getAttribute('role') === 'combobox' ||
+      node.getAttribute('aria-autocomplete') !== null ||
+      node.closest('.v-select') !== null ||
+      isSearchProxy;
     if (!isChoice && (isCombobox || type === 'autocomplete')) {
       const liveOptions = this.labelExtractor.collectChoiceOptions(node) || [];
       if (liveOptions.length > 0 || (entry?.options && entry.options.length > 0)) {
@@ -509,17 +582,28 @@ export class ActionEngine {
           : null;
         const text = entry.text || entry.metadata?.label;
 
+        const isSpecificSelector =
+          entry.selector &&
+          (entry.selector.startsWith('#') ||
+            entry.selector.includes('[dusk=') ||
+            entry.selector.includes('[data-') ||
+            entry.selector.includes('[label=') ||
+            entry.selector.includes('[name=') ||
+            entry.selector.includes('[aria-label='));
+
         const candidateKeys = [
           entry.id,
           rawId,
           strippedCognilotId,
-          name,
-          cleanName,
-          text,
-          entry.selector,
+          name && name.length >= 2 ? name : null,
+          cleanName && cleanName.length >= 2 ? cleanName : null,
+          text && text.length >= 3 ? text : null,
+          isSpecificSelector ? entry.selector : null,
           domain && entry.id ? `${domain}::${entry.id}` : null,
-          domain && text ? `${domain}::${text}` : null,
-          domain && (name || cleanName) ? `${domain}::${name || cleanName}` : null,
+          domain && text && text.length >= 3 ? `${domain}::${text}` : null,
+          domain && (name || cleanName) && (name || cleanName)!.length >= 2
+            ? `${domain}::${name || cleanName}`
+            : null,
         ].filter(Boolean) as string[];
 
         let decision: any = null;

@@ -435,7 +435,8 @@ import { Modules, init as initModules } from './index';
                 await sdk.scanner.scanOnPageLoad();
               } catch (_e) {}
             }
-            const formScopes = sdk.registry?.getFormScopes() || [];
+            // getFormScopes() is now implemented in FieldRegistry — returns [{ id }] per form scope
+            const formScopes = sdk.registry?.getFormScopes?.() || [];
             for (const scope of formScopes) {
               const fields = sdk.registry?.getByFormScope(scope.id) || [];
               if (fields.length > 0 && fields[0]?.node) {

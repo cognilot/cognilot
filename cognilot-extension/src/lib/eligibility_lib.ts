@@ -33,7 +33,13 @@ function isEligibleElement(element: HTMLElement): boolean {
 
   if (tagName === 'INPUT') {
     const type = (element as HTMLInputElement).type.toLowerCase();
-    if (INELIGIBLE_TYPES.includes(type)) return false;
+    const isSearchProxy =
+      type === 'search' &&
+      (element.closest(
+        '.v-select, [role="combobox"], [role="listbox"], [data-slot="control"], .form-group, .form-item'
+      ) !== null ||
+        /buscar|search|selecciona/i.test(element.getAttribute('placeholder') || ''));
+    if (INELIGIBLE_TYPES.includes(type) && !isSearchProxy) return false;
   }
 
   return true;

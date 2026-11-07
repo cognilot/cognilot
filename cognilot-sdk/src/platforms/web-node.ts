@@ -35,14 +35,41 @@ export class WebNode implements CognilotNode {
     const style = window.getComputedStyle(this.element);
     const isVisibleCSS =
       style.display !== 'none' && style.visibility !== 'hidden' && style.opacity !== '0';
+
+    if (!isVisibleCSS) return false;
+
+    // Check if ANY ancestor hides this element via modal/dialog/aria patterns.
+    // This covers cases like the Cobrix WhatsApp modal where fields inside
+    // <div aria-hidden="true" ...> pass the CSS check but are not user-facing.
+    let ancestor = this.element.parentElement;
+    while (ancestor && ancestor !== document.body) {
+      if (
+        ancestor.getAttribute('aria-hidden') === 'true' ||
+        ancestor.hasAttribute('hidden') ||
+        (ancestor.tagName.toLowerCase() === 'dialog' && !ancestor.hasAttribute('open')) ||
+        (ancestor.getAttribute('role') === 'dialog' &&
+          ancestor.getAttribute('aria-hidden') === 'true')
+      ) {
+        return false;
+      }
+      ancestor = ancestor.parentElement;
+    }
+
     // Extra check: If it has 0 dimensions and is not a special input, it's likely a hidden mirror
     const hasDimensions =
       this.element.offsetWidth > 0 ||
       this.element.offsetHeight > 0 ||
       this.element.getClientRects().length > 0;
 
+    const tag = this.tagName.toLowerCase();
+    const isFormControl =
+      ['input', 'textarea', 'select', 'button'].includes(tag) ||
+      this.element.getAttribute('contenteditable') === 'true' ||
+      this.element.getAttribute('role') === 'textbox' ||
+      this.element.getAttribute('role') === 'combobox';
+
     // For ChatGPT specifically: textarea.wcDTda_fallbackTextarea is always display:none, but just in case
-    return isVisibleCSS && (hasDimensions || this.tagName.toLowerCase() === 'input');
+    return hasDimensions || isFormControl;
   }
 
   get isInteractive(): boolean {

@@ -269,7 +269,11 @@ export function paint(element: HTMLElement, suggestion: SuggestionState): void {
   syncGhost();
 }
 
-export function paintChoiceGhost(element: HTMLElement, resolvedValues: string[]): void {
+export function paintChoiceGhost(
+  element: HTMLElement,
+  resolvedValues: string[],
+  retryCount = 0
+): void {
   if (!element || !Array.isArray(resolvedValues) || resolvedValues.length === 0) return;
   const doc = element.ownerDocument || document;
   const tagName = (element.tagName || '').toLowerCase();
@@ -360,6 +364,69 @@ export function paintChoiceGhost(element: HTMLElement, resolvedValues: string[])
     }
     // Clean any residual label highlight
     if (labelEl) labelEl.classList.remove('Cognilot-ghost-choice-label-highlight');
+  }
+
+  // 3. Handle custom dropdown / listbox options (OpnForm, vue-select, Nuxt UI, Radix, MUI, PrimeNG)
+  const listboxOptions: HTMLElement[] = Array.from(
+    element.querySelectorAll(
+      '[role="option"], .vs__dropdown-option, .v-select-menu li, .p-autocomplete-item, .MuiAutocomplete-option, li[role="option"], .vs__dropdown-menu li, [role="listbox"] li'
+    )
+  );
+
+  if (listboxOptions.length === 0) {
+    const parentContainer = element.closest(
+      '.v-select, [role="combobox"], [data-slot="control"], .form-group, .form-item'
+    );
+    if (parentContainer) {
+      const containerOptions = Array.from(
+        parentContainer.querySelectorAll(
+          '[role="option"], .vs__dropdown-option, .v-select-menu li, .p-autocomplete-item, .MuiAutocomplete-option, li[role="option"], .vs__dropdown-menu li, [role="listbox"] li, li'
+        )
+      ) as HTMLElement[];
+      listboxOptions.push(...containerOptions);
+    }
+  }
+
+  // If still empty, search active open dropdown menus in the document
+  if (listboxOptions.length === 0) {
+    const openMenuOptions = Array.from(
+      doc.querySelectorAll(
+        '.vs__dropdown-menu [role="option"], .vs__dropdown-menu li, .v-select-menu li, .MuiAutocomplete-popper [role="option"], .p-autocomplete-panel li, [data-radix-popper-content-wrapper] [role="option"], [role="listbox"] [role="option"], [role="listbox"] li, .el-select-dropdown__item, .ant-select-item-option'
+      )
+    ) as HTMLElement[];
+    listboxOptions.push(...openMenuOptions);
+  }
+
+  // RETRY MECHANISM: If portal hasn't mounted in DOM yet, retry a few times
+  if (listboxOptions.length === 0 && retryCount < 5) {
+    setTimeout(() => paintChoiceGhost(element, resolvedValues, retryCount + 1), 50);
+    return;
+  }
+
+  for (const optEl of listboxOptions) {
+    const text = (optEl.textContent || '').trim();
+    const val =
+      optEl.getAttribute('data-value') ||
+      optEl.getAttribute('data-val') ||
+      optEl.getAttribute('value') ||
+      text;
+
+    const normVal = normalize(val);
+    const normText = normalize(text);
+
+    const isMatch = normTargetVals.some(
+      (tv) =>
+        tv === normVal ||
+        tv === normText ||
+        (tv.length >= 3 && normText.includes(tv)) ||
+        (normText.length >= 3 && tv.includes(normText))
+    );
+
+    if (isMatch) {
+      optEl.classList.add('Cognilot-ghost-choice-highlight');
+    } else {
+      optEl.classList.remove('Cognilot-ghost-choice-highlight');
+    }
   }
 }
 

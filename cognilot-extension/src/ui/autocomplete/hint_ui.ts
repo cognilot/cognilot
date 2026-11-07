@@ -158,18 +158,23 @@ export function paint(element: HTMLElement, suggestion: SuggestionState): void {
   });
 
   const leftFooter = document.createElement('div');
-  const placeholder =
-    (element as HTMLInputElement).placeholder ||
-    suggestion.field?.placeholder ||
-    'Write your answer';
+  const rawPlaceholder =
+    (element as HTMLInputElement).placeholder || suggestion.field?.placeholder || '';
+  const isGenericPlaceholder = /^(buscar|search|type here|escribe|selecciona|select)\b/i.test(
+    rawPlaceholder.trim()
+  );
+  const footerLabel =
+    isGenericPlaceholder && suggestion.field?.label
+      ? suggestion.field.label
+      : rawPlaceholder || suggestion.field?.label || 'Write your answer';
 
   if (suggestion.isError) {
-    leftFooter.innerHTML = `// <span style="color:#ef4444">${placeholder}</span>`;
+    leftFooter.innerHTML = `// <span style="color:#ef4444">${footerLabel}</span>`;
   } else if (isExample) {
     const msg = options[0] || 'Example';
     leftFooter.innerHTML = `// <span style="color:rgba(255,255,255,0.6)">${msg}</span>`;
   } else {
-    leftFooter.innerHTML = `// <span style="color:rgba(255,255,255,0.6)">${placeholder}</span>`;
+    leftFooter.innerHTML = `// <span style="color:rgba(255,255,255,0.6)">${footerLabel}</span>`;
   }
   footer.appendChild(leftFooter);
 

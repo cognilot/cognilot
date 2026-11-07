@@ -205,4 +205,28 @@ describe('GhostUI', () => {
     expect(document.querySelector('.Cognilot-ghost-overlay')).toBeNull();
     expect(input1.classList.contains('Cognilot-ghost-active')).toBe(false);
   });
+
+  it('should highlight a matching custom dropdown option inside .vs__dropdown-menu', () => {
+    const wrapper = document.createElement('div');
+    wrapper.className = 'v-select';
+    wrapper.innerHTML = `
+      <ul class="vs__dropdown-menu" role="listbox">
+        <li class="vs__dropdown-option" role="option">Argentina</li>
+        <li class="vs__dropdown-option" role="option">Perú</li>
+        <li class="vs__dropdown-option" role="option">Chile</li>
+      </ul>
+    `;
+    document.body.appendChild(wrapper);
+
+    const options = wrapper.querySelectorAll('li');
+
+    GhostUI.paintChoiceGhost(wrapper, ['Perú']);
+
+    expect(options[0].classList.contains('Cognilot-ghost-choice-highlight')).toBe(false);
+    expect(options[1].classList.contains('Cognilot-ghost-choice-highlight')).toBe(true);
+    expect(options[2].classList.contains('Cognilot-ghost-choice-highlight')).toBe(false);
+
+    GhostUI.clearChoiceGhost(wrapper);
+    expect(options[1].classList.contains('Cognilot-ghost-choice-highlight')).toBe(false);
+  });
 });

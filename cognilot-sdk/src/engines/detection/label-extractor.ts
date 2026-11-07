@@ -95,6 +95,19 @@ export class LabelExtractor {
       candidates.push({ text: ariaLabel.trim(), score: 95, source: 'aria-label' });
     }
 
+    const directLabel = element.getAttribute('label');
+    if (directLabel && directLabel.trim()) {
+      candidates.push({ text: directLabel.trim(), score: 94, source: 'attribute-label' });
+    }
+
+    const containerWithLabel = element.closest('[label]');
+    if (containerWithLabel) {
+      const containerLabel = containerWithLabel.getAttribute('label');
+      if (containerLabel && containerLabel.trim()) {
+        candidates.push({ text: containerLabel.trim(), score: 92, source: 'container-label' });
+      }
+    }
+
     const inputId = element.id || element.getAttribute('data-Cognilot-id');
     if (inputId) {
       const doc = this.adapter.getGlobalContext().document;
@@ -156,7 +169,7 @@ export class LabelExtractor {
 
     // TIER 2: Semantic Question-Block
     const questionBlockSelector =
-      '[data-testid*="question"], [data-field-id], fieldset, [role="group"], .question-item, .form-field, .form-question';
+      '[data-testid*="question"], [data-field-id], fieldset, [role="group"], .question-item, .form-field, .form-question, .form-group, .form-item, .v-select, [dusk], [data-slot="form-item"], [data-slot="control"]';
     let questionBlock = element.closest(questionBlockSelector);
     while (questionBlock) {
       const possibleLabels = questionBlock.querySelectorAll(
@@ -352,6 +365,9 @@ export class LabelExtractor {
   }
 
   public collectChoiceOptions(element: CognilotNode): any[] {
+    const isDummyPlaceholder = (text: string) =>
+      /^(selecciona|elige|choose|select|n\/a|none)\b|^[-–—\s]+$/i.test(text.trim());
+
     const tagName = element.tagName.toLowerCase();
     if (tagName === 'select') {
       return element
@@ -361,16 +377,44 @@ export class LabelExtractor {
           const value = opt.getAttribute('value') || text;
           return { text, value, index: i };
         })
-        .filter((o) => o.text && !/selecciona|elige|choose|select|n\/a|-|--/i.test(o.text));
+        .filter((o) => o.text && !isDummyPlaceholder(o.text));
     }
 
-    // Autocomplete / combobox: try to extract options from live DOM (MUI, PrimeNG, Radix, AntD, etc.)
+    // Check if there is an associated native <select> within the same container / parent
+    const parentContainer =
+      element.closest(
+        '.form-group, .form-field, .form-item, .v-select, [data-field-id], fieldset, [role="group"]'
+      ) || element.getParent();
+    if (parentContainer) {
+      const associatedSelect = parentContainer.querySelector('select');
+      if (associatedSelect) {
+        const nativeOptions = associatedSelect
+          .querySelectorAll('option')
+          .map((opt, i) => {
+            const text = (opt.textContent || '').trim();
+            const value = opt.getAttribute('value') || text;
+            return { text, value, index: i };
+          })
+          .filter((o) => o.text && !isDummyPlaceholder(o.text));
+        if (nativeOptions.length > 0) return nativeOptions;
+      }
+    }
+
+    // Autocomplete / combobox / custom select: try to extract options from live DOM (MUI, PrimeNG, Radix, Nuxt, AntD, etc.)
     const role = element.getAttribute('role');
     const ariaAutocomplete = element.getAttribute('aria-autocomplete');
-    const isCombobox =
-      role === 'combobox' || ariaAutocomplete !== null || (element as any).type === 'autocomplete';
+    const ariaHasPopup = element.getAttribute('aria-haspopup');
+    const isComboboxOrSelect =
+      role === 'combobox' ||
+      role === 'listbox' ||
+      ariaHasPopup === 'listbox' ||
+      ariaAutocomplete !== null ||
+      (element as any).type === 'autocomplete' ||
+      element.getAttribute('data-reka-select-trigger') !== null ||
+      element.getAttribute('data-radix-select-trigger') !== null ||
+      element.closest('.v-select') !== null;
 
-    if (isCombobox) {
+    if (isComboboxOrSelect) {
       const doc = this.adapter.getGlobalContext().document;
       if (!doc) return [];
       const inputId = element.id;
@@ -392,17 +436,63 @@ export class LabelExtractor {
         listboxEl = doc.getElementById(`${inputId}_list`);
       }
 
-      // Strategy 4: scan all listboxes in the document for MUI / PrimeNG / AntD / Radix Autocomplete popper
+      // Strategy 4: check inside parent container
+      if (!listboxEl && parentContainer) {
+        const rawParent =
+          typeof parentContainer.getRawNode === 'function'
+            ? parentContainer.getRawNode<Element>()
+            : (parentContainer as any);
+        if (rawParent && typeof rawParent.querySelector === 'function') {
+          listboxEl = rawParent.querySelector(
+            '[role="listbox"], .vs__dropdown-menu, .v-select-menu, ul, ol'
+          );
+        }
+      }
+
+      // Strategy 5: scan all listboxes in the document for MUI / PrimeNG / AntD / Radix Autocomplete popper
+      // STRICT GUARD: Only search global popper listboxes if THIS element is actively expanded or focused!
       if (!listboxEl) {
-        listboxEl = doc.querySelector(
-          '.MuiAutocomplete-popper [role="listbox"], .p-autocomplete-panel [role="listbox"], .p-autocomplete-panel, .ant-select-dropdown, [data-radix-popper-content-wrapper] [role="listbox"], [role="listbox"]'
-        );
+        const rawEl =
+          typeof (element as any).getRawNode === 'function'
+            ? (element as any).getRawNode()
+            : (element as any);
+        const rawParent =
+          parentContainer && typeof (parentContainer as any).getRawNode === 'function'
+            ? (parentContainer as any).getRawNode()
+            : (parentContainer as any);
+        const isExpanded =
+          element.getAttribute('aria-expanded') === 'true' ||
+          element.getAttribute('data-state') === 'open' ||
+          (parentContainer &&
+            (parentContainer.getAttribute('aria-expanded') === 'true' ||
+              parentContainer.getAttribute('data-state') === 'open' ||
+              String(parentContainer.className || '').includes('vs--open') ||
+              (rawParent &&
+                typeof rawParent.querySelector === 'function' &&
+                rawParent.querySelector('.vs__dropdown-menu, [role="listbox"]') !== null)));
+
+        const isElementActive =
+          doc.activeElement === rawEl ||
+          (rawEl &&
+            typeof rawEl.contains === 'function' &&
+            doc.activeElement &&
+            rawEl.contains(doc.activeElement)) ||
+          (rawParent &&
+            typeof rawParent.contains === 'function' &&
+            doc.activeElement &&
+            rawParent.contains(doc.activeElement));
+
+        if (isExpanded || isElementActive) {
+          listboxEl = doc.querySelector(
+            '.MuiAutocomplete-popper [role="listbox"], .p-autocomplete-panel [role="listbox"], .p-autocomplete-panel, .ant-select-dropdown, [data-radix-popper-content-wrapper] [role="listbox"], .vs__dropdown-menu, .v-select-menu, [role="listbox"]'
+          );
+        }
       }
 
       if (listboxEl) {
         const items = Array.from(
           listboxEl.querySelectorAll(
-            '[role="option"], .MuiAutocomplete-option, .p-autocomplete-item, li[role="option"]'
+            '[role="option"], .MuiAutocomplete-option, .p-autocomplete-item, li[role="option"], .vs__dropdown-option, .v-select-menu li, li'
           )
         );
         return items
@@ -415,7 +505,10 @@ export class LabelExtractor {
               text;
             return text ? { text, value, index: i } : null;
           })
-          .filter((o): o is { text: string; value: string; index: number } => o !== null);
+          .filter(
+            (o): o is { text: string; value: string; index: number } =>
+              o !== null && !isDummyPlaceholder(o.text)
+          );
       }
     }
 
@@ -454,6 +547,26 @@ export class LabelExtractor {
 
     if (placeholder) {
       return `${el.tagName.toLowerCase()}[placeholder="${escape(placeholder)}"]`;
+    }
+
+    // Check parent unique identifiers (dusk, data-testid, data-slot, label, etc.)
+    const parentContainer = el.closest(
+      '[dusk], [data-testid], [data-field-id], [data-slot="form-item"], [data-slot="control"], .v-select[label], [id]'
+    );
+    if (parentContainer && parentContainer.getRawNode() !== el.getRawNode()) {
+      const parentDusk = parentContainer.getAttribute('dusk');
+      const parentTestId = parentContainer.getAttribute('data-testid');
+      const parentFieldId = parentContainer.getAttribute('data-field-id');
+      const parentLabel = parentContainer.getAttribute('label');
+      const parentId = parentContainer.id;
+
+      if (parentDusk) return `[dusk="${escape(parentDusk)}"] ${el.tagName.toLowerCase()}`;
+      if (parentTestId)
+        return `[data-testid="${escape(parentTestId)}"] ${el.tagName.toLowerCase()}`;
+      if (parentFieldId)
+        return `[data-field-id="${escape(parentFieldId)}"] ${el.tagName.toLowerCase()}`;
+      if (parentLabel) return `[label="${escape(parentLabel)}"] ${el.tagName.toLowerCase()}`;
+      if (parentId) return `#${escape(parentId)} ${el.tagName.toLowerCase()}`;
     }
 
     const tag = el.tagName.toLowerCase();

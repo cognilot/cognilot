@@ -582,7 +582,17 @@ class CognilotSidebar {
       const textTypes = ['text', 'textarea', 'email', 'tel', 'url', 'number', 'search', 'password'];
       targetQuestions = targetQuestions.filter((q) => textTypes.includes(q.type || 'text'));
     } else if (this.activeMode === 'opciones') {
-      const choiceTypes = ['radio', 'checkbox', 'select', 'file', 'date', 'time', 'color', 'range'];
+      const choiceTypes = [
+        'radio',
+        'checkbox',
+        'select',
+        'autocomplete',
+        'file',
+        'date',
+        'time',
+        'color',
+        'range',
+      ];
       targetQuestions = targetQuestions.filter((q) => choiceTypes.includes(q.type));
     }
 
@@ -2118,8 +2128,12 @@ class CognilotSidebar {
           sendResponse({ received: true });
           return;
         }
-        // Small stabilization delay lets the registry fully settle before we read it
-        setTimeout(() => this.syncWithRegistry(2, 500), 300);
+        // Small stabilization delay lets the registry fully settle before we read it.
+        // Use merge mode when we already have questions (e.g. an iframe scan arriving
+        // after the main document scan, or a modal opening). This prevents multi-frame
+        // scans from overwriting each other.
+        const hasExistingContext = (this.currentChatContext?.questions?.length || 0) > 0;
+        setTimeout(() => this.syncWithRegistry(2, 500, hasExistingContext), 300);
         sendResponse({ received: true });
       } else if (request.action === 'switchTab') {
         this.switchToTab(request.tab);
@@ -2218,7 +2232,7 @@ class CognilotSidebar {
    * @param retries   Max number of attempts (default: 3).
    * @param delayMs   Base delay in ms between retries; multiplied by attempt index.
    */
-  async syncWithRegistry(retries = 3, delayMs = 800) {
+  async syncWithRegistry(retries = 3, delayMs = 800, mergeMode = false) {
     if (!this.currentTab) return;
 
     for (let attempt = 0; attempt < retries; attempt++) {
@@ -2228,7 +2242,7 @@ class CognilotSidebar {
         if (response?.error === 'suspended') return; // BFCache — silent
 
         if (response?.success && response.fields?.length > 0) {
-          this.handleRegistryData(response.fields);
+          this.handleRegistryData(response.fields, mergeMode);
           return; // ✅ Success
         }
 
@@ -2254,7 +2268,7 @@ class CognilotSidebar {
         this.debug(
           `syncWithRegistry: hydrating from storage.session snapshot (${snapshot.fields.length} fields).`
         );
-        this.handleRegistryData(snapshot.fields);
+        this.handleRegistryData(snapshot.fields, mergeMode);
         return;
       }
     } catch (e) {
@@ -2349,7 +2363,7 @@ class CognilotSidebar {
     return null;
   }
 
-  handleRegistryData(fields) {
+  handleRegistryData(fields, mergeMode = false) {
     this.detectedFieldCount = fields.length;
     const questions = fields.map((f) => ({
       id: f.id,
@@ -2450,11 +2464,34 @@ class CognilotSidebar {
       });
     }
 
+    // In merge mode (e.g. an iframe or modal just fired pageScanComplete after the main
+    // document was already scanned), we ACCUMULATE the incoming questions into the existing
+    // context rather than replacing it. De-duplicate by id → selector → name.
+    let finalQuestions = questions;
+    if (mergeMode && this.currentChatContext?.questions?.length) {
+      const existing = this.currentChatContext.questions as any[];
+      const incomingIds = new Set(
+        questions.map((q: any) => q.id || q.selector || q.name).filter(Boolean)
+      );
+
+      // Keep existing questions that are NOT in the incoming batch (they belong to a different frame/scope)
+      const retained = existing.filter(
+        (eq: any) =>
+          !incomingIds.has(eq.id) && !incomingIds.has(eq.selector) && !incomingIds.has(eq.name)
+      );
+
+      // Merge: retained (other frames) + incoming (this frame's latest scan)
+      finalQuestions = [...retained, ...questions];
+      this.debug(
+        `[handleRegistryData] Merge mode: ${retained.length} retained + ${questions.length} incoming = ${finalQuestions.length} total`
+      );
+    }
+
     this.currentChatContext = {
       ...(this.currentChatContext || {}),
       type: 'form',
       source: 'auto_scan',
-      questions: questions,
+      questions: finalQuestions,
       page_context: {
         url: this.currentTab?.url || '',
         source: 'auto_scan',
@@ -3190,9 +3227,33 @@ class CognilotSidebar {
         this.debug('Manual scope re-detect failed, falling back to full rescan.');
       }
 
-      // M3: Full Universal Scan — clear everything and re-scan
+      // M3: Full Universal Scan — clear everything and re-scan ALL frames
+      // (main document + any iframes like the OpnForm vacancy form)
       this.clearContext();
-      await this.safeSendMessage('sidebarTriggerRescan');
+
+      // Broadcast sidebarTriggerRescan to every frame in the tab so that
+      // both the host page and any embedded iframes re-scan simultaneously.
+      try {
+        const frames = await new Promise<chrome.webNavigation.GetAllFrameResultDetails[]>(
+          (resolve) => {
+            chrome.webNavigation.getAllFrames({ tabId: this.currentTab.id }, (result) =>
+              resolve(result || [])
+            );
+          }
+        );
+
+        const rescanMsg = { action: 'sidebarTriggerRescan' };
+        for (const frame of frames) {
+          chrome.tabs.sendMessage(this.currentTab.id, rescanMsg, { frameId: frame.frameId }, () => {
+            // Ignore per-frame errors (frame may not have the content script)
+            void chrome.runtime.lastError;
+          });
+        }
+        this.debug(`[handleResetEngine] Dispatched rescan to ${frames.length} frame(s).`);
+      } catch (_e) {
+        // Fallback: send only to the main frame if webNavigation API is unavailable
+        await this.safeSendMessage('sidebarTriggerRescan');
+      }
 
       // Wait for Universal Scan to complete (pageScanComplete listener will also fire)
       // Using retry-based sync as safety net in case pageScanComplete was missed

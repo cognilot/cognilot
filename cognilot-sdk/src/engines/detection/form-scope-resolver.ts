@@ -53,7 +53,10 @@ export class FormScopeResolver {
 
     while (candidate && candidate.getRawNode() !== bodyRaw) {
       const inputCount = candidate.querySelectorAll(
-        'input:not([type="hidden"]), textarea, select, [role="textbox"]'
+        'input:not([type="hidden"]):not([type="button"]):not([type="submit"]):not([type="image"]):not([type="reset"]), ' +
+          'textarea, select, [contenteditable="true"], [role="textbox"], [role="combobox"], [role="listbox"], ' +
+          'button[aria-haspopup="listbox"], button[role="combobox"], button[data-slot="control"], ' +
+          '[data-reka-select-trigger], [data-radix-select-trigger], .v-select button'
       ).length;
       if (inputCount >= 2) return candidate;
       candidate = candidate.getParent();
@@ -137,7 +140,10 @@ export class FormScopeResolver {
 
     // 1. Find the first meaningful seed within this boundary
     const allSeedsSelector =
-      'input:not([type="hidden"]), textarea, select, [contenteditable="true"], [role="textbox"]';
+      'input:not([type="hidden"]):not([type="button"]):not([type="submit"]):not([type="image"]):not([type="reset"]), ' +
+      'textarea, select, [contenteditable="true"], [role="textbox"], [role="combobox"], [role="listbox"], ' +
+      'button[aria-haspopup="listbox"], button[role="combobox"], button[data-slot="control"], ' +
+      '[data-reka-select-trigger], [data-radix-select-trigger], .v-select button';
     const seeds = container.querySelectorAll(allSeedsSelector).filter((el) => el.isVisible);
     const firstSeed = seeds[0];
 

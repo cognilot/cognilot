@@ -127,37 +127,87 @@ export class PageScanner {
     const docBody = globalCtx.document?.body;
     if (!docBody) return;
 
+    const scanQuery =
+      'input:not([type="hidden"]):not([type="button"]):not([type="submit"]):not([type="image"]):not([type="reset"]), ' +
+      'textarea, select, [contenteditable="true"], [role="textbox"], [role="combobox"], [role="listbox"], ' +
+      'button[aria-haspopup="listbox"], button[role="combobox"], button[data-slot="control"], ' +
+      '[data-reka-select-trigger], [data-radix-select-trigger], .v-select button';
+
     this._observer = new MutationObserver((mutations) => {
-      const hasChanges = mutations.some((m) => {
+      let hasAdditions = false;
+      let hasRemovals = false;
+
+      for (const m of mutations) {
         if (m.type === 'childList') {
-          return Array.from(m.addedNodes).some(
-            (n) =>
-              n instanceof HTMLElement &&
-              (n.matches(
-                'input:not([type="hidden"]), textarea, select, [contenteditable="true"], [role="textbox"]'
-              ) ||
-                n.querySelector(
-                  'input:not([type="hidden"]), textarea, select, [contenteditable="true"], [role="textbox"]'
-                ))
-          );
+          // New form fields appeared (e.g. modal opened, SPA navigation)
+          if (
+            Array.from(m.addedNodes).some(
+              (n) =>
+                n instanceof HTMLElement &&
+                (n.matches(scanQuery) || n.querySelector(scanQuery) !== null)
+            )
+          ) {
+            hasAdditions = true;
+          }
+
+          // Fields were removed from the DOM (e.g. modal destroyed)
+          if (
+            Array.from(m.removedNodes).some(
+              (n) =>
+                n instanceof HTMLElement &&
+                (n.matches(scanQuery) || n.querySelector(scanQuery) !== null)
+            )
+          ) {
+            hasRemovals = true;
+          }
         }
+
         if (m.type === 'attributes') {
           const target = m.target as HTMLElement;
-          if (!target || !target.tagName) return false;
-          return (
-            target.matches(
-              'input:not([type="hidden"]), textarea, select, [contenteditable="true"], [role="textbox"], form, fieldset, [role="group"], [role="region"], details, .collapse, .accordion, [class*="collapse"], [class*="accordion"], [class*="modal"], [class*="dialog"], [class*="tab"]'
-            ) ||
-            target.querySelector(
-              'input:not([type="hidden"]), textarea, select, [contenteditable="true"], [role="textbox"]'
-            ) !== null
-          );
-        }
-        return false;
-      });
+          if (!target || !target.tagName) continue;
 
-      if (hasChanges) {
-        this._scheduleIncrementalScan();
+          const isModalOrDialog =
+            target.getAttribute('role') === 'dialog' ||
+            target.getAttribute('role') === 'alertdialog' ||
+            target.tagName.toLowerCase() === 'dialog' ||
+            /modal|dialog/i.test(target.getAttribute('class') || '');
+
+          // aria-hidden="true" on a modal/dialog means it just closed → cleanup stale fields
+          if (
+            isModalOrDialog &&
+            m.attributeName === 'aria-hidden' &&
+            target.getAttribute('aria-hidden') === 'true'
+          ) {
+            hasRemovals = true;
+          }
+
+          // aria-hidden="false" or open attribute set → modal/dialog opened → scan for new fields
+          if (
+            isModalOrDialog &&
+            (m.attributeName === 'open' ||
+              (m.attributeName === 'aria-hidden' && target.getAttribute('aria-hidden') === 'false'))
+          ) {
+            hasAdditions = true;
+          }
+
+          // Generic attribute change on form-related elements
+          if (
+            !hasAdditions &&
+            (target.matches(
+              `${scanQuery}, form, fieldset, [role="group"], [role="region"], details, .collapse, .accordion, [class*="collapse"], [class*="accordion"], [class*="modal"], [class*="dialog"], [class*="tab"]`
+            ) ||
+              target.querySelector(scanQuery) !== null)
+          ) {
+            hasAdditions = true;
+          }
+        }
+      }
+
+      if (hasRemovals) {
+        // Schedule a cleanup pass (stale fields) + normal incremental scan
+        this._scheduleIncrementalScan(true);
+      } else if (hasAdditions) {
+        this._scheduleIncrementalScan(false);
       }
     });
 
@@ -167,7 +217,9 @@ export class PageScanner {
       attributes: true,
       attributeFilter: ['class', 'style', 'hidden', 'aria-hidden', 'aria-expanded', 'open'],
     });
-    console.log('[PageScanner] 👁️ MutationObserver active (childList + attributes).');
+    console.log(
+      '[PageScanner] 👁️ MutationObserver active (childList + attributes + removedNodes).'
+    );
   }
 
   /** Stops observing. Called on SPA route change or SDK destroy(). */
@@ -613,44 +665,76 @@ export class PageScanner {
 
   /**
    * Schedules a debounced incremental scan.
-   * Only scans fields NOT already in the registry (new ones added by the SPA).
+   * @param withCleanup - When true, the scan will also prune fields whose
+   *   DOM nodes have been disconnected or hidden (e.g. a modal closed).
    */
-  private _scheduleIncrementalScan(): void {
+  private _scheduleIncrementalScan(withCleanup = false): void {
     if (this._incrementalTimer) clearTimeout(this._incrementalTimer);
     this._incrementalTimer = setTimeout(() => {
-      this._runIncrementalScan();
+      this._runIncrementalScan(withCleanup);
     }, this._incrementalDebounceMs);
   }
 
   /**
    * Runs a targeted scan for fields that appeared after the initial page load.
    * Skips fields already registered (checked via registry.findByNode).
+   *
+   * @param withCleanup - When true, also prunes stale/hidden fields from the
+   *   registry before registering new ones. This is triggered when the
+   *   MutationObserver detects removedNodes or a modal closing.
    */
-  private async _runIncrementalScan(): Promise<void> {
-    console.log('[PageScanner] 🔄 Incremental scan triggered...');
+  private async _runIncrementalScan(withCleanup = false): Promise<void> {
+    console.log(`[PageScanner] 🔄 Incremental scan triggered (cleanup=${withCleanup})...`);
+
+    // ── Cleanup pass: remove stale fields ────────────────────────────────────
+    if (withCleanup) {
+      const allRegistered = this.registry.getAll();
+      let removedCount = 0;
+      for (const entry of allRegistered) {
+        const rawNode = entry.node?.getRawNode?.() as HTMLElement | undefined;
+        if (!rawNode) continue;
+
+        // Field is stale if its DOM node is disconnected or no longer visible
+        const isDisconnected = !rawNode.isConnected;
+        const isInsideHiddenContainer =
+          rawNode.closest('[aria-hidden="true"], [hidden]') !== null ||
+          (rawNode.closest('[role="dialog"], [role="alertdialog"]') !== null &&
+            rawNode.closest('[aria-hidden="true"]') !== null);
+
+        if (isDisconnected || isInsideHiddenContainer) {
+          this.registry.unregister(entry.id);
+          removedCount++;
+        }
+      }
+      if (removedCount > 0) {
+        console.log(`[PageScanner] 🧹 Pruned ${removedCount} stale field(s) from registry.`);
+      }
+    }
 
     const { fields: allFields, formScopes } = this.sdk.detection.scanAllFields();
     const newFields = allFields.filter((f) => !this.registry.findByNode(f.node.getRawNode()));
 
-    if (newFields.length === 0) {
+    if (newFields.length === 0 && !withCleanup) {
       console.log('[PageScanner] No new fields found.');
       return;
     }
 
-    console.log(`[PageScanner] Found ${newFields.length} new field(s).`);
-    for (const field of newFields) {
-      if (!isResolvableFieldType(field.type) || field.resolvable === false) {
-        field.status = 'detected';
-        field.resolvable = false;
-        field.resolution = null;
-      } else {
-        const resolution = await this._resolveFieldLocally(field);
-        if (resolution) {
-          field.resolution = resolution;
-          field.status = 'resolved';
+    if (newFields.length > 0) {
+      console.log(`[PageScanner] Found ${newFields.length} new field(s).`);
+      for (const field of newFields) {
+        if (!isResolvableFieldType(field.type) || field.resolvable === false) {
+          field.status = 'detected';
+          field.resolvable = false;
+          field.resolution = null;
+        } else {
+          const resolution = await this._resolveFieldLocally(field);
+          if (resolution) {
+            field.resolution = resolution;
+            field.status = 'resolved';
+          }
         }
+        this.registry.register(field);
       }
-      this.registry.register(field);
     }
 
     // Persist updated snapshot after incremental scan (M2)
