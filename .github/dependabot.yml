@@ -1,46 +1,104 @@
 version: 2
 updates:
-  - package-ecosystem: 'npm'
-    directory: '/'
-    schedule:
-      interval: 'weekly'
-    open-pull-requests-limit: 10
-    groups:
-      dev-dependencies:
-        patterns:
-          - 'eslint*'
-          - 'prettier*'
-          - '@typescript-eslint/*'
-          - 'typescript'
-          - 'husky'
-          - 'lint-staged'
-          - 'concurrently'
-
-  - package-ecosystem: 'npm'
-    directory: '/cognilot-api'
-    schedule:
-      interval: 'weekly'
-    open-pull-requests-limit: 10
-
-  - package-ecosystem: 'npm'
-    directory: '/cognilot-web'
-    schedule:
-      interval: 'weekly'
-    open-pull-requests-limit: 10
-
-  - package-ecosystem: 'npm'
-    directory: '/cognilot-sdk'
-    schedule:
-      interval: 'weekly'
-    open-pull-requests-limit: 10
-
-  - package-ecosystem: 'npm'
-    directory: '/cognilot-extension'
-    schedule:
-      interval: 'weekly'
-    open-pull-requests-limit: 10
-
+  # GitHub Actions workflows updates
   - package-ecosystem: 'github-actions'
     directory: '/'
     schedule:
       interval: 'weekly'
+    open-pull-requests-limit: 3
+    groups:
+      github-actions:
+        patterns:
+          - '*'
+
+  # Root workspace dev tooling
+  - package-ecosystem: 'npm'
+    directory: '/'
+    schedule:
+      interval: 'weekly'
+    open-pull-requests-limit: 3
+    groups:
+      root-dev-dependencies:
+        dependency-type: 'development'
+        patterns:
+          - '*'
+      root-dependencies:
+        dependency-type: 'production'
+        patterns:
+          - '*'
+
+  # Backend: cognilot-api
+  - package-ecosystem: 'npm'
+    directory: '/cognilot-api'
+    schedule:
+      interval: 'weekly'
+    open-pull-requests-limit: 3
+    groups:
+      api-dev-dependencies:
+        dependency-type: 'development'
+        patterns:
+          - '*'
+      api-dependencies:
+        dependency-type: 'production'
+        update-types:
+          - 'minor'
+          - 'patch'
+        patterns:
+          - '*'
+
+  # Frontend: cognilot-web
+  - package-ecosystem: 'npm'
+    directory: '/cognilot-web'
+    schedule:
+      interval: 'weekly'
+    open-pull-requests-limit: 3
+    groups:
+      web-dev-dependencies:
+        dependency-type: 'development'
+        patterns:
+          - '*'
+      web-dependencies:
+        dependency-type: 'production'
+        update-types:
+          - 'minor'
+          - 'patch'
+        patterns:
+          - '*'
+
+  # Core SDK: cognilot-sdk
+  - package-ecosystem: 'npm'
+    directory: '/cognilot-sdk'
+    schedule:
+      interval: 'weekly'
+    open-pull-requests-limit: 3
+    groups:
+      sdk-dev-dependencies:
+        dependency-type: 'development'
+        patterns:
+          - '*'
+      sdk-dependencies:
+        dependency-type: 'production'
+        update-types:
+          - 'minor'
+          - 'patch'
+        patterns:
+          - '*'
+
+  # Chrome Extension: cognilot-extension
+  - package-ecosystem: 'npm'
+    directory: '/cognilot-extension'
+    schedule:
+      interval: 'weekly'
+    open-pull-requests-limit: 3
+    groups:
+      extension-dev-dependencies:
+        dependency-type: 'development'
+        patterns:
+          - '*'
+      extension-dependencies:
+        dependency-type: 'production'
+        update-types:
+          - 'minor'
+          - 'patch'
+        patterns:
+          - '*'
