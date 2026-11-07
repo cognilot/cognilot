@@ -20,6 +20,7 @@
     "unlimitedStorage",
     "identity",
     "sidePanel",
+    "webNavigation",
     "clipboardWrite",
     "clipboardRead"
   ],

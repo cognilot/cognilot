@@ -242,4 +242,125 @@ describe('FieldRegistry', () => {
     expect(registry.getAll().length).toBe(0);
     expect(registry.findById('test-id')).toBeNull();
   });
+
+  it('should unregister a field by id', () => {
+    const node = new MockNode('INPUT');
+    const entry: FieldRegistryEntry = {
+      id: 'test-unregister-id',
+      type: 'text',
+      tagName: 'INPUT',
+      name: 'test',
+      text: 'Test',
+      placeholder: '',
+      required: false,
+      options: [],
+      ref_id: '',
+      section_ref_id: '',
+      metadata: {} as any,
+      selector: '#test',
+      node: node as any,
+      belongsToForm: true,
+      formScopeId: 'form-1',
+      resolution: null,
+      status: 'pending',
+    };
+
+    registry.register(entry);
+    expect(registry.findById('test-unregister-id')).toBeDefined();
+
+    const removed = registry.unregister('test-unregister-id');
+    expect(removed).toBe(true);
+    expect(registry.findById('test-unregister-id')).toBeNull();
+    expect(registry.getAll().length).toBe(0);
+    expect(registry.unregister('non-existent')).toBe(false);
+  });
+
+  it('should return distinct form scopes via getFormScopes', () => {
+    const entry1: FieldRegistryEntry = {
+      id: 'id-1',
+      type: 'text',
+      tagName: 'INPUT',
+      name: 'test-1',
+      text: 'Field 1',
+      placeholder: '',
+      required: false,
+      options: [],
+      ref_id: '',
+      section_ref_id: '',
+      metadata: {} as any,
+      selector: '#f1',
+      node: new MockNode('INPUT') as any,
+      belongsToForm: true,
+      formScopeId: 'scope-A',
+      resolution: null,
+      status: 'pending',
+    };
+
+    const entry2: FieldRegistryEntry = {
+      id: 'id-2',
+      type: 'text',
+      tagName: 'INPUT',
+      name: 'test-2',
+      text: 'Field 2',
+      placeholder: '',
+      required: false,
+      options: [],
+      ref_id: '',
+      section_ref_id: '',
+      metadata: {} as any,
+      selector: '#f2',
+      node: new MockNode('INPUT') as any,
+      belongsToForm: true,
+      formScopeId: 'scope-A',
+      resolution: null,
+      status: 'pending',
+    };
+
+    const entry3: FieldRegistryEntry = {
+      id: 'id-3',
+      type: 'text',
+      tagName: 'INPUT',
+      name: 'test-3',
+      text: 'Field 3',
+      placeholder: '',
+      required: false,
+      options: [],
+      ref_id: '',
+      section_ref_id: '',
+      metadata: {} as any,
+      selector: '#f3',
+      node: new MockNode('INPUT') as any,
+      belongsToForm: true,
+      formScopeId: 'scope-B',
+      resolution: null,
+      status: 'pending',
+    };
+
+    const entry4Isolated: FieldRegistryEntry = {
+      id: 'id-4',
+      type: 'text',
+      tagName: 'INPUT',
+      name: 'test-4',
+      text: 'Field 4',
+      placeholder: '',
+      required: false,
+      options: [],
+      ref_id: '',
+      section_ref_id: '',
+      metadata: {} as any,
+      selector: '#f4',
+      node: new MockNode('INPUT') as any,
+      belongsToForm: false,
+      resolution: null,
+      status: 'pending',
+    };
+
+    registry.register(entry1);
+    registry.register(entry2);
+    registry.register(entry3);
+    registry.register(entry4Isolated);
+
+    const scopes = registry.getFormScopes();
+    expect(scopes).toEqual([{ id: 'scope-A' }, { id: 'scope-B' }]);
+  });
 });

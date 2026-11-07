@@ -69,30 +69,58 @@ export class ActionEngine {
     // Search Proxy Input in custom select: If this node is an input inside a custom select container
     // whose primary button/trigger is registered in FieldRegistry, inherit its registry entry!
     if (!entry) {
+      let triggerEl: Element | null = null;
+      const rawNode = node.getRawNode() as Element;
+
+      // 1. Try to find the container if it's not a portal
       const parentSelectContainer = node.closest?.(
         '.v-select, [role="combobox"], [data-slot="control"], [data-reka-select-trigger], [data-radix-select-trigger], .form-group, .form-item'
       );
       if (parentSelectContainer) {
-        const trigger = parentSelectContainer.querySelector?.(
+        triggerEl = parentSelectContainer.querySelector?.(
           'button, [role="combobox"], [data-reka-select-trigger], [data-radix-select-trigger], input'
-        );
-        if (trigger && trigger !== node) {
-          const rawTrigger =
-            typeof trigger.getRawNode === 'function' ? trigger.getRawNode() : (trigger as object);
-          if (rawTrigger && typeof rawTrigger === 'object') {
-            entry = this.sdk.registry?.findByNode?.(rawTrigger as object);
+        ) as Element | null;
+      }
+
+      // 2. If inside a portal, use ARIA links to find the trigger
+      if (!triggerEl && typeof document !== 'undefined') {
+        const listbox = node.closest?.(
+          '[role="listbox"], [role="dialog"], [id^="headlessui-"], [id^="radix-"], .p-autocomplete-panel, [data-radix-popper-content-wrapper]'
+        ) as Element | null;
+        if (listbox) {
+          const listboxId = listbox.id;
+          if (listboxId) {
+            triggerEl = document.querySelector(`[aria-controls="${CSS.escape(listboxId)}"]`);
+          }
+          if (!triggerEl) {
+            const labelledBy = listbox.getAttribute('aria-labelledby');
+            if (labelledBy) {
+              triggerEl = document.getElementById(labelledBy);
+            }
+          }
+          // Nuxt UI / Headless UI Combobox wrapper might not have ID, but might be linked via aria-controls on the trigger pointing to the inner ul
+          if (!triggerEl) {
+            const innerUl = listbox.querySelector('ul[id]');
+            if (innerUl && innerUl.id) {
+              triggerEl = document.querySelector(`[aria-controls="${CSS.escape(innerUl.id)}"]`);
+            }
           }
         }
-        if (!entry && typeof this.sdk.registry?.getAll === 'function') {
-          const containerLabel =
-            parentSelectContainer.getAttribute?.('label') ||
-            this.labelExtractor.extractFieldMetadata(node)?.label;
-          if (containerLabel) {
-            const all = this.sdk.registry.getAll();
-            entry =
-              all.find((e) => e.text === containerLabel || e.metadata?.label === containerLabel) ||
-              null;
-          }
+      }
+
+      if (triggerEl && triggerEl !== rawNode) {
+        entry = this.sdk.registry?.findByNode?.(triggerEl as object);
+      }
+
+      if (!entry && typeof this.sdk.registry?.getAll === 'function') {
+        const containerLabel =
+          parentSelectContainer?.getAttribute?.('label') ||
+          this.labelExtractor.extractFieldMetadata(node)?.label;
+        if (containerLabel) {
+          const all = this.sdk.registry.getAll();
+          entry =
+            all.find((e) => e.text === containerLabel || e.metadata?.label === containerLabel) ||
+            null;
         }
       }
     }
@@ -113,7 +141,9 @@ export class ActionEngine {
       tagName === 'select' ||
       node.getAttribute('aria-haspopup') === 'listbox' ||
       node.getAttribute('role') === 'combobox' ||
-      node.closest('.v-select') !== null;
+      node.getAttribute('aria-autocomplete') !== null ||
+      node.closest('.v-select') !== null ||
+      isSearchProxy;
     if (!isChoice && (isCombobox || type === 'autocomplete')) {
       const liveOptions = this.labelExtractor.collectChoiceOptions(node) || [];
       if (liveOptions.length > 0 || (entry?.options && entry.options.length > 0)) {

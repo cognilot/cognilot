@@ -269,7 +269,11 @@ export function paint(element: HTMLElement, suggestion: SuggestionState): void {
   syncGhost();
 }
 
-export function paintChoiceGhost(element: HTMLElement, resolvedValues: string[]): void {
+export function paintChoiceGhost(
+  element: HTMLElement,
+  resolvedValues: string[],
+  retryCount = 0
+): void {
   if (!element || !Array.isArray(resolvedValues) || resolvedValues.length === 0) return;
   const doc = element.ownerDocument || document;
   const tagName = (element.tagName || '').toLowerCase();
@@ -387,10 +391,16 @@ export function paintChoiceGhost(element: HTMLElement, resolvedValues: string[])
   if (listboxOptions.length === 0) {
     const openMenuOptions = Array.from(
       doc.querySelectorAll(
-        '.vs__dropdown-menu [role="option"], .vs__dropdown-menu li, .v-select-menu li, .MuiAutocomplete-popper [role="option"], .p-autocomplete-panel li, [data-radix-popper-content-wrapper] [role="option"]'
+        '.vs__dropdown-menu [role="option"], .vs__dropdown-menu li, .v-select-menu li, .MuiAutocomplete-popper [role="option"], .p-autocomplete-panel li, [data-radix-popper-content-wrapper] [role="option"], [role="listbox"] [role="option"], [role="listbox"] li, .el-select-dropdown__item, .ant-select-item-option'
       )
     ) as HTMLElement[];
     listboxOptions.push(...openMenuOptions);
+  }
+
+  // RETRY MECHANISM: If portal hasn't mounted in DOM yet, retry a few times
+  if (listboxOptions.length === 0 && retryCount < 5) {
+    setTimeout(() => paintChoiceGhost(element, resolvedValues, retryCount + 1), 50);
+    return;
   }
 
   for (const optEl of listboxOptions) {

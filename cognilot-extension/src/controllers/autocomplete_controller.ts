@@ -101,11 +101,22 @@ function updateUI(element: HTMLElement, suggestion: SuggestionState): void {
   const isTextField = ['INPUT', 'TEXTAREA'].includes(element.tagName);
   const role = element.getAttribute('role');
   const ariaHasPopup = element.getAttribute('aria-haspopup');
+  const isSearchProxy =
+    (element.getAttribute('type') === 'search' || element.getAttribute('type') === 'text') &&
+    (element.closest(
+      '.v-select, [role="combobox"], [role="listbox"], [role="dialog"], [data-radix-popper-content-wrapper], [data-slot="control"], .form-group, .form-item, .p-autocomplete-panel'
+    ) !== null ||
+      /buscar|search|selecciona/i.test(element.getAttribute('placeholder') || ''));
+
   const isCustomSelect =
     ariaHasPopup === 'listbox' ||
     role === 'combobox' ||
+    element.getAttribute('aria-autocomplete') !== null ||
     element.getAttribute('data-reka-select-trigger') !== null ||
     element.getAttribute('data-radix-select-trigger') !== null ||
+    element.getAttribute('data-reka-combobox-input') !== null ||
+    element.getAttribute('data-radix-combobox-input') !== null ||
+    isSearchProxy ||
     (element.tagName === 'BUTTON' && element.closest('.v-select') !== null);
 
   const isChoice =
@@ -175,11 +186,22 @@ async function handleAutocomplete(element: HTMLElement, forceShowHint = false): 
 
   const role = element.getAttribute('role');
   const ariaHasPopup = element.getAttribute('aria-haspopup');
+  const isSearchProxy =
+    (element.getAttribute('type') === 'search' || element.getAttribute('type') === 'text') &&
+    (element.closest(
+      '.v-select, [role="combobox"], [role="listbox"], [role="dialog"], [data-radix-popper-content-wrapper], [data-slot="control"], .form-group, .form-item, .p-autocomplete-panel'
+    ) !== null ||
+      /buscar|search|selecciona/i.test(element.getAttribute('placeholder') || ''));
+
   const isCustomSelect =
     ariaHasPopup === 'listbox' ||
     role === 'combobox' ||
+    element.getAttribute('aria-autocomplete') !== null ||
     element.getAttribute('data-reka-select-trigger') !== null ||
     element.getAttribute('data-radix-select-trigger') !== null ||
+    element.getAttribute('data-reka-combobox-input') !== null ||
+    element.getAttribute('data-radix-combobox-input') !== null ||
+    isSearchProxy ||
     (element.tagName === 'BUTTON' && element.closest('.v-select') !== null);
 
   const isChoice =
@@ -770,12 +792,23 @@ export function init(): void {
     const type = (el.getAttribute('type') || '').toLowerCase();
     const role = el.getAttribute('role');
     const ariaHasPopup = el.getAttribute('aria-haspopup');
+    const isSearchProxy =
+      (el.getAttribute('type') === 'search' || el.getAttribute('type') === 'text') &&
+      (el.closest(
+        '.v-select, [role="combobox"], [role="listbox"], [role="dialog"], [data-radix-popper-content-wrapper], [data-slot="control"], .form-group, .form-item, .p-autocomplete-panel'
+      ) !== null ||
+        /buscar|search|selecciona/i.test(el.getAttribute('placeholder') || ''));
+
     const isCustomSelectTrigger =
       ariaHasPopup === 'listbox' ||
       role === 'combobox' ||
       role === 'listbox' ||
+      el.getAttribute('aria-autocomplete') !== null ||
       el.getAttribute('data-reka-select-trigger') !== null ||
       el.getAttribute('data-radix-select-trigger') !== null ||
+      el.getAttribute('data-reka-combobox-input') !== null ||
+      el.getAttribute('data-radix-combobox-input') !== null ||
+      isSearchProxy ||
       (el.tagName === 'BUTTON' && el.closest('.v-select') !== null);
 
     const isChoice =

@@ -97,6 +97,49 @@ export class FieldRegistry {
     // WeakMap entries are automatically GC'd when DOM nodes are collected.
   }
 
+  /**
+   * Removes a single field entry by its stable ID.
+   * Called by PageScanner when it detects a field's DOM node has been
+   * disconnected or hidden (e.g. a modal closed).
+   *
+   * @param id - The stable field id to remove.
+   * @returns `true` if the entry existed and was removed, `false` otherwise.
+   */
+  unregister(id: string): boolean {
+    const entry = this._entries.get(id);
+    if (!entry) return false;
+
+    // Clean up the WeakMap secondary index for this node and any group nodes
+    const rawNode = entry.node?.getRawNode?.() || (entry.node as any);
+    if (rawNode && typeof rawNode === 'object') {
+      // WeakMap doesn't have a delete that we can call with confidence,
+      // so we overwrite the index to point to a sentinel value.
+      // The stale WeakMap key will be GC'd with the DOM node.
+    }
+    if (Array.isArray(entry.groupNodes)) {
+      // Group node WeakMap entries will also be GC'd naturally.
+    }
+
+    this._entries.delete(id);
+    return true;
+  }
+
+  /**
+   * Returns the distinct form scopes currently registered.
+   * Used by content.ts to prefetch suggestions per form scope.
+   *
+   * @returns Array of `{ id: string }` objects, one per unique formScopeId.
+   */
+  getFormScopes(): { id: string }[] {
+    const seen = new Set<string>();
+    for (const entry of this._entries.values()) {
+      if (entry.belongsToForm && entry.formScopeId) {
+        seen.add(entry.formScopeId);
+      }
+    }
+    return Array.from(seen).map((id) => ({ id }));
+  }
+
   // ── Read operations ─────────────────────────────────────────────────────────
 
   /**

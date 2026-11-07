@@ -292,4 +292,62 @@ describe('PageScanner', () => {
     expect(disconnectSpy).toHaveBeenCalled();
     expect((scanner as any)._observer).toBeNull();
   });
+
+  // ── Cleanup pass (stale / hidden fields) ────────────────────────────────────
+
+  const makeEntry = (id: string, node: MockNode) => ({
+    id,
+    type: 'text',
+    tagName: 'INPUT',
+    name: id,
+    text: id,
+    placeholder: '',
+    required: false,
+    options: [],
+    ref_id: '',
+    section_ref_id: '',
+    metadata: {} as any,
+    selector: `#${id}`,
+    node: node as any,
+    belongsToForm: false,
+    resolution: null,
+    status: 'pending',
+  });
+
+  it('should prune disconnected fields during a cleanup pass', async () => {
+    const staleNode = new MockNode('INPUT', '', { id: 'stale' });
+    (staleNode as any).isConnected = false;
+    registry.register(makeEntry('stale-1', staleNode) as any);
+    expect(registry.getAll().length).toBe(1);
+
+    sdk.detection.scanAllFields.mockReturnValue({ fields: [], formScopes: [] });
+    await (scanner as any)._runIncrementalScan(true);
+
+    expect(registry.getAll().length).toBe(0);
+  });
+
+  it('should keep connected fields that are not inside a hidden container', async () => {
+    const liveNode = new MockNode('INPUT', '', { id: 'live' });
+    (liveNode as any).isConnected = true;
+    registry.register(makeEntry('live-1', liveNode) as any);
+
+    sdk.detection.scanAllFields.mockReturnValue({ fields: [], formScopes: [] });
+    await (scanner as any)._runIncrementalScan(true);
+
+    expect(registry.getAll().map((f) => f.id)).toEqual(['live-1']);
+  });
+
+  it('should prune fields hidden inside an aria-hidden ancestor during cleanup', async () => {
+    const hiddenParent = new MockNode('DIV', '', { 'aria-hidden': 'true' });
+    const child = new MockNode('INPUT', '', { id: 'hidden' });
+    hiddenParent.appendChild(child);
+    (child as any).isConnected = true;
+    registry.register(makeEntry('hidden-1', child) as any);
+    expect(registry.getAll().length).toBe(1);
+
+    sdk.detection.scanAllFields.mockReturnValue({ fields: [], formScopes: [] });
+    await (scanner as any)._runIncrementalScan(true);
+
+    expect(registry.getAll().length).toBe(0);
+  });
 });
