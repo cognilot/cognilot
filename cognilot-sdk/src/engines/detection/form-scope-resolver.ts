@@ -110,10 +110,10 @@ export class FormScopeResolver {
 
       // Para contenedores genéricos (div, c-wiz, etc), requerimos:
       // 1. Al menos 2 campos (para evitar detectar buscadores aislados con un par de botones)
-      // 2. Un actionScore alto (que indique la presencia de botones de submit/acción claros)
+      // 2. Un actionScore razonable (>= 15) o al menos 3 campos agrupados en la SPA
       const hasMinFieldsAndButton = isExplicitForm
         ? fieldBlocks.length >= 1
-        : fieldBlocks.length >= 2 && actionScore >= 20;
+        : fieldBlocks.length >= 2 && (actionScore >= 15 || fieldBlocks.length >= 3);
 
       if ((isExplicitForm || hasMinFieldsAndButton) && (!best || score > best.score)) {
         best = {
@@ -166,7 +166,7 @@ export class FormScopeResolver {
     // Aplicamos la misma regla de significancia del modo radial
     const hasMinFieldsAndButton = isExplicitForm
       ? fieldBlocks.length >= 1
-      : fieldBlocks.length >= 2 && actionScore >= 20;
+      : fieldBlocks.length >= 2 && (actionScore >= 15 || fieldBlocks.length >= 3);
 
     if (!isExplicitForm && !hasMinFieldsAndButton) {
       return null;
@@ -240,6 +240,12 @@ export class FormScopeResolver {
       const cls = (btn.className || '').toLowerCase();
       if (cls.includes('social') || cls.includes('share') || cls.includes('nav-')) return false;
 
+      // Filter out navigation/header/banner buttons so site-wide headers don't corrupt form action scoring
+      const inNav = btn.closest(
+        'nav, header, [role="navigation"], [role="banner"], [role="menubar"], .navbar, .site-header'
+      );
+      if (inNav) return false;
+
       return true;
     });
 
@@ -259,15 +265,17 @@ export class FormScopeResolver {
 
     if (!firstField || !lastField) return score;
 
-    // Nueva Restricción (Composer/Widget heuristic):
-    // Si no es formalmente un formulario, no debe tener botones ANTES y DESPUÉS de los campos.
-    // Esto previene detectar interfaces de chat (ej: ChatGPT) que tienen anexos y botón de enviar rodeando el input.
-    if (!isExplicitForm) {
+    // Composer/Widget heuristic:
+    // Only apply leading+closing invalidation if this is a SINGLE-field widget (e.g. chat bar in ChatGPT)
+    // where an attachment button is before and a send button is after.
+    // In multi-field forms (fieldBlocks.length >= 2), having buttons before (tabs, back buttons)
+    // and after (submit) is completely normal!
+    if (!isExplicitForm && fieldBlocks.length <= 1) {
       const hasLeadingButton = buttons.some((btn) => btn.isBefore(firstField));
       const hasClosingButton = buttons.some((btn) => lastField.isBefore(btn));
 
       if (hasLeadingButton && hasClosingButton) {
-        return 0; // Invalida el puntaje de acción
+        return 0; // Invalida el puntaje de acción solo para chat bars de 1 campo
       }
     }
 

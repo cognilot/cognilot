@@ -330,16 +330,17 @@ export class FieldCollector {
   }
 
   public findNearestFieldBlock(element: CognilotNode, boundary: CognilotNode): CognilotNode | null {
-    let node: CognilotNode | null = element;
+    let node: CognilotNode | null = element.getParent();
     const rootRaw = boundary.getRawNode();
     const bodyRaw = this.adapter.getRootNode()?.getRawNode();
 
     while (node && node.getRawNode() !== rootRaw && node.getRawNode() !== bodyRaw) {
       const count = node.querySelectorAll(this.signatureBase).length;
-      if (count >= 1 && count <= 12) return node;
+      if (count >= 1 && count <= 4) return node;
       node = node.getParent();
     }
-    return boundary || null;
+    // If no intermediate wrapper exists between element and boundary, the element itself is its own block
+    return element;
   }
 
   public computeSignatureSimilarity(sig1: string, sig2: string): number {
