@@ -118,17 +118,18 @@ suggestionsRouter.post('/', zValidator('json', suggestionRequestSchema), async (
   }
 
   const systemPrompt = `You are an intelligent form autofill assistant.
-Your job is to suggest the most appropriate value for a web form field based on the user's profile data, page context, and any provided clipboard context.
+Your job is to suggest the most appropriate value for a web form field based STRICTLY on the user's profile data, page context, and any provided clipboard context.
 
 ## User Profile / Memory Data:
 ${JSON.stringify(memoryData, null, 2)}${clipboardPromptSection}
 
 ## Instructions:
-- Suggest a value for the field. If you cannot find the exact information in the user profile data or clipboard context, infer a highly plausible example value based on the field label, type, placeholder, and context.
+- Suggest a value for the field using the user profile data or clipboard context.
+- If you cannot find the exact information or derive it with high confidence from the user profile data or clipboard context, you MUST return an empty string "" for "value" and set "isExample" to false. Do NOT invent, guess, or hallucinate dummy personal data (names, emails, phone numbers, addresses, companies, or passwords).
 - Return ONLY a valid JSON object matching the following structure. Do not include markdown code block wrappers (e.g. \`\`\`json) or conversational filler:
 {
-  "value": "The suggested value",
-  "isExample": boolean // false if found/derived from user profile or clipboard, true if it is a generic placeholder/example
+  "value": "The suggested value or empty string",
+  "isExample": false
 }
 - Be ${options?.tone ?? 'professional'} in tone.
 - Respond in ${options?.language ?? 'English'}.`;
@@ -304,18 +305,19 @@ suggestionsRouter.post('/batch', zValidator('json', batchSuggestionSchema), asyn
   }
 
   const systemPrompt = `You are an intelligent form autofill assistant.
-Your job is to suggest the most appropriate values for multiple form fields based on the user's profile data and any provided clipboard context.
+Your job is to suggest the most appropriate values for multiple form fields based STRICTLY on the user's profile data and any provided clipboard context.
 
 ## User Profile / Memory:
 ${JSON.stringify(memoryData, null, 2)}${clipboardPromptSection}
 
 ## Instructions:
-For each field in the request, return the best suggestion value. If you cannot find the exact information in the user profile or clipboard context, infer a highly plausible example value.
+For each field in the request, return the best suggestion value based on the user profile or clipboard context.
+CRITICAL GROUNDING RULE: If you cannot find the exact information or derive it with high confidence from the user profile or clipboard context, you MUST return an empty string "" for "value" and set "isExample" to false. Do NOT invent, guess, or hallucinate dummy personal or professional data (names, emails, phones, salaries, addresses, companies).
 Return ONLY a JSON object mapping each question's key to an object with "value" and "isExample" (boolean) properties.
 Example format:
 {
   "key_1": { "value": "Suggested Value 1", "isExample": false },
-  "key_2": { "value": "example@email.com", "isExample": true }
+  "key_2": { "value": "", "isExample": false }
 }
 No explanations, no markdown code block wrappers (e.g. \`\`\`json). Return raw JSON.`;
 
@@ -403,15 +405,15 @@ No explanations, no markdown code block wrappers (e.g. \`\`\`json). Return raw J
         )?.[1];
 
       let val = '';
-      let isExample = true;
+      let isExample = false;
 
       if (resVal) {
         if (typeof resVal === 'object' && !Array.isArray(resVal)) {
           val = resVal.value ?? '';
-          isExample = resVal.isExample ?? true;
+          isExample = resVal.isExample ?? false;
         } else if (Array.isArray(resVal)) {
           val = resVal[0] ?? '';
-          isExample = false; // Fallback for legacy format if any
+          isExample = false;
         } else {
           val = String(resVal);
           isExample = false;
@@ -420,7 +422,7 @@ No explanations, no markdown code block wrappers (e.g. \`\`\`json). Return raw J
 
       standardizedResults[q.key] = {
         value: val,
-        options: [val],
+        options: val ? [val] : [],
         type: isExample ? 'example' : 'discrete',
       };
     }
