@@ -152,23 +152,28 @@ export class DetectionEngine {
     const filteredQuestions = allQuestions;
 
     // 4. Significance Check & Deduplication
-    const seenKeys = new Set<string>();
-    const seenLabels = new Set<string>();
+    const seenElements = new Set<any>();
+    const seenFieldSignatures = new Set<string>();
     const uniqueFields = filteredQuestions.filter((q: any) => {
+      const rawEl = q.node?.getRawNode ? q.node.getRawNode() : q.node?.element || q.node;
+      if (rawEl) {
+        if (seenElements.has(rawEl)) return false;
+        seenElements.add(rawEl);
+      }
+
       const normLabel = (q.text || q.metadata?.label || '').toLowerCase().trim();
       const isArrayName = (n: string) => /\[\]|\[\d*\]/.test(n);
       const rawName = q.name || '';
       const normName = (!isArrayName(rawName) ? rawName : q.id || '').toLowerCase().trim();
       const labelKey = normLabel || normName;
 
-      // If a field with identical label/name exists in this form container, skip duplicates
-      if (labelKey && seenLabels.has(labelKey)) return false;
+      // Deduplicate identical fields (e.g. responsive duplicates for mobile/desktop)
+      if (labelKey) {
+        const signature = `${labelKey}::${q.name || ''}::${q.type || ''}`;
+        if (seenFieldSignatures.has(signature)) return false;
+        seenFieldSignatures.add(signature);
+      }
 
-      const refKey = q.ref_id ? `ref:${q.ref_id}` : `label:${labelKey}`;
-      if (!refKey || seenKeys.has(refKey)) return false;
-
-      if (labelKey) seenLabels.add(labelKey);
-      seenKeys.add(refKey);
       return true;
     });
 

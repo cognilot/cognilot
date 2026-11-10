@@ -197,15 +197,15 @@ export class FormScopeResolver {
 
     const roleBoost =
       container.tagName.toLowerCase() === 'form' || container.getAttribute('role') === 'form'
-        ? 35
+        ? 80
         : 0;
 
     // Eliminado: Heurísticas visuales removidas por ser redundantes y generar falsos positivos en contenedores UI modernos (como el chat).
     let visualBoost = 0;
 
-    // Discourage selection of body or very far ancestors
-    let radiusPenalty = radius * 12;
-    if (radius > 6) radiusPenalty += (radius - 6) * 10;
+    // Discourage selection of body or very far ancestors, but do not penalize explicit <form> tags
+    let radiusPenalty = roleBoost > 0 ? 0 : radius * 12;
+    if (radius > 6 && roleBoost === 0) radiusPenalty += (radius - 6) * 10;
 
     const rootNode = this.adapter.getRootNode();
     if (container.getRawNode() === (rootNode ? rootNode.getRawNode() : null)) radiusPenalty += 100;

@@ -30,7 +30,7 @@ export class FieldCollector {
     radialContext?: any
   ): FieldDetectionResponse[] {
     const detectedFields: FieldDetectionResponse[] = [];
-    const seenFieldLabels = new Set<string>();
+    const seenElements = new Set<any>();
     const root = scope || this.adapter.getRootNode();
     const processedChoiceGroups = new Set<string>();
 
@@ -41,6 +41,10 @@ export class FieldCollector {
     const inputsArray = [...items, ...iframes];
 
     inputsArray.forEach((element) => {
+      const rawEl = element.getRawNode ? element.getRawNode() : element;
+      if (seenElements.has(rawEl)) return;
+      seenElements.add(rawEl);
+
       const isIframe = element.tagName.toLowerCase() === 'iframe';
       if (!isIframe && !element.isVisible) return;
 
@@ -76,11 +80,6 @@ export class FieldCollector {
       if (!fieldLabel?.trim()) return;
 
       const fieldRef = this.resolveFieldRefForElement(element, radialContext);
-      const dedupeKey = fieldRef
-        ? `ref:${fieldRef.refId}`
-        : `label:${fieldLabel.toLowerCase().trim()}`;
-      if (seenFieldLabels.has(dedupeKey)) return;
-      seenFieldLabels.add(dedupeKey);
 
       let cleanType = isIframe
         ? 'iframe-input'
@@ -278,8 +277,12 @@ export class FieldCollector {
       const similarity = this.computeSignatureSimilarity(seedSig, sig);
       const fieldCount = block.querySelectorAll(this.signatureBase + ', iframe').length;
 
+      const isExplicitForm =
+        container.tagName.toLowerCase() === 'form' || container.getAttribute('role') === 'form';
+
       if (
-        (fieldCount <= 12 && (similarity >= 0.5 || fieldCount <= 2)) ||
+        isExplicitForm ||
+        (fieldCount <= 12 && (similarity >= 0.4 || fieldCount <= 4)) ||
         (isIframe && fieldCount <= 3)
       ) {
         blocks.push({ block, signature: sig, similarity, isIframe, refId: '' });
