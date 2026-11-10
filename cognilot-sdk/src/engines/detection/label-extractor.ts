@@ -117,7 +117,7 @@ export class LabelExtractor {
           const node = this.adapter.wrap(labelEl);
           if (node) {
             const text = getCleanText(node);
-            if (text) candidates.push({ text, score: 90, source: 'label-for', element: node });
+            if (text) candidates.push({ text, score: 96, source: 'label-for', element: node });
           }
         }
       } catch (e) {}
@@ -127,7 +127,7 @@ export class LabelExtractor {
     if (parentLabel) {
       const text = getCleanText(parentLabel);
       if (text)
-        candidates.push({ text, score: 88, source: 'implicit-label', element: parentLabel });
+        candidates.push({ text, score: 94, source: 'implicit-label', element: parentLabel });
     }
 
     const fieldset = element.closest('fieldset');
@@ -135,7 +135,7 @@ export class LabelExtractor {
       const legend = fieldset.querySelector('legend');
       if (legend) {
         const text = getCleanText(legend);
-        if (text) candidates.push({ text, score: 80, source: 'legend', element: legend });
+        if (text) candidates.push({ text, score: 85, source: 'legend', element: legend });
       }
     }
 
@@ -145,9 +145,14 @@ export class LabelExtractor {
       const rawEl = element.getRawNode();
       const inputIndex = children.findIndex((c) => c.id === element.id || c.getRawNode() === rawEl);
       if (inputIndex > 0) {
-        for (let i = 0; i < inputIndex; i++) {
+        // Walk BACKWARDS from the input index. Stop immediately if we encounter a preceding form field,
+        // ensuring we never steal a label that belongs to an earlier field in a flat container.
+        for (let i = inputIndex - 1; i >= 0; i--) {
           const sibling = children[i];
-          if (!sibling || containsInteractive(sibling)) continue;
+          if (!sibling) continue;
+          if (containsInteractive(sibling)) {
+            break;
+          }
           const text = getCleanText(sibling);
           if (!text || text.length < 2 || text.length > 160) continue;
 
@@ -162,7 +167,11 @@ export class LabelExtractor {
             score += 4;
             required = true;
           }
-          if (score > 0) candidates.push({ text, score, source: 'same-wrapper', element: sibling });
+          if (score > 0) {
+            candidates.push({ text, score, source: 'same-wrapper', element: sibling });
+            // Once we found the closest sibling label/text before this input, don't keep searching further back
+            break;
+          }
         }
       }
     }
