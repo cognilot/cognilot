@@ -74,9 +74,15 @@ export class WebNode implements CognilotNode {
 
     if (!isNodeOrJSDOM) {
       const rect = this.element.getBoundingClientRect();
+      const scrollX = typeof window !== 'undefined' ? window.scrollX || window.pageXOffset || 0 : 0;
+      const scrollY = typeof window !== 'undefined' ? window.scrollY || window.pageYOffset || 0 : 0;
+      const docLeft = rect.left + scrollX;
+      const docRight = rect.right + scrollX;
+      const docTop = rect.top + scrollY;
+      const docBottom = rect.bottom + scrollY;
 
-      // Off-screen honeypot checks (placed far to the left or top)
-      if (rect.right < -50 || rect.bottom < -50 || rect.left < -50) {
+      // Off-screen honeypot checks (placed far to the left or top in document coordinates)
+      if (docRight < -50 || docBottom < -50 || docLeft < -50 || docTop < -50) {
         return false;
       }
 

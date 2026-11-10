@@ -10,7 +10,8 @@
     "lint": "eslint src",
     "lint:fix": "eslint src --fix",
     "format": "prettier --write src",
-    "test": "vitest run --config vitest.config.ts"
+    "test": "vitest run --config vitest.config.ts",
+    "audit:url": "tsx scripts/audit-url.ts"
   },
   "dependencies": {
     "@cognilot/sdk": "workspace:*"
@@ -23,8 +24,10 @@
     "eslint-config-prettier": "^10.0.1",
     "globals": "^17.5.0",
     "jsdom": "^29.0.1",
+    "playwright": "^1.65.0",
     "prettier": "^3.8.2",
     "sharp": "^0.35.4",
+    "tsx": "^4.19.0",
     "typescript": "^6.0.2",
     "typescript-eslint": "^8.58.2",
     "vite": "^6.4.2",

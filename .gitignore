@@ -48,6 +48,8 @@ coverage/
 
 # Misc
 bash.exe.stackdump
+.playwright-audit-profile/
+audit-report-*.json
 *.stackdump
 tmp_script.*
 
