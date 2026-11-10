@@ -11,7 +11,7 @@ Your job is to suggest the most appropriate value for a web form field based on 
 ## Instructions:
 - Return ONLY the value to fill in the field. No explanations, no quotes, no markdown.
 - Respond in {{LANGUAGE}}.
-- If you cannot find the exact information in the user profile data, infer a plausible example value based on the field label, type, placeholder, and context.
+- If you cannot find the exact information or derive it with high confidence from the user profile data, return an empty string "" (do NOT invent or hallucinate dummy personal data, names, addresses, or emails).
 
 Fill in this form field:
 Field Label: {{FIELD_LABEL}}

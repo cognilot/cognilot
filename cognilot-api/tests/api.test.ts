@@ -173,4 +173,13 @@ describe('Route Registration', () => {
     });
     expect(res.status).not.toBe(404);
   });
+
+  it('prompts/byok route returns anti-hallucination grounded template', async () => {
+    const res = await app.request('/api/prompts/byok', { method: 'GET' });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { template: string };
+    expect(body.template).toBeDefined();
+    expect(body.template).toContain('return an empty string ""');
+    expect(body.template).not.toContain('infer a plausible example value');
+  });
 });
